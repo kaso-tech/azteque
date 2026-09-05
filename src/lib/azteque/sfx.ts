@@ -89,7 +89,34 @@ function tone(
   osc.stop(t + duration + 0.02);
 }
 
+/** Syllabe vocale filtrée : la base d'un rire. */
+function voiceBlip(at: number, freq: number, duration: number, gainValue: number) {
+  const ac = audio();
+  if (!ac) return;
+  const t = ac.currentTime + at;
+  const osc = ac.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(freq * 1.12, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.82, t + duration);
+
+  const formant = ac.createBiquadFilter();
+  formant.type = "bandpass";
+  formant.Q.value = 4;
+  formant.frequency.setValueAtTime(760, t);
+  formant.frequency.exponentialRampToValueAtTime(1180, t + duration);
+
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(gainValue, t + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+  osc.connect(formant).connect(gain).connect(ac.destination);
+  osc.start(t);
+  osc.stop(t + duration + 0.02);
+}
+
 export const sfx = {
+
   /** La carte quitte la main et se pose sur la table. */
   place() {
     noise(0, 0.13, 0.16, 2600, 700);
