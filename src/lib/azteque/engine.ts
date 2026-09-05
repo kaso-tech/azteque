@@ -406,7 +406,7 @@ export function endRound(s: GameState): GameState {
   } else {
     s.log.unshift(
       winner === null
-        ? "Tour nul : égalité."
+        ? "Pont ! Égalité : le tour est rejoué."
         : `${name(winner)} remporte le tour (${Math.max(s0.total, s1.total)} pts).`,
     );
   }
