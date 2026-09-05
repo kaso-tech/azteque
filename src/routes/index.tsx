@@ -155,44 +155,81 @@ function Azteque() {
     return;
   }, [started, freshRound, roundKey, state, settings.difficulty]);
 
-  // Résolution du pli après un délai réglable
+  // Résolution du pli : ramassage animé puis pioche, avec de petites pauses
   useEffect(() => {
     if (state.phase !== "playing" || state.trick.length < 2) return;
-    const t = setTimeout(() => {
-      const stockRect = stockRef.current?.getBoundingClientRect();
-      const targets = [playerHandRef.current, opponentHandRef.current] as const;
-      const next = resolveTrick(state);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const center = (el: HTMLElement | null | undefined) => {
+      const r = el?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    };
 
-      if (stockRect && state.stock.length > next.stock.length && next.lastTrickWinner !== null) {
+    timers.push(
+      setTimeout(() => {
+        const next = resolveTrick(state);
         const winner = next.lastTrickWinner;
-        const loser: PlayerIndex = winner === 0 ? 1 : 0;
-        const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
-        const from = {
-          x: stockRect.left + stockRect.width / 2,
-          y: stockRect.top + stockRect.height / 2,
-        };
-        const flights = order.flatMap((player, index) => {
-          const targetRect = targets[player]?.getBoundingClientRect();
-          if (!targetRect) return [];
-          return [{
-            id: Date.now() + index,
-            player,
-            from,
-            to: {
-              x: targetRect.left + targetRect.width / 2,
-              y: targetRect.top + targetRect.height / 2,
-            },
-            delay: index * 220,
-          }];
-        });
-        setDrawFlights(flights);
-        setTimeout(() => setDrawFlights([]), 1150);
-      }
+        const first = state.trick[0]!;
+        const second = state.trick[1]!;
+        const fromFirst = center(trickSlotRefs[first.player].current);
+        const fromSecond = center(trickSlotRefs[second.player].current);
+        const pileFirst = center(pileRefs[first.player].current);
+        const pileSecond = center(pileRefs[second.player].current);
 
-      setState(next);
-    }, settings.trickDelay);
-    return () => clearTimeout(t);
+        const flights: typeof collect = [];
+        let lastDelay = 0;
+        // 1. La carte du premier joueur rejoint son propre tas.
+        if (fromFirst && pileFirst)
+          flights.push({ id: 1, card: first.card, from: fromFirst, to: pileFirst, delay: 0 });
+
+        if (winner === first.player) {
+          // 2. La carte plus faible du second rejoint le tas du premier.
+          if (fromSecond && pileFirst)
+            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileFirst, delay: 380 });
+          lastDelay = 380;
+        } else {
+          // 2. Le second bat : sa carte va sur son tas…
+          if (fromSecond && pileSecond)
+            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileSecond, delay: 380 });
+          // 3. …et la carte du premier quitte son tas pour le rejoindre.
+          if (pileFirst && pileSecond)
+            flights.push({ id: 3, card: first.card, from: pileFirst, to: pileSecond, delay: 780 });
+          lastDelay = 780;
+        }
+
+        setCollect(flights);
+
+        timers.push(
+          setTimeout(() => {
+            const stockRect = stockRef.current?.getBoundingClientRect();
+            const targets = [playerHandRef.current, opponentHandRef.current] as const;
+
+            if (stockRect && state.stock.length > next.stock.length && winner !== null) {
+              const loser: PlayerIndex = winner === 0 ? 1 : 0;
+              const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
+              const from = {
+                x: stockRect.left + stockRect.width / 2,
+                y: stockRect.top + stockRect.height / 2,
+              };
+              const draws = order.flatMap((player, index) => {
+                const to = center(targets[player]);
+                if (!to) return [];
+                return [{ id: Date.now() + index, player, from, to, delay: 260 + index * 320 }];
+              });
+              setDrawFlights(draws);
+              timers.push(setTimeout(() => setDrawFlights([]), 1600));
+            }
+
+            setCollect([]);
+            setState(next);
+          }, lastDelay + 520),
+        );
+      }, settings.trickDelay),
+    );
+
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.trickDelay]);
+
 
   // Tour de l'ordinateur
   useEffect(() => {
