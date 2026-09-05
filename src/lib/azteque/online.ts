@@ -108,3 +108,28 @@ export function subscribeMatch(id: string, onChange: (row: MatchRow) => void) {
     void supabase.removeChannel(channel);
   };
 }
+
+export interface ChatMessage {
+  id: string;
+  seat: "host" | "guest";
+  name: string;
+  text: string;
+  reaction?: "taunt" | "cheer" | null;
+}
+
+/** Salon de discussion temps réel (broadcast, sans stockage). */
+export function openChat(matchId: string, onMessage: (msg: ChatMessage) => void) {
+  const channel = supabase.channel(`chat-${matchId}`, { config: { broadcast: { self: false } } });
+  channel
+    .on("broadcast", { event: "msg" }, ({ payload }) => onMessage(payload as ChatMessage))
+    .subscribe();
+  return {
+    send: (msg: ChatMessage) => {
+      void channel.send({ type: "broadcast", event: "msg", payload: msg });
+    },
+    close: () => {
+      void supabase.removeChannel(channel);
+    },
+  };
+}
+
