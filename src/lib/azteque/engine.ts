@@ -118,6 +118,7 @@ export function newRound(
     roundWinner: null,
     champWinner: null,
     instantWin: false,
+    pont: false,
     log: ["Nouveau tour : 6 cartes distribuées à chaque joueur."],
   };
 }
