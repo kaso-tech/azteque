@@ -246,7 +246,7 @@ function Azteque() {
 
     timers.push(
       setTimeout(() => {
-        const next = resolveTrick(state);
+        const next = resolveTrick(state, { atout10: settings.atout10 });
         const winner = next.lastTrickWinner;
         const first = state.trick[0]!;
         const second = state.trick[1]!;
@@ -270,9 +270,45 @@ function Azteque() {
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
 
+        // Règle « Atout 10 » : transfert animé de tout le tas adverse
+        const sweeps =
+          winner !== null && trickCapturesPile(state, { atout10: settings.atout10 })
+            ? state.gains[winner === 0 ? 1 : 0].length
+            : 0;
+        const loserPile =
+          winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
+
         timers.push(
           setTimeout(() => {
             setCollect([]);
+            if (sweeps > 0 && loserPile && winnerPile) {
+              const layers = Math.min(6, sweeps);
+              sfx.sweep();
+              setPhaseMsg(
+                winner === 0
+                  ? `Atout 10 ! Vous raflez le tas adverse (${sweeps})`
+                  : `Atout 10 ! L'adversaire rafle votre tas (${sweeps})`,
+              );
+              setSweepFlights(
+                Array.from({ length: layers }, (_, i) => ({
+                  id: i,
+                  from: loserPile,
+                  to: winnerPile,
+                  delay: i * 90,
+                })),
+              );
+              timers.push(
+                setTimeout(
+                  () => {
+                    setSweepFlights([]);
+                    setState(next);
+                    timers.push(setTimeout(() => setPhaseMsg(null), 900));
+                  },
+                  layers * 90 + 620,
+                ),
+              );
+              return;
+            }
             setState(next);
             timers.push(setTimeout(() => setPhaseMsg(null), 600));
           }, lastDelay + 560),
@@ -283,7 +319,8 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.trickDelay]);
+  }, [state, settings.trickDelay, settings.atout10]);
+
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
   // La carte n'apparaît dans la main qu'à l'arrivée de l'animation.
