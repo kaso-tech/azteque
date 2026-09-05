@@ -110,4 +110,13 @@ export const sfx = {
   draw() {
     noise(0, 0.1, 0.1, 3200, 1200);
   },
+  /** Atout 10 : tout le tas adverse est raflé. */
+  sweep() {
+    noise(0, 0.55, 0.22, 900, 4200, "bandpass");
+    noise(0.18, 0.45, 0.16, 2400, 400, "lowpass");
+    tone(0.02, 330, 0.5, 0.06, "triangle", 990);
+    tone(0.22, 494, 0.36, 0.05, "sine", 740);
+    tone(0.42, 740, 0.4, 0.045, "triangle", 988);
+  },
 };
+
