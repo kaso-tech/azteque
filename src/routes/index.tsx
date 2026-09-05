@@ -883,6 +883,8 @@ function HandRow({
       onPointerMove={interactive ? handlePointerMove : undefined}
       onPointerUp={interactive ? handlePointerUp : undefined}
       onPointerCancel={interactive ? handlePointerUp : undefined}
+      onPointerLeave={interactive ? handlePointerUp : undefined}
+
     >
       {ordered.map((c) => (
         <div
