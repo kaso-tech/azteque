@@ -98,6 +98,10 @@ function Azteque() {
   const [drawFlights, setDrawFlights] = useState<
     { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
+  const [sweepFlights, setSweepFlights] = useState<
+    { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
+
   const tableRef = useRef<HTMLDivElement | null>(null);
   const stockRef = useRef<HTMLDivElement | null>(null);
   const opponentHandRef = useRef<HTMLDivElement | null>(null);
