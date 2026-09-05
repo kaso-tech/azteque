@@ -858,7 +858,42 @@ function TrickPosition({
   );
 }
 
+function SweepCard({
+  from,
+  to,
+  delay,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  delay: number;
+}) {
+  const [departed, setDeparted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDeparted(true), delay + 20);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <div
+      className="pointer-events-none fixed z-50 w-10 drop-shadow-[0_14px_22px_rgba(0,0,0,0.5)]"
+      aria-hidden="true"
+      style={{
+        left: departed ? to.x : from.x,
+        top: departed ? to.y : from.y,
+        transform: `translate(-50%, -50%) scale(${departed ? 1 : 1.06}) rotate(${departed ? 8 : -6}deg)`,
+        opacity: departed ? 1 : 0.95,
+        transition:
+          "left 0.6s cubic-bezier(.2,.8,.25,1), top 0.6s cubic-bezier(.2,.8,.25,1), transform 0.6s cubic-bezier(.2,.8,.25,1)",
+      }}
+    >
+      <PlayingCard faceDown size="sm" />
+    </div>
+  );
+}
+
 function CollectCard({
+
   card,
   from,
   to,
