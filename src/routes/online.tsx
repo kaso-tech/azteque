@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +35,7 @@ export const Route = createFileRoute("/online")({
 
 function OnlineLobby() {
   const { code: codeParam } = Route.useSearch();
+  const navigate = useNavigate();
   const [name, setName] = useState("Joueur");
   const [codeInput, setCodeInput] = useState(codeParam ? normalizeCode(codeParam) : "");
   const [match, setMatch] = useState<MatchRow | null>(null);
@@ -140,8 +141,18 @@ function OnlineLobby() {
             <Button onClick={share} variant="secondary">
               {copied ? "Lien copié !" : "Partager l'invitation"}
             </Button>
-            <Button disabled={!ready} className="font-semibold">
-              {ready ? "La table arrive (prochaine étape)" : "En attente du second joueur…"}
+            <Button
+              disabled={!ready}
+              className="font-semibold"
+              onClick={() =>
+                navigate({
+                  to: "/match/$id",
+                  params: { id: match.id },
+                  search: { seat: role === "guest" ? "guest" : "host" },
+                })
+              }
+            >
+              {ready ? "Entrer à la table" : "En attente du second joueur…"}
             </Button>
           </div>
         </div>
