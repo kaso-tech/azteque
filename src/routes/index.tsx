@@ -306,6 +306,14 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
+        {state.stock.length > 0 && (
+          <div className="absolute left-3 top-3 flex items-center gap-2" aria-label={`Pioche, ${state.stock.length} cartes`}>
+            <PlayingCard faceDown size="sm" />
+            <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-1 text-[0.65rem] font-semibold text-gold">
+              {state.stock.length}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-4">
           {state.trick.length === 0 ? (
             <p className="text-sm text-muted-foreground">
