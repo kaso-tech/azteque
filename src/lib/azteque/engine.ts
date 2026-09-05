@@ -427,6 +427,33 @@ export function aiAnnounce(state: GameState): { suits: Suit[]; trump: Suit | nul
   return { suits, trump: state.trump === null ? best.suit : null };
 }
 
+/**
+ * Annonce réfléchie : aux niveaux élevés, l'IA diffère la première annonce
+ * tant qu'elle garde des bonnes (10 / As) dans d'autres couleurs, car fixer
+ * l'atout rendrait ces bonnes vulnérables. Elle attend d'avoir libéré ces
+ * bonnes, sauf si la pioche s'épuise (dernière occasion d'annoncer).
+ */
+export function aiAnnounceAt(
+  state: GameState,
+  level: Difficulty,
+): { suits: Suit[]; trump: Suit | null } | null {
+  const base = aiAnnounce(state);
+  if (!base) return null;
+  if (level !== "maitre" && level !== "legende") return base;
+
+  // L'atout est déjà fixé : plus rien à optimiser, on encaisse les points.
+  if (state.trump !== null || !base.trump) return base;
+
+  const loose = state.hands[1].filter((c) => isBonne(c) && c.suit !== base.trump);
+  if (loose.length === 0) return base;
+
+  // Nombre approximatif de plis restants avant l'épuisement de la pioche.
+  const tricksLeft = Math.floor(state.stock.length / 2);
+  // Assez de temps pour écouler ces bonnes en toute sécurité : on patiente.
+  if (tricksLeft > loose.length + 1) return null;
+  return base;
+}
+
 export function aiChooseCard(state: GameState): Card {
   const legal = legalCards(state, 1);
   const trump = state.trump;
