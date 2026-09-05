@@ -758,6 +758,13 @@ function Azteque() {
         <CollectCard key={flight.id} {...flight} />
       ))}
 
+      {/* Atout 10 : transfert du tas adverse */}
+      {sweepFlights.map((flight) => (
+        <SweepCard key={flight.id} {...flight} />
+      ))}
+
+
+
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
