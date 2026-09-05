@@ -1,7 +1,6 @@
 import { SUIT_NAME, type Card } from "@/lib/azteque/engine";
 import { CARD_BACK_ASSET, getCardAsset } from "@/lib/azteque/card-assets";
 import { cn } from "@/lib/utils";
-import cardReference from "@/assets/cartes-azteque-reference.jpg.asset.json";
 
 interface Props {
   card?: Card;
