@@ -473,15 +473,7 @@ function Azteque() {
       {/* Adversaire */}
       <section className="flex items-start justify-between gap-3">
         <div className="flex w-full flex-col gap-2">
-          <ScoreBox
-            title="Adversaire"
-            bonnes={revealOpp ? oppBonnes : null}
-            comptes={live1.comptes}
-            melds={state.melds[1].map(
-              (m) =>
-                `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
-            )}
-          />
+
           <div ref={opponentHandRef}>
             <HandRow
               cards={state.hands[1]}
@@ -696,15 +688,7 @@ function Azteque() {
             onPlay={playMyCard}
           />
         </div>
-        <ScoreBox
-          title="Vous"
-          bonnes={myBonnes}
-          comptes={live0.comptes}
-          melds={state.melds[0].map(
-            (m) =>
-              `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
-          )}
-        />
+
       </section>
 
 
