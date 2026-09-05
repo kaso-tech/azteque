@@ -156,3 +156,54 @@
     color: var(--color-foreground);
   }
 }
+
+@theme inline {
+  --color-felt: var(--felt);
+  --color-felt-deep: var(--felt-deep);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-card-face: var(--card-face);
+  --color-card-ink: var(--card-ink);
+  --color-card-red: var(--card-red);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    background-image: var(--gradient-felt);
+    background-attachment: fixed;
+    min-height: 100dvh;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+}
+
+@utility gold-text {
+  background-image: var(--gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility panel {
+  background-color: color-mix(in oklab, var(--card) 85%, transparent);
+  border: 1px solid color-mix(in oklab, var(--gold) 25%, transparent);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-table);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes deal-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes trick-in {
+  from { opacity: 0; transform: translateY(-10px) rotate(-4deg) scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+@utility animate-deal { animation: deal-in 0.35s ease-out both; }
+@utility animate-trick { animation: trick-in 0.3s ease-out both; }
