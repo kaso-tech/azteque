@@ -1159,14 +1159,15 @@ function SettingsPanel({
   onChange: (s: Settings) => void;
   onClose: () => void;
 }) {
-  const levels: Difficulty[] = ["facile", "normal", "expert"];
+  const levels: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
       <div className="panel w-full max-w-md p-6 text-left">
         <h2 className="gold-text text-2xl">Paramètres</h2>
 
         <p className="mt-5 text-sm text-foreground">Niveau de l'adversaire</p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
+
           {levels.map((l) => (
             <button
               key={l}
