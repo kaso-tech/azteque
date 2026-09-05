@@ -398,6 +398,7 @@ function Azteque() {
               exposedIds={state.exposed[1]}
               faceDown={(c) => !state.exposed[1].includes(c.id)}
               interactive={false}
+              keepSlots={state.stock.length > 0}
             />
           </div>
         </div>
@@ -567,6 +568,7 @@ function Azteque() {
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
+            keepSlots={state.stock.length > 0}
             isDisabled={(c) =>
               state.turn !== 0 ||
               state.phase !== "playing" ||
