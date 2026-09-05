@@ -155,6 +155,23 @@ function Azteque() {
     setSoundEnabled(settings.sound);
   }, [settings.sound]);
 
+  // Jetons : solde persistant + récompense en fin de partie
+  useEffect(() => {
+    if (!profileReady) return;
+    try {
+      localStorage.setItem("azteque-tokens", String(tokens));
+    } catch {
+      /* ignore */
+    }
+  }, [tokens, profileReady]);
+
+  useEffect(() => {
+    if (state.phase === "gameEnd" && state.champWinner === 0 && !tokenAwarded.current) {
+      tokenAwarded.current = true;
+      setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]);
+    }
+  }, [state.phase, state.champWinner, settings.difficulty]);
+
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
   }, [state.phase, state.gains]);
@@ -415,6 +432,7 @@ function Azteque() {
 
   const restart = useCallback(() => {
     setMeldHistory([]);
+    tokenAwarded.current = false;
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
@@ -499,13 +517,9 @@ function Azteque() {
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
             {state.roundsWon[0]} <span className="text-muted-foreground">—</span> {state.roundsWon[1]}
           </p>
-          <button
-            type="button"
-            onClick={() => setShowHistory(true)}
-            className="text-[0.58rem] text-muted-foreground underline decoration-gold/40 underline-offset-2"
-          >
-            Comptes · {meldHistory.length}
-          </button>
+          <p className="mt-0.5 whitespace-nowrap text-[0.62rem] font-semibold text-gold">
+            🪙 {TOKEN_REWARDS[settings.difficulty]} jetons à gagner
+          </p>
         </div>
         <ProfileButton
           name={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
