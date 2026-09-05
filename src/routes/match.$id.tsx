@@ -24,7 +24,9 @@ import {
   TrickPosition,
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
+import { MatchChat } from "@/components/azteque/MatchChat";
 import { ensureOnlineIdentity, getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
+
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -140,6 +142,24 @@ function OnlineTable() {
     }, 700);
     return () => clearTimeout(t);
   }, [isHost, state, publish]);
+
+  // Acclamations / rire moqueur en fin de tour
+  const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
+  useEffect(() => {
+    if (!state) return;
+    if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
+    const won =
+      state.phase === "gameEnd" ? state.champWinner === me : state.roundWinner === me;
+    const lost =
+      state.phase === "gameEnd" ? state.champWinner === opp : state.roundWinner === opp;
+    const t = setTimeout(() => {
+      if (won) sfx.cheer();
+      else if (lost) sfx.taunt();
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseKey, me, opp]);
+
 
   const myMelds = useMemo(
     () => (state ? availableMelds(state, me) : []),
@@ -437,6 +457,9 @@ function OnlineTable() {
           onClose={() => setShowMyBonnes(false)}
         />
       )}
+
+      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
     </main>
+
   );
 }

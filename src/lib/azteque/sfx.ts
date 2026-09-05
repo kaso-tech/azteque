@@ -89,7 +89,34 @@ function tone(
   osc.stop(t + duration + 0.02);
 }
 
+/** Syllabe vocale filtrée : la base d'un rire. */
+function voiceBlip(at: number, freq: number, duration: number, gainValue: number) {
+  const ac = audio();
+  if (!ac) return;
+  const t = ac.currentTime + at;
+  const osc = ac.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(freq * 1.12, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.82, t + duration);
+
+  const formant = ac.createBiquadFilter();
+  formant.type = "bandpass";
+  formant.Q.value = 4;
+  formant.frequency.setValueAtTime(760, t);
+  formant.frequency.exponentialRampToValueAtTime(1180, t + duration);
+
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(gainValue, t + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+  osc.connect(formant).connect(gain).connect(ac.destination);
+  osc.start(t);
+  osc.stop(t + duration + 0.02);
+}
+
 export const sfx = {
+
   /** La carte quitte la main et se pose sur la table. */
   place() {
     noise(0, 0.13, 0.16, 2600, 700);
@@ -118,5 +145,25 @@ export const sfx = {
     tone(0.22, 494, 0.36, 0.05, "sine", 740);
     tone(0.42, 740, 0.4, 0.045, "triangle", 988);
   },
+  /** Rire moqueur : suite de « ha » descendants. */
+  taunt() {
+    const base = 250;
+    for (let i = 0; i < 5; i += 1) {
+      const at = i * 0.16;
+      const f = base * Math.pow(0.9, i);
+      voiceBlip(at, f, 0.11, 0.075);
+      noise(at, 0.06, 0.03, 1400, 500, "bandpass");
+    }
+  },
+  /** Acclamations : applaudissements et clameur. */
+  cheer() {
+    for (let i = 0; i < 26; i += 1) {
+      noise(Math.random() * 1.1, 0.05, 0.05 + Math.random() * 0.05, 2600, 1100, "bandpass");
+    }
+    noise(0, 1.3, 0.09, 500, 1600, "bandpass");
+    tone(0.05, 523, 0.7, 0.045, "triangle", 784);
+    tone(0.3, 659, 0.6, 0.04, "sine", 988);
+  },
 };
+
 
