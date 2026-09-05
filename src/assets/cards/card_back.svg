@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="350" viewBox="0 0 250 350" role="img" aria-labelledby="title desc">
+<title id="title">Dos de carte Aztèque</title><desc id="desc">Motif géométrique original et parfaitement symétrique</desc>
+<defs><pattern id="weave" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M0 12 12 0l12 12-12 12Z" fill="none" stroke="#d7ab45" stroke-width="2"/><circle cx="12" cy="12" r="2.5" fill="#d7ab45"/></pattern><linearGradient id="deep" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#123f38"/><stop offset=".5" stop-color="#0d2f2a"/><stop offset="1" stop-color="#123f38"/></linearGradient></defs>
+<rect x="2" y="2" width="246" height="346" rx="15" fill="#fffdf7" stroke="#111820" stroke-width="3"/>
+<rect x="9" y="9" width="232" height="332" rx="10" fill="url(#deep)" stroke="#d7ab45" stroke-width="2"/>
+<rect x="16" y="16" width="218" height="318" rx="6" fill="url(#weave)" opacity=".46"/>
+<rect x="28" y="28" width="194" height="294" rx="3" fill="none" stroke="#d7ab45" stroke-width="3"/>
+<g transform="translate(125 175)" fill="none" stroke="#e5bd61">
+<path d="M0-103 72-72 103 0 72 72 0 103-72 72-103 0-72-72Z" fill="#123f38" stroke-width="4"/>
+<path d="M0-83 59-59 83 0 59 59 0 83-59 59-83 0-59-59Z" stroke-width="2"/>
+<path d="M0-66 18-30 58-20 30 10 36 53 0 34-36 53-30 10-58-20-18-30Z" fill="#a93534" stroke-width="3"/>
+<circle r="24" fill="#d7ab45"/><path d="M0-15 13 0 0 15-13 0Z" fill="#123f38" stroke="#123f38"/>
+</g>
+<g fill="#fff3cf" font-family="Georgia,serif" font-weight="700" text-anchor="middle" letter-spacing="2"><text x="125" y="181" font-size="13">AZTÈQUE</text></g>
+</svg>
