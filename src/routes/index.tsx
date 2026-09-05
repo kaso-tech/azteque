@@ -651,9 +651,11 @@ function Azteque() {
 function TrickPosition({
   trick,
   player,
+  hidden,
 }: {
   trick: GameState["trick"];
   player: PlayerIndex;
+  hidden?: boolean;
 }) {
   const played = trick.find((entry) => entry.player === player);
   if (!played) return <div className="h-28 w-[4.5rem]" aria-hidden="true" />;
@@ -661,14 +663,53 @@ function TrickPosition({
 
   return (
     <div className="flex w-[4.5rem] flex-col items-center gap-1">
-      <PlayingCard card={played.card} size="lg" className="animate-trick" />
-      <span className="text-[0.65rem] text-muted-foreground">
+      <span className={cn("block w-full", hidden && "invisible")}>
+        <PlayingCard card={played.card} size="lg" className="animate-trick" />
+      </span>
+      <span className={cn("text-[0.65rem] text-muted-foreground", hidden && "opacity-0")}>
         {player === 0 ? "Vous" : "Adversaire"}
         {led ? " (mène)" : ""}
       </span>
     </div>
   );
 }
+
+function CollectCard({
+  card,
+  from,
+  to,
+  delay,
+}: {
+  card: Card;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  delay: number;
+}) {
+  const [departed, setDeparted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDeparted(true), delay + 20);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <div
+      className="pointer-events-none fixed z-50 w-[4.5rem] drop-shadow-[0_12px_18px_rgba(0,0,0,0.45)]"
+      aria-hidden="true"
+      style={{
+        left: departed ? to.x : from.x,
+        top: departed ? to.y : from.y,
+        transform: `translate(-50%, -50%) scale(${departed ? 0.6 : 1}) rotate(${departed ? 8 : 0}deg)`,
+        opacity: departed ? 0.15 : 1,
+        transition:
+          "left 0.45s cubic-bezier(.25,.9,.3,1), top 0.45s cubic-bezier(.25,.9,.3,1), transform 0.45s cubic-bezier(.25,.9,.3,1), opacity 0.2s ease 0.3s",
+      }}
+    >
+      <PlayingCard card={card} size="hand" />
+    </div>
+  );
+}
+
 
 function CapturedPile({
   cards,
