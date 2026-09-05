@@ -712,6 +712,10 @@ function Azteque() {
       {showMyGains && (
         <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
       )}
+      {showHistory && (
+        <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
+      )}
+
     </main>
   );
 }
