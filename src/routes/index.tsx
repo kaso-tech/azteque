@@ -67,6 +67,12 @@ function Azteque() {
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
+  const [meldHistory, setMeldHistory] = useState<
+    { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
+
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
   >(null);
