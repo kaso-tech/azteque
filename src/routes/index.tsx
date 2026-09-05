@@ -150,7 +150,10 @@ function Azteque() {
   const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
     () =>
-      state.turn === 0 && state.phase === "playing" && state.trick.length < 2
+      state.turn === 0 &&
+      state.phase === "playing" &&
+      state.trick.length < 2 &&
+      state.drawPending.length === 0
         ? legalCards(state, 0)
         : [],
     [state],
@@ -641,6 +644,17 @@ function Azteque() {
                 </button>
               </div>
             )}
+            {meldPick.length === 0 && state.drawPending[0] === 0 && (
+              <button
+                onClick={() => {
+                  setMeldPassed(true);
+                  setMeldPick([]);
+                }}
+                className="mt-3 rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                Piocher sans annoncer
+              </button>
+            )}
           </div>
         )}
 
@@ -662,6 +676,7 @@ function Azteque() {
               state.turn !== 0 ||
               state.phase !== "playing" ||
               state.trick.length >= 2 ||
+              state.drawPending.length > 0 ||
               !legalIds.has(c.id)
             }
             onPlay={playMyCard}
