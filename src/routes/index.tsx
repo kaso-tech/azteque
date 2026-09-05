@@ -616,8 +616,8 @@ function HandRow({
         >
           <PlayingCard
             card={c}
-            size="lg"
-            className="w-full animate-deal"
+            size="hand"
+            className="animate-deal"
             exposed={exposedIds.includes(c.id)}
             disabled={isDisabled(c)}
             onClick={(el) => {

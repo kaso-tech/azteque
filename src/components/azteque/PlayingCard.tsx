@@ -7,7 +7,7 @@ interface Props {
   faceDown?: boolean;
   disabled?: boolean;
   exposed?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "hand";
   onClick?: (el: HTMLElement) => void;
   className?: string;
 }
@@ -16,6 +16,7 @@ const sizes = {
   sm: "w-10 aspect-[5/7] text-[0.65rem]",
   md: "w-14 aspect-[5/7] text-sm",
   lg: "w-[4.5rem] aspect-[5/7] text-base",
+  hand: "w-full aspect-[5/7] text-base",
 };
 
 export function PlayingCard({
