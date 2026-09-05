@@ -13,9 +13,9 @@ interface Props {
 }
 
 const sizes = {
-  sm: "w-10 h-14 text-[0.65rem]",
-  md: "w-14 h-20 text-sm",
-  lg: "w-[4.5rem] h-[6.5rem] text-base",
+  sm: "w-10 aspect-[5/7] text-[0.65rem]",
+  md: "w-14 aspect-[5/7] text-sm",
+  lg: "w-[4.5rem] aspect-[5/7] text-base",
 };
 
 export function PlayingCard({
