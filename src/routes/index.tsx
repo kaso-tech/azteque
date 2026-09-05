@@ -530,6 +530,103 @@ function Azteque() {
   );
 }
 
+function HandRow({
+  cards,
+  exposedIds,
+  isDisabled,
+  onPlay,
+}: {
+  cards: Card[];
+  exposedIds: string[];
+  isDisabled: (c: Card) => boolean;
+  onPlay: (c: Card, el: HTMLElement) => void;
+}) {
+  const [order, setOrder] = useState<string[]>([]);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const dragId = useRef<string | null>(null);
+  const startX = useRef(0);
+  const moved = useRef(false);
+
+  useEffect(() => {
+    setOrder((prev) => {
+      const ids = cards.map((c) => c.id);
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  }, [cards]);
+
+  const ordered = useMemo(() => {
+    const byId = new Map(cards.map((c) => [c.id, c] as const));
+    const list = order.map((id) => byId.get(id)).filter(Boolean) as Card[];
+    for (const c of cards) if (!list.includes(c)) list.push(c);
+    return list;
+  }, [cards, order]);
+
+  const onPointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
+    dragId.current = id;
+    startX.current = e.clientX;
+    moved.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const id = dragId.current;
+    if (!id) return;
+    if (Math.abs(e.clientX - startX.current) > 10) moved.current = true;
+    if (!moved.current) return;
+    const row = rowRef.current;
+    if (!row) return;
+    const slots = Array.from(row.children) as HTMLElement[];
+    const target = slots.findIndex((el) => {
+      const r = el.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right;
+    });
+    if (target < 0) return;
+    setOrder((prev) => {
+      const from = prev.indexOf(id);
+      if (from < 0 || from === target) return prev;
+      const next = [...prev];
+      next.splice(from, 1);
+      next.splice(target, 0, id);
+      return next;
+    });
+  };
+
+  const onPointerUp = () => {
+    dragId.current = null;
+    setTimeout(() => {
+      moved.current = false;
+    }, 0);
+  };
+
+  return (
+    <div
+      ref={rowRef}
+      className="flex touch-none items-end justify-center gap-1 pt-4 sm:gap-2"
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      {ordered.map((c) => (
+        <div key={c.id} onPointerDown={onPointerDown(c.id)} className="transition-transform">
+          <PlayingCard
+            card={c}
+            size="lg"
+            className="animate-deal"
+            exposed={exposedIds.includes(c.id)}
+            disabled={isDisabled(c)}
+            onClick={(el) => {
+              if (moved.current) return;
+              onPlay(c, el);
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FlyingCard({
   card,
   from,
