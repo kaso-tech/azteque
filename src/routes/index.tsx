@@ -1159,7 +1159,7 @@ function SettingsPanel({
   onChange: (s: Settings) => void;
   onClose: () => void;
 }) {
-  const levels: Difficulty[] = ["facile", "normal", "expert"];
+  const levels: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
       <div className="panel w-full max-w-md p-6 text-left">
