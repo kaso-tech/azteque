@@ -76,6 +76,8 @@ function Azteque() {
   const [showAiProfile, setShowAiProfile] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
+  const [tokens, setTokens] = useState(0);
+  const tokenAwarded = useRef(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
@@ -124,6 +126,7 @@ function Azteque() {
       if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
       const savedName = localStorage.getItem("azteque-player-name")?.trim();
       if (savedName) setPlayerName(savedName);
+      setTokens(Math.max(0, Number(localStorage.getItem("azteque-tokens")) || 0));
       else setShowPlayerProfile(true);
     } catch {
       /* ignore */
