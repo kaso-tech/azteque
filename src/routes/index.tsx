@@ -1335,6 +1335,25 @@ function PlayerProfilePanel({
           ))}
         </div>
 
+        <p className="mt-6 text-sm text-foreground">Règle « Atout 10 »</p>
+        <div className="mt-2 flex gap-2">
+          {[true, false].map((on) => (
+            <Button
+              key={`atout10-${String(on)}`}
+              type="button"
+              size="sm"
+              variant={settings.atout10 === on ? "default" : "outline"}
+              onClick={() => onChange({ ...settings, atout10: on })}
+            >
+              {on ? "Activée" : "Désactivée"}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">
+          Prendre un 10 de la couleur d'atout rafle tout le tas de l'adversaire.
+        </p>
+
+
         <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
         <input
           type="range"
