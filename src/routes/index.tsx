@@ -159,6 +159,15 @@ function Azteque() {
     [state],
   );
   const legalIds = useMemo(() => new Set(legal.map((c) => c.id)), [legal]);
+  const canPassMeldByPlaying =
+    state.phase === "playing" &&
+    state.canAnnounce === 0 &&
+    state.drawPending[0] === 0 &&
+    myMelds.length > 0;
+  const passableCardIds = useMemo(
+    () => new Set(canPassMeldByPlaying ? legalCards(state, 0).map((c) => c.id) : []),
+    [canPassMeldByPlaying, state],
+  );
 
   const freshRound =
     state.phase === "playing" &&
@@ -350,6 +359,17 @@ function Azteque() {
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
+    // Toucher une carte pendant la proposition revient à renoncer au compte.
+    // La pioche obligatoire se déroule alors avant que le joueur puisse jouer.
+    if (
+      state.canAnnounce === 0 &&
+      state.drawPending[0] === 0 &&
+      availableMelds(state, 0).length > 0
+    ) {
+      setMeldPassed(true);
+      setMeldPick([]);
+      return;
+    }
     const r = el.getBoundingClientRect();
     const t = tableRef.current?.getBoundingClientRect();
     if (t) {
@@ -630,17 +650,6 @@ function Azteque() {
                 </button>
               </div>
             )}
-            {meldPick.length === 0 && state.drawPending[0] === 0 && (
-              <button
-                onClick={() => {
-                  setMeldPassed(true);
-                  setMeldPick([]);
-                }}
-                className="mt-1.5 rounded border border-border px-2 py-1 text-[0.58rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
-              >
-                Passer
-              </button>
-            )}
           </div>
         )}
 
@@ -659,11 +668,13 @@ function Azteque() {
             exposedIds={state.exposed[0]}
             keepSlots={state.stock.length > 0}
             isDisabled={(c) =>
-              state.turn !== 0 ||
-              state.phase !== "playing" ||
-              state.trick.length >= 2 ||
-              state.drawPending.length > 0 ||
-              !legalIds.has(c.id)
+              canPassMeldByPlaying
+                ? !passableCardIds.has(c.id)
+                : state.turn !== 0 ||
+                  state.phase !== "playing" ||
+                  state.trick.length >= 2 ||
+                  state.drawPending.length > 0 ||
+                  !legalIds.has(c.id)
             }
             onPlay={playMyCard}
           />
