@@ -232,6 +232,7 @@ const name = (p: PlayerIndex) => (p === 0 ? "Vous" : "L'adversaire");
 
 export function playCard(state: GameState, p: PlayerIndex, cardId: string): GameState {
   if (state.phase !== "playing" || state.turn !== p) return state;
+  if (state.drawPending.length > 0) return state; // pioche obligatoire avant de jouer
   const card = state.hands[p].find((c) => c.id === cardId);
   if (!card) return state;
   if (!legalCards(state, p).some((c) => c.id === cardId)) return state;
