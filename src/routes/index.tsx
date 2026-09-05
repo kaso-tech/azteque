@@ -4,7 +4,7 @@ import {
   DIFFICULTY_LABEL,
   SUIT_NAME,
   SUIT_SYMBOL,
-  aiAnnounce,
+  aiAnnounceAt,
   aiChooseCardAt,
   aiWantsRedeal,
   announce,
@@ -337,7 +337,7 @@ function Azteque() {
         const t = setTimeout(() => {
           setState((s) => {
             if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
-            const a = aiAnnounce(s);
+            const a = aiAnnounceAt(s, settings.difficulty);
             return a ? announce(s, 1, a.suits, a.trump) : { ...s, canAnnounce: null };
           });
         }, 650);
@@ -381,7 +381,7 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, settings.difficulty]);
 
   // Tour de l'ordinateur
   useEffect(() => {
@@ -793,13 +793,18 @@ function Azteque() {
                   ? "Champ remporté !"
                   : "Champ perdu"
                 : state.roundWinner === null
-                  ? "Tour nul"
+                  ? "Pont !"
                   : state.roundWinner === 0
                     ? "Tour gagné"
                     : "Tour perdu"}
             </h2>
             {state.instantWin && (
               <p className="mt-1 text-xs text-accent">Treize bonnes ou plus en un tour.</p>
+            )}
+            {state.pont && state.phase === "roundEnd" && (
+              <p className="mt-1 text-xs text-accent">
+                Égalité parfaite : aucun tour marqué, on rejoue le tour.
+              </p>
             )}
             <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
               <Recap title="Vous" s={state.roundScore[0]} />
@@ -812,7 +817,11 @@ function Azteque() {
               onClick={state.phase === "gameEnd" ? restart : nextRound}
               className="mt-5 rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
             >
-              {state.phase === "gameEnd" ? "Nouvelle partie" : "Tour suivant"}
+              {state.phase === "gameEnd"
+                ? "Nouvelle partie"
+                : state.pont
+                  ? "Rejouer le tour"
+                  : "Tour suivant"}
             </button>
           </div>
         </div>
