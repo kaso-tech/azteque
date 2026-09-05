@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DIFFICULTY_LABEL,
   SUIT_NAME,
@@ -1261,16 +1263,19 @@ function Chip({
   label,
   value,
   highlight,
+  className,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  className?: string;
 }) {
   return (
     <span
       className={cn(
-        "rounded-full border px-3 py-1.5",
-        highlight ? "border-gold/60 text-gold" : "border-border text-muted-foreground",
+        "rounded-full border px-2 py-1 text-[0.6rem]",
+        highlight ? "border-gold/60 text-gold bg-gold/5" : "border-border text-muted-foreground",
+        className
       )}
     >
       {label} · {value}
@@ -1283,20 +1288,42 @@ function ScoreBox({
   bonnes,
   comptes,
   melds,
+  isTurn,
+  avatar,
 }: {
   title: string;
   bonnes: number | null;
   comptes: number;
   melds: string[];
+  isTurn?: boolean;
+  avatar?: string;
 }) {
   return (
-    <div className="panel flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs">
-      <span className="font-display text-sm text-gold">{title}</span>
-      <span className="text-muted-foreground">Bonnes · {bonnes ?? "?"}</span>
-      <span className="text-muted-foreground">Comptes · {comptes}</span>
-      {melds.length > 0 && (
-        <span className="text-[0.65rem] text-muted-foreground">{melds.join(" | ")}</span>
-      )}
+    <div className={cn(
+      "panel flex flex-1 items-center gap-3 px-4 py-2 transition-all duration-300",
+      isTurn ? "ring-2 ring-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" : "opacity-90"
+    )}>
+      <Avatar className={cn("h-10 w-10 border-2 transition-colors", isTurn ? "border-gold" : "border-border")}>
+        <AvatarImage src={avatar} />
+        <AvatarFallback className="bg-gold/10 text-gold">{title[0]}</AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-display text-sm text-gold truncate">{title}</span>
+          {isTurn && (
+             <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0 text-[0.65rem] text-muted-foreground">
+          <span>Bonnes: {bonnes ?? "?"}</span>
+          <span>Comptes: {comptes}</span>
+        </div>
+        {melds.length > 0 && (
+          <p className="text-[0.6rem] text-muted-foreground/80 truncate italic">
+            {melds.join(" | ")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
