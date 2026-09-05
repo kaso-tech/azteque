@@ -33,7 +33,7 @@ export async function createMatch(hostName: string, settings: Record<string, unk
     const code = makeCode();
     const { data, error } = await supabase
       .from("matches")
-      .insert({ code, host_name: hostName || "Hôte", status: "waiting", settings })
+      .insert({ code, host_name: hostName || "Hôte", status: "waiting", settings: settings as never })
       .select()
       .single();
     if (!error && data) return data as unknown as MatchRow;
@@ -69,7 +69,7 @@ export async function joinMatch(code: string, guestName: string) {
 }
 
 export async function pushMatchState(id: string, state: unknown, status: MatchStatus = "playing") {
-  const { error } = await supabase.from("matches").update({ state, status }).eq("id", id);
+  const { error } = await supabase.from("matches").update({ state: state as never, status }).eq("id", id);
   if (error) throw error;
 }
 
