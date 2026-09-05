@@ -160,6 +160,15 @@ export function announce(
   suits: Suit[],
   trumpChoice: Suit | null,
 ): GameState {
+  // Un compte se déclare uniquement après avoir remporté le pli, avant la pioche :
+  // le joueur doit donc être le prochain à piocher et avoir exactement 5 cartes.
+  if (
+    state.phase !== "playing" ||
+    state.canAnnounce !== p ||
+    state.drawPending[0] !== p ||
+    state.hands[p].length !== 5
+  )
+    return state;
   const opts = availableMelds(state, p, true).filter((o) => suits.includes(o.suit));
   if (!opts.length) return state;
   const s = clone(state);
