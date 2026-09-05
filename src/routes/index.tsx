@@ -67,6 +67,12 @@ function Azteque() {
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
+  const [meldHistory, setMeldHistory] = useState<
+    { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
+
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
   >(null);
@@ -115,6 +121,29 @@ function Azteque() {
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
   }, [state.phase, state.gains]);
+
+  // Historique des comptes annoncés
+  useEffect(() => {
+    setMeldHistory((prev) => {
+      const known = new Set(prev.map((e) => e.key));
+      const added: typeof prev = [];
+      ([0, 1] as PlayerIndex[]).forEach((p) => {
+        state.melds[p].forEach((m) => {
+          const key = `${roundKey}-${p}-${m.suit}-${m.type}`;
+          if (known.has(key)) return;
+          added.push({
+            key,
+            round: roundKey + 1,
+            player: p,
+            label: `${SUIT_SYMBOL[m.suit]} ${SUIT_NAME[m.suit]} — compte ${m.type === "triple" ? "trio" : "simple"}`,
+            points: m.points,
+          });
+        });
+      });
+      return added.length > 0 ? [...prev, ...added] : prev;
+    });
+  }, [state.melds, roundKey]);
+
 
   const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
@@ -204,6 +233,9 @@ function Azteque() {
 
         if (winner === second.player) sfx.beat();
         else sfx.collect();
+        setPhaseMsg(
+          winner === 0 ? "Vous ramassez le pli" : "L'adversaire ramasse le pli",
+        );
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
 
@@ -222,19 +254,26 @@ function Azteque() {
               const draws = order.flatMap((player, index) => {
                 const to = center(targets[player]);
                 if (!to) return [];
-                return [{ id: Date.now() + index, player, from, to, delay: 260 + index * 320 }];
+                return [{ id: Date.now() + index, player, from, to, delay: 320 + index * 420 }];
               });
+              setPhaseMsg(
+                winner === 0 ? "Vous piochez en premier" : "L'adversaire pioche en premier",
+              );
               setDrawFlights(draws);
               draws.forEach((d) =>
                 timers.push(setTimeout(() => sfx.draw(), d.delay)),
               );
-              timers.push(setTimeout(() => setDrawFlights([]), 1600));
+              timers.push(setTimeout(() => setDrawFlights([]), 1800));
+              timers.push(setTimeout(() => setPhaseMsg(null), 1800));
+            } else {
+              timers.push(setTimeout(() => setPhaseMsg(null), 600));
             }
 
             setCollect([]);
             setState(next);
-          }, lastDelay + 520),
+          }, lastDelay + 560),
         );
+
       }, settings.trickDelay),
     );
 
@@ -274,8 +313,10 @@ function Azteque() {
   }, []);
 
   const restart = useCallback(() => {
+    setMeldHistory([]);
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
+
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
@@ -366,11 +407,18 @@ function Azteque() {
             highlight={!!state.trump}
           />
           <button
+            onClick={() => setShowHistory(true)}
+            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
+          >
+            Comptes · {meldHistory.length}
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
           >
             Paramètres
           </button>
+
           <button
             onClick={() => setShowRules(true)}
             className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
@@ -461,11 +509,15 @@ function Azteque() {
           </div>
         </div>
 
-        {state.trick.length === 2 && collect.length === 0 && (
-          <p className="text-[0.7rem] uppercase tracking-widest text-gold-soft">
-            Comparaison des cartes…
+        {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
+          <p
+            key={phaseMsg ?? "compare"}
+            className="animate-banner rounded-full border border-gold/40 bg-felt-deep/70 px-3 py-1 text-[0.7rem] uppercase tracking-widest text-gold-soft"
+          >
+            {phaseMsg ?? "Comparaison des cartes…"}
           </p>
         )}
+
 
         {/* Main blanche */}
         {canRedeal && (
@@ -660,6 +712,10 @@ function Azteque() {
       {showMyGains && (
         <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
       )}
+      {showHistory && (
+        <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
+      )}
+
     </main>
   );
 }
@@ -718,7 +774,7 @@ function CollectCard({
         transform: `translate(-50%, -50%) scale(${departed ? 0.555 : 1}) rotate(${departed ? 4 : 0}deg)`,
         opacity: 1,
         transition:
-          "left 0.4s cubic-bezier(.3,.9,.3,1), top 0.4s cubic-bezier(.3,.9,.3,1), transform 0.4s cubic-bezier(.3,.9,.3,1)",
+          "left 0.55s cubic-bezier(.25,.85,.3,1), top 0.55s cubic-bezier(.25,.85,.3,1), transform 0.55s cubic-bezier(.25,.85,.3,1)",
       }}
     >
       <PlayingCard card={card} size="hand" />
@@ -898,6 +954,17 @@ function HandRow({
     }, 0);
   };
 
+  const seen = useRef<Set<string>>(new Set());
+  const [arriving, setArriving] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = cards.map((c) => c.id).filter((id) => !seen.current.has(id));
+    cards.forEach((c) => seen.current.add(c.id));
+    if (fresh.length === 0) return;
+    setArriving(new Set(fresh));
+    const t = setTimeout(() => setArriving(new Set()), 600);
+    return () => clearTimeout(t);
+  }, [cards]);
+
   return (
     <div
       ref={rowRef}
@@ -915,18 +982,18 @@ function HandRow({
             className="min-w-0 max-w-[4.5rem] flex-1"
             aria-hidden="true"
           >
-            <div className="aspect-[5/7] w-full rounded-[3px] border border-dashed border-white/15" />
+            <div className="animate-slot-wait aspect-[5/7] w-full rounded-[3px] border border-dashed border-gold/30" />
           </div>
         ) : (
           <div
             key={c.id}
             onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
-            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
+            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform duration-300"
           >
             <PlayingCard
               card={c}
               size="hand"
-              className="animate-deal"
+              className={arriving.has(c.id) ? "animate-slot-fill" : "animate-deal"}
               faceDown={faceDown ? faceDown(c) : false}
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
@@ -945,6 +1012,7 @@ function HandRow({
     </div>
   );
 }
+
 
 function StockPile({ count }: { count: number }) {
   const visibleLayers = Math.min(5, Math.max(1, Math.ceil(count / 8)));
@@ -1172,6 +1240,73 @@ function Recap({
       <p className="text-muted-foreground">Comptes : {s.comptes}</p>
       <p className="text-muted-foreground">Main : {s.main}</p>
       <p className="mt-1 font-semibold text-foreground">Total : {s.total}</p>
+    </div>
+  );
+}
+
+function MeldHistoryPanel({
+  entries,
+  onClose,
+}: {
+  entries: { key: string; round: number; player: PlayerIndex; label: string; points: number }[];
+  onClose: () => void;
+}) {
+  const totals = entries.reduce(
+    (acc, e) => {
+      acc[e.player] += e.points;
+      return acc;
+    },
+    [0, 0] as [number, number],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="panel animate-banner max-h-[85dvh] w-full max-w-md overflow-y-auto p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="gold-text text-2xl">Historique des comptes</h2>
+            <p className="text-xs text-muted-foreground">
+              Vous {totals[0]} pts · Adversaire {totals[1]} pts
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/40 text-lg text-gold"
+            aria-label="Fermer"
+          >
+            ×
+          </button>
+        </div>
+
+        {entries.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">
+            Aucun compte annoncé pour le moment.
+          </p>
+        ) : (
+          <ul className="mt-5 flex flex-col gap-2">
+            {entries.map((e) => (
+              <li
+                key={e.key}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs"
+              >
+                <span className="text-muted-foreground">Tour {e.round}</span>
+                <span className={e.player === 0 ? "text-gold" : "text-foreground"}>
+                  {e.player === 0 ? "Vous" : "Adversaire"}
+                </span>
+                <span className="flex-1 text-right text-muted-foreground">{e.label}</span>
+                <span className="font-semibold text-foreground">+{e.points}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
