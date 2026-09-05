@@ -87,7 +87,7 @@ function Azteque() {
     }
   }, [settings]);
 
-  const myMelds = useMemo(() => availableMelds(state, 0), [state]);
+  const myMelds = useMemo(() => availableMelds(state, 0, true), [state]);
   const legal = useMemo(
     () =>
       state.turn === 0 && state.phase === "playing" && state.trick.length < 2
