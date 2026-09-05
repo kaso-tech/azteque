@@ -118,5 +118,25 @@ export const sfx = {
     tone(0.22, 494, 0.36, 0.05, "sine", 740);
     tone(0.42, 740, 0.4, 0.045, "triangle", 988);
   },
+  /** Rire moqueur : suite de « ha » descendants. */
+  taunt() {
+    const base = 250;
+    for (let i = 0; i < 5; i += 1) {
+      const at = i * 0.16;
+      const f = base * Math.pow(0.9, i);
+      voiceBlip(at, f, 0.11, 0.075);
+      noise(at, 0.06, 0.03, 1400, 500, "bandpass");
+    }
+  },
+  /** Acclamations : applaudissements et clameur. */
+  cheer() {
+    for (let i = 0; i < 26; i += 1) {
+      noise(Math.random() * 1.1, 0.05, 0.05 + Math.random() * 0.05, 2600, 1100, "bandpass");
+    }
+    noise(0, 1.3, 0.09, 500, 1600, "bandpass");
+    tone(0.05, 523, 0.7, 0.045, "triangle", 784);
+    tone(0.3, 659, 0.6, 0.04, "sine", 988);
+  },
 };
+
 
