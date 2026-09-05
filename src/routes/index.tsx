@@ -482,6 +482,13 @@ function Azteque() {
           >
             Commencer une partie
           </button>
+          <Link
+            to="/online"
+            className="rounded-full border border-gold/50 px-8 py-3 font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
+          >
+            Jouer en ligne
+          </Link>
+
           <ProfileButton
             name={playerName}
             icon="player"
