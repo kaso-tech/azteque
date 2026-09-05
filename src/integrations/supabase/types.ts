@@ -18,7 +18,9 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          guest_id: string | null
           guest_name: string | null
+          host_id: string | null
           host_name: string
           id: string
           settings: Json
@@ -29,7 +31,9 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          guest_id?: string | null
           guest_name?: string | null
+          host_id?: string | null
           host_name: string
           id?: string
           settings?: Json
@@ -40,7 +44,9 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          guest_id?: string | null
           guest_name?: string | null
+          host_id?: string | null
           host_name?: string
           id?: string
           settings?: Json
@@ -55,7 +61,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      join_match_by_code: {
+        Args: { _code: string; _guest_name: string }
+        Returns: {
+          code: string
+          created_at: string
+          guest_id: string | null
+          guest_name: string | null
+          host_id: string | null
+          host_name: string
+          id: string
+          settings: Json
+          state: Json | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "matches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never
