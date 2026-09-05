@@ -68,6 +68,9 @@ function Azteque() {
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
   >(null);
+  const [collect, setCollect] = useState<
+    { id: number; card: Card; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
   const [drawFlights, setDrawFlights] = useState<
     { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
@@ -75,7 +78,16 @@ function Azteque() {
   const stockRef = useRef<HTMLDivElement | null>(null);
   const opponentHandRef = useRef<HTMLDivElement | null>(null);
   const playerHandRef = useRef<HTMLDivElement | null>(null);
+  const trickSlotRefs = [
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+  ] as const;
+  const pileRefs = [
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+  ] as const;
   const aiRedealChecked = useRef(-1);
+
 
   // Réglages persistants
   useEffect(() => {
