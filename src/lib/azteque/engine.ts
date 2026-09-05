@@ -458,9 +458,7 @@ export function unseenCards(state: GameState): Card[] {
 }
 
 /** Probabilité approximative que l'adversaire puisse battre `c` s'il est second. */
-function riskOfBeing Beaten(): number {
-  return 0;
-}
+
 
 function beatRisk(state: GameState, c: Card): number {
   const pool = unseenCards(state);
