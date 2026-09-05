@@ -75,6 +75,7 @@ function Azteque() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [showAiProfile, setShowAiProfile] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
+  const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
