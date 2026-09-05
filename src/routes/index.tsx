@@ -432,7 +432,10 @@ function Azteque() {
             onNameChange={setPlayerName}
             settings={settings}
             onChange={setSettings}
-            onRules={() => setShowRules(true)}
+            onRules={() => {
+              setShowPlayerProfile(false);
+              setShowRules(true);
+            }}
             onClose={() => setShowPlayerProfile(false)}
           />
         )}
@@ -758,7 +761,10 @@ function Azteque() {
           onNameChange={setPlayerName}
           settings={settings}
           onChange={setSettings}
-          onRules={() => setShowRules(true)}
+          onRules={() => {
+            setShowPlayerProfile(false);
+            setShowRules(true);
+          }}
           onClose={() => setShowPlayerProfile(false)}
         />
       )}
@@ -1161,109 +1167,145 @@ function DrawCard({
   );
 }
 
-function SettingsPanel({
+function ProfileButton({
+  name,
+  icon,
+  align,
+  onClick,
+}: {
+  name: string;
+  icon: "player" | "ai";
+  align: "left" | "center" | "right";
+  onClick: () => void;
+}) {
+  const Icon = icon === "ai" ? Bot : UserRound;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-1 rounded-md px-1 py-1 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        align === "left" && "justify-self-start",
+        align === "right" && "justify-self-end",
+      )}
+      aria-label={`Ouvrir le profil ${name}`}
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)] sm:h-12 sm:w-12">
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <span className="max-w-24 truncate text-[0.65rem] font-semibold text-foreground sm:max-w-36 sm:text-xs">
+        {name}
+      </span>
+    </button>
+  );
+}
+
+const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
+
+function PlayerProfilePanel({
+  playerName,
+  onNameChange,
   settings,
   onChange,
+  onRules,
   onClose,
 }: {
+  playerName: string;
+  onNameChange: (name: string) => void;
   settings: Settings;
   onChange: (s: Settings) => void;
+  onRules: () => void;
   onClose: () => void;
 }) {
-  const levels: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
-      <div className="panel w-full max-w-md p-6 text-left">
-        <h2 className="gold-text text-2xl">Paramètres</h2>
-
-        <p className="mt-5 text-sm text-foreground">Niveau de l'adversaire</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-
-          {levels.map((l) => (
-            <button
-              key={l}
-              onClick={() => onChange({ ...settings, difficulty: l })}
-              className={cn(
-                "rounded-full border px-4 py-1.5 text-xs transition-colors",
-                settings.difficulty === l
-                  ? "border-gold bg-gold/20 text-gold"
-                  : "border-border text-muted-foreground hover:bg-secondary",
-              )}
-            >
-              {DIFFICULTY_LABEL[l]}
-            </button>
-          ))}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
+      <div className="panel max-h-[90dvh] w-full max-w-md overflow-y-auto p-6 text-left" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
+              <UserRound className="h-7 w-7" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="gold-text text-2xl">Votre profil</h2>
+              <p className="text-xs text-muted-foreground">Nom et préférences de jeu</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">×</Button>
         </div>
+
+        <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">Nom d'utilisateur</label>
+        <input
+          id="player-name"
+          value={playerName}
+          maxLength={20}
+          autoFocus
+          onChange={(event) => onNameChange(event.target.value)}
+          onBlur={() => { if (!playerName.trim()) onNameChange("Joueur"); }}
+          className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+          placeholder="Votre nom"
+        />
 
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>
         <div className="mt-2 flex gap-2">
           {[true, false].map((on) => (
-            <button
-              key={String(on)}
-              onClick={() => onChange({ ...settings, sound: on })}
-              className={cn(
-                "rounded-full border px-4 py-1.5 text-xs transition-colors",
-                settings.sound === on
-                  ? "border-gold bg-gold/20 text-gold"
-                  : "border-border text-muted-foreground hover:bg-secondary",
-              )}
-            >
+            <Button key={String(on)} type="button" size="sm" variant={settings.sound === on ? "default" : "outline"} onClick={() => onChange({ ...settings, sound: on })}>
               {on ? "Activés" : "Coupés"}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <p className="mt-6 text-sm text-foreground">
-          Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s
-        </p>
+        <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
         <input
           type="range"
           min={300}
           max={4000}
           step={100}
           value={settings.trickDelay}
-          onChange={(e) =>
-            onChange({ ...settings, trickDelay: Number(e.target.value) })
-          }
+          onChange={(event) => onChange({ ...settings, trickDelay: Number(event.target.value) })}
           className="mt-2 w-full accent-[var(--gold)]"
         />
-        <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          Les deux cartes restent visibles au milieu pendant ce temps avant que le pli
-          soit tranché.
-        </p>
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">Les deux cartes restent visibles au milieu pendant ce temps.</p>
 
-        <button
-          onClick={onClose}
-          className="mt-6 w-full rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
-        >
-          Fermer
-        </button>
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={onRules}><BookOpen aria-hidden="true" /> Règles</Button>
+          <Button type="button" onClick={onClose}><Settings2 aria-hidden="true" /> Enregistrer</Button>
+        </div>
       </div>
     </div>
   );
 }
 
-function Chip({
-  label,
-  value,
-  highlight,
-  className,
+function AiProfilePanel({
+  difficulty,
+  onChange,
+  onClose,
 }: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  className?: string;
+  difficulty: Difficulty;
+  onChange: (difficulty: Difficulty) => void;
+  onClose: () => void;
 }) {
   return (
-    <span
-      className={cn(
-        "rounded-full border px-2 py-1 text-[0.6rem]",
-        highlight ? "border-gold/60 text-gold bg-gold/5" : "border-border text-muted-foreground",
-        className
-      )}
-    >
-      {label} · {value}
-    </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
+      <div className="panel w-full max-w-md p-6 text-left" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
+            <Bot className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="gold-text truncate text-2xl">IA {DIFFICULTY_LABEL[difficulty]}</h2>
+            <p className="text-xs text-muted-foreground">Choisir le niveau de l'adversaire</p>
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {DIFFICULTIES.map((level) => (
+            <Button key={level} type="button" variant={difficulty === level ? "default" : "outline"} onClick={() => onChange(level)} className="w-full">
+              {DIFFICULTY_LABEL[level]}
+            </Button>
+          ))}
+        </div>
+        <Button type="button" onClick={onClose} className="mt-6 w-full">Enregistrer</Button>
+      </div>
+    </div>
   );
 }
 
