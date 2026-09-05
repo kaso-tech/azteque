@@ -16,6 +16,8 @@ import {
   newRound,
   playCard,
   resolveTrick,
+  trickCapturesPile,
+
   scoreOf,
   type Card,
   type Difficulty,
@@ -56,9 +58,16 @@ interface Settings {
   trickDelay: number; // ms
   difficulty: Difficulty;
   sound: boolean;
+  atout10: boolean;
 }
 
-const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal", sound: true };
+const DEFAULT_SETTINGS: Settings = {
+  trickDelay: 1000,
+  difficulty: "normal",
+  sound: true,
+  atout10: true,
+};
+
 
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
@@ -89,6 +98,10 @@ function Azteque() {
   const [drawFlights, setDrawFlights] = useState<
     { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
+  const [sweepFlights, setSweepFlights] = useState<
+    { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
+
   const tableRef = useRef<HTMLDivElement | null>(null);
   const stockRef = useRef<HTMLDivElement | null>(null);
   const opponentHandRef = useRef<HTMLDivElement | null>(null);
@@ -233,7 +246,7 @@ function Azteque() {
 
     timers.push(
       setTimeout(() => {
-        const next = resolveTrick(state);
+        const next = resolveTrick(state, { atout10: settings.atout10 });
         const winner = next.lastTrickWinner;
         const first = state.trick[0]!;
         const second = state.trick[1]!;
@@ -257,9 +270,45 @@ function Azteque() {
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
 
+        // Règle « Atout 10 » : transfert animé de tout le tas adverse
+        const sweeps =
+          winner !== null && trickCapturesPile(state, { atout10: settings.atout10 })
+            ? state.gains[winner === 0 ? 1 : 0].length
+            : 0;
+        const loserPile =
+          winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
+
         timers.push(
           setTimeout(() => {
             setCollect([]);
+            if (sweeps > 0 && loserPile && winnerPile) {
+              const layers = Math.min(6, sweeps);
+              sfx.sweep();
+              setPhaseMsg(
+                winner === 0
+                  ? `Atout 10 ! Vous raflez le tas adverse (${sweeps})`
+                  : `Atout 10 ! L'adversaire rafle votre tas (${sweeps})`,
+              );
+              setSweepFlights(
+                Array.from({ length: layers }, (_, i) => ({
+                  id: i,
+                  from: loserPile,
+                  to: winnerPile,
+                  delay: i * 90,
+                })),
+              );
+              timers.push(
+                setTimeout(
+                  () => {
+                    setSweepFlights([]);
+                    setState(next);
+                    timers.push(setTimeout(() => setPhaseMsg(null), 900));
+                  },
+                  layers * 90 + 620,
+                ),
+              );
+              return;
+            }
             setState(next);
             timers.push(setTimeout(() => setPhaseMsg(null), 600));
           }, lastDelay + 560),
@@ -270,7 +319,8 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.trickDelay]);
+  }, [state, settings.trickDelay, settings.atout10]);
+
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
   // La carte n'apparaît dans la main qu'à l'arrivée de l'animation.
@@ -708,6 +758,13 @@ function Azteque() {
         <CollectCard key={flight.id} {...flight} />
       ))}
 
+      {/* Atout 10 : transfert du tas adverse */}
+      {sweepFlights.map((flight) => (
+        <SweepCard key={flight.id} {...flight} />
+      ))}
+
+
+
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
@@ -801,7 +858,42 @@ function TrickPosition({
   );
 }
 
+function SweepCard({
+  from,
+  to,
+  delay,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  delay: number;
+}) {
+  const [departed, setDeparted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDeparted(true), delay + 20);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <div
+      className="pointer-events-none fixed z-50 w-10 drop-shadow-[0_14px_22px_rgba(0,0,0,0.5)]"
+      aria-hidden="true"
+      style={{
+        left: departed ? to.x : from.x,
+        top: departed ? to.y : from.y,
+        transform: `translate(-50%, -50%) scale(${departed ? 1 : 1.06}) rotate(${departed ? 8 : -6}deg)`,
+        opacity: departed ? 1 : 0.95,
+        transition:
+          "left 0.6s cubic-bezier(.2,.8,.25,1), top 0.6s cubic-bezier(.2,.8,.25,1), transform 0.6s cubic-bezier(.2,.8,.25,1)",
+      }}
+    >
+      <PlayingCard faceDown size="sm" />
+    </div>
+  );
+}
+
 function CollectCard({
+
   card,
   from,
   to,
@@ -1242,6 +1334,25 @@ function PlayerProfilePanel({
             </Button>
           ))}
         </div>
+
+        <p className="mt-6 text-sm text-foreground">Règle « Atout 10 »</p>
+        <div className="mt-2 flex gap-2">
+          {[true, false].map((on) => (
+            <Button
+              key={`atout10-${String(on)}`}
+              type="button"
+              size="sm"
+              variant={settings.atout10 === on ? "default" : "outline"}
+              onClick={() => onChange({ ...settings, atout10: on })}
+            >
+              {on ? "Activée" : "Désactivée"}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">
+          Prendre un 10 de la couleur d'atout rafle tout le tas de l'adversaire.
+        </p>
+
 
         <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
         <input
