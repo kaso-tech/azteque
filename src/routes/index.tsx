@@ -58,9 +58,16 @@ interface Settings {
   trickDelay: number; // ms
   difficulty: Difficulty;
   sound: boolean;
+  atout10: boolean;
 }
 
-const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal", sound: true };
+const DEFAULT_SETTINGS: Settings = {
+  trickDelay: 1000,
+  difficulty: "normal",
+  sound: true,
+  atout10: true,
+};
+
 
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
