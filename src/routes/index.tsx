@@ -1016,7 +1016,17 @@ function CapturedPile({
   );
 }
 
-function GainsPanel({ cards, onClose }: { cards: Card[]; onClose: () => void }) {
+function GainsPanel({
+  cards,
+  onClose,
+  title = "Vos cartes sorties",
+  subtitle,
+}: {
+  cards: Card[];
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
