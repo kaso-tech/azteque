@@ -4,7 +4,7 @@ import {
   DIFFICULTY_LABEL,
   SUIT_NAME,
   SUIT_SYMBOL,
-  aiAnnounce,
+  aiAnnounceAt,
   aiChooseCardAt,
   aiWantsRedeal,
   announce,
@@ -337,7 +337,7 @@ function Azteque() {
         const t = setTimeout(() => {
           setState((s) => {
             if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
-            const a = aiAnnounce(s);
+            const a = aiAnnounceAt(s, settings.difficulty);
             return a ? announce(s, 1, a.suits, a.trump) : { ...s, canAnnounce: null };
           });
         }, 650);
