@@ -843,8 +843,8 @@ function HandRow({
     dragId.current = id;
     startX.current = e.clientX;
     moved.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
   };
+
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const id = dragId.current;
