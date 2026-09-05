@@ -239,10 +239,14 @@ export function playCard(state: GameState, p: PlayerIndex, cardId: string): Game
     s.turn = (p === 0 ? 1 : 0) as PlayerIndex;
     return s;
   }
-  return resolveTrick(s);
+  // Les deux cartes restent visibles au milieu : la résolution est déclenchée
+  // par l'interface après un court délai réglable.
+  return s;
 }
 
-function resolveTrick(s: GameState): GameState {
+export function resolveTrick(state: GameState): GameState {
+  if (state.trick.length < 2) return state;
+  const s = clone(state);
   const first = s.trick[0]!;
   const second = s.trick[1]!;
   const winner: PlayerIndex = beats(second.card, first.card, s.trump)
