@@ -37,6 +37,8 @@ const sections: { title: string; body: string[] }[] = [
     title: "6. Les comptes",
     body: [
       "Compte simple : Roi + Dame de même couleur. Compte triple : Roi + Dame + Valet.",
+      "Il n'existe que ces deux comptes. Roi + Valet ou Dame + Valet ne forment jamais un compte.",
+      "Main blanche : si après la distribution un joueur n'a ni Roi, ni Dame, ni Valet, il peut demander une redistribution (ce n'est pas une obligation).",
       "Annoncer est facultatif : il faut venir de remporter un pli et que la pioche contienne au moins une carte. Les cartes restent en main, posées face visible.",
       "Le premier compte annoncé crée l'atout. Si plusieurs comptes sont annoncés en même temps, le joueur choisit celui qui fixe l'atout.",
       "Premier compte : simple 4 pts, triple 5 pts. Comptes suivants : simple 2 pts, triple 3 pts.",
