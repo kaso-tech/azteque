@@ -73,6 +73,7 @@ function Azteque() {
   >([]);
   const [showHistory, setShowHistory] = useState(false);
   const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
+  const [meldPassed, setMeldPassed] = useState(false);
 
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
@@ -316,20 +317,22 @@ function Azteque() {
   }, [state, meldPassed]);
 
 
+  // Réinitialise le choix « ne pas annoncer » à chaque nouvelle opportunité
+  useEffect(() => {
+    if (state.canAnnounce === 0) setMeldPassed(false);
+  }, [state.canAnnounce, state.drawPending.length]);
+
   // Tour de l'ordinateur
   useEffect(() => {
     if (state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2) return;
+    if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
     const t = setTimeout(() => {
       setState((s) => {
         if (s.phase !== "playing" || s.turn !== 1 || s.trick.length >= 2) return s;
-        let next = s;
-        if (next.canAnnounce === 1) {
-          const a = aiAnnounce(next);
-          if (a) next = announce(next, 1, a.suits, a.trump);
-        }
-        const card = aiChooseCardAt(next, settings.difficulty);
+        if (s.drawPending.length > 0 || s.canAnnounce === 1) return s;
+        const card = aiChooseCardAt(s, settings.difficulty);
         sfx.place();
-        return playCard(next, 1, card.id);
+        return playCard(s, 1, card.id);
       });
     }, 750);
     return () => clearTimeout(t);
