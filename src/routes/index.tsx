@@ -16,6 +16,8 @@ import {
   newRound,
   playCard,
   resolveTrick,
+  trickCapturesPile,
+
   scoreOf,
   type Card,
   type Difficulty,
