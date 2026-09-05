@@ -610,6 +610,10 @@ function Azteque() {
                 onClick={() => {
                   setMeldPassed(true);
                   setMeldPick([]);
+                  // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
+                  setState((s) =>
+                    s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s,
+                  );
                 }}
                 className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
               >
