@@ -159,15 +159,14 @@ function Azteque() {
     [state],
   );
   const legalIds = useMemo(() => new Set(legal.map((c) => c.id)), [legal]);
-  const canPassMeldByPlaying =
+  // Tant que la proposition de compte est affichée et non tranchée,
+  // le joueur ne peut pas jouer : il doit annoncer ou passer.
+  const meldDecisionPending =
     state.phase === "playing" &&
     state.canAnnounce === 0 &&
     state.drawPending[0] === 0 &&
-    myMelds.length > 0;
-  const passableCardIds = useMemo(
-    () => new Set(canPassMeldByPlaying ? legalCards(state, 0).map((c) => c.id) : []),
-    [canPassMeldByPlaying, state],
-  );
+    myMelds.length > 0 &&
+    !meldPassed;
 
   const freshRound =
     state.phase === "playing" &&
@@ -359,17 +358,8 @@ function Azteque() {
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
-    // Toucher une carte pendant la proposition revient à renoncer au compte.
-    // La pioche obligatoire se déroule alors avant que le joueur puisse jouer.
-    if (
-      state.canAnnounce === 0 &&
-      state.drawPending[0] === 0 &&
-      availableMelds(state, 0).length > 0
-    ) {
-      setMeldPassed(true);
-      setMeldPick([]);
-      return;
-    }
+    // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
+    if (meldDecisionPending) return;
     const r = el.getBoundingClientRect();
     const t = tableRef.current?.getBoundingClientRect();
     if (t) {
