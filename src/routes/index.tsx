@@ -212,29 +212,15 @@ function Azteque() {
         const second = state.trick[1]!;
         const fromFirst = center(trickSlotRefs[first.player].current);
         const fromSecond = center(trickSlotRefs[second.player].current);
-        const pileFirst = center(pileRefs[first.player].current);
-        const pileSecond = center(pileRefs[second.player].current);
+        const winnerPile = winner === null ? null : center(pileRefs[winner].current);
 
         const flights: typeof collect = [];
-        let lastDelay = 0;
-        // 1. La carte du premier joueur rejoint son propre tas.
-        if (fromFirst && pileFirst)
-          flights.push({ id: 1, card: first.card, from: fromFirst, to: pileFirst, delay: 0 });
-
-        if (winner === first.player) {
-          // 2. La carte plus faible du second rejoint le tas du premier.
-          if (fromSecond && pileFirst)
-            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileFirst, delay: 380 });
-          lastDelay = 380;
-        } else {
-          // 2. Le second bat : sa carte va sur son tas…
-          if (fromSecond && pileSecond)
-            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileSecond, delay: 380 });
-          // 3. …et la carte du premier quitte son tas pour le rejoindre.
-          if (pileFirst && pileSecond)
-            flights.push({ id: 3, card: first.card, from: pileFirst, to: pileSecond, delay: 780 });
-          lastDelay = 780;
-        }
+        const lastDelay = 220;
+        // Après comparaison, les deux cartes convergent uniquement vers le tas gagnant.
+        if (fromFirst && winnerPile)
+          flights.push({ id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 });
+        if (fromSecond && winnerPile)
+          flights.push({ id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay });
 
         if (winner === second.player) sfx.beat();
         else sfx.collect();
@@ -552,7 +538,7 @@ function Azteque() {
         {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
           <p
             key={phaseMsg ?? "compare"}
-            className="animate-banner rounded-full border border-gold/40 bg-felt-deep/70 px-3 py-1 text-[0.7rem] uppercase tracking-widest text-gold-soft"
+            className="animate-banner pointer-events-none absolute right-2 top-2 z-20 max-w-32 rounded border border-gold/35 bg-felt-deep/90 px-2 py-1 text-center text-[0.58rem] font-semibold leading-tight text-gold-soft shadow-[var(--shadow-card)]"
           >
             {phaseMsg ?? "Comparaison des cartes…"}
           </p>
@@ -584,11 +570,11 @@ function Azteque() {
 
         {/* Annonce de comptes */}
         {state.phase === "playing" && myMelds.length > 0 && (
-          <div className="w-full max-w-lg rounded-lg border border-gold/30 bg-secondary/60 p-3">
-            <p className="mb-2 text-xs text-gold">
-              Vous pouvez annoncer un ou plusieurs comptes (facultatif) :
+          <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
+            <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+              Annoncer un compte ?
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1">
               {myMelds.map((m) => {
                 const on = meldPick.includes(m.suit);
                 return (
@@ -600,7 +586,7 @@ function Azteque() {
                       )
                     }
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      "rounded border px-2 py-1 text-[0.6rem] leading-none transition-colors",
                       on
                         ? "border-gold bg-gold/20 text-gold"
                         : "border-border text-muted-foreground hover:bg-secondary",
@@ -612,35 +598,35 @@ function Azteque() {
               })}
             </div>
             {meldPick.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {state.trump === null ? (
                   <>
-                    <span className="text-xs text-muted-foreground">
-                      Choisissez l'atout :
+                    <span className="text-[0.58rem] text-muted-foreground">
+                      Atout :
                     </span>
                     {meldPick.map((s) => (
                       <button
                         key={s}
                         onClick={() => doAnnounce(s)}
-                        className="rounded-full bg-[image:var(--gradient-gold)] px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
                       >
-                        Atout {SUIT_SYMBOL[s]} {SUIT_NAME[s]}
+                        {SUIT_SYMBOL[s]} {SUIT_NAME[s]}
                       </button>
                     ))}
                   </>
                 ) : (
                   <button
                     onClick={() => doAnnounce(null)}
-                    className="rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground"
+                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
                   >
                     Annoncer
                   </button>
                 )}
                 <button
                   onClick={() => setMeldPick([])}
-                  className="text-xs text-muted-foreground underline"
+                  className="px-1 text-[0.58rem] text-muted-foreground underline"
                 >
-                  Ne pas compter
+                  Annuler
                 </button>
               </div>
             )}
@@ -650,9 +636,9 @@ function Azteque() {
                   setMeldPassed(true);
                   setMeldPick([]);
                 }}
-                className="mt-3 rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary"
+                className="mt-1.5 rounded border border-border px-2 py-1 text-[0.58rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
               >
-                Piocher sans annoncer
+                Passer
               </button>
             )}
           </div>
