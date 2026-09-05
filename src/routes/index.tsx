@@ -774,7 +774,7 @@ function CollectCard({
         transform: `translate(-50%, -50%) scale(${departed ? 0.555 : 1}) rotate(${departed ? 4 : 0}deg)`,
         opacity: 1,
         transition:
-          "left 0.4s cubic-bezier(.3,.9,.3,1), top 0.4s cubic-bezier(.3,.9,.3,1), transform 0.4s cubic-bezier(.3,.9,.3,1)",
+          "left 0.55s cubic-bezier(.25,.85,.3,1), top 0.55s cubic-bezier(.25,.85,.3,1), transform 0.55s cubic-bezier(.25,.85,.3,1)",
       }}
     >
       <PlayingCard card={card} size="hand" />
