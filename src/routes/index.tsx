@@ -658,13 +658,12 @@ function Azteque() {
             exposedIds={state.exposed[0]}
             keepSlots={state.stock.length > 0}
             isDisabled={(c) =>
-              canPassMeldByPlaying
-                ? !passableCardIds.has(c.id)
-                : state.turn !== 0 ||
-                  state.phase !== "playing" ||
-                  state.trick.length >= 2 ||
-                  state.drawPending.length > 0 ||
-                  !legalIds.has(c.id)
+              meldDecisionPending ||
+              state.turn !== 0 ||
+              state.phase !== "playing" ||
+              state.trick.length >= 2 ||
+              state.drawPending.length > 0 ||
+              !legalIds.has(c.id)
             }
             onPlay={playMyCard}
           />
