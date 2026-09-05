@@ -1035,8 +1035,10 @@ function GainsPanel({
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="gold-text text-2xl">Vos cartes sorties</h2>
-            <p className="text-xs text-muted-foreground">{cards.length} cartes remportées</p>
+            <h2 className="gold-text text-2xl">{title}</h2>
+            <p className="text-xs text-muted-foreground">
+              {subtitle ?? `${cards.length} cartes remportées`}
+            </p>
           </div>
           <button
             type="button"
