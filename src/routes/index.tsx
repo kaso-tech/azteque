@@ -842,6 +842,14 @@ function Azteque() {
       {showMyGains && (
         <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
       )}
+      {showMyBonnes && (
+        <GainsPanel
+          cards={state.gains[0].filter(isBonne)}
+          title="Vos bonnes"
+          subtitle={`${myBonnes} bonnes remportées — treize bonnes gagnent le tour`}
+          onClose={() => setShowMyBonnes(false)}
+        />
+      )}
       {showHistory && (
         <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
       )}
