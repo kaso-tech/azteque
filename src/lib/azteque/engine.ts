@@ -81,7 +81,7 @@ function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
 }
@@ -160,7 +160,7 @@ export function announce(
   const trumpSuit = isFirstAnnounceOfRound
     ? trumpChoice && suits.includes(trumpChoice)
       ? trumpChoice
-      : opts[0].suit
+      : opts[0]!.suit
     : null;
 
   let simpleAnnounced: Suit | null = null;
@@ -203,7 +203,7 @@ export function beats(a: Card, b: Card, trump: Suit | null): boolean {
 export function legalCards(state: GameState, p: PlayerIndex): Card[] {
   const hand = state.hands[p];
   if (state.trick.length === 0 || state.stock.length > 0) return hand;
-  const led = state.trick[0].card;
+  const led = state.trick[0]!.card;
   const same = hand.filter((c) => c.suit === led.suit);
   if (same.length === 0) {
     const trumps = state.trump ? hand.filter((c) => c.suit === state.trump) : [];
@@ -212,8 +212,8 @@ export function legalCards(state: GameState, p: PlayerIndex): Card[] {
   const winning = same.filter((c) => beats(c, led, state.trump));
   if (winning.length) return winning;
   const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
-  const top = sorted[0];
-  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]]; // protection d'une bonne
+  const top = sorted[0]!;
+  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!]; // protection d'une bonne
   return [top];
 }
 
@@ -243,7 +243,8 @@ export function playCard(state: GameState, p: PlayerIndex, cardId: string): Game
 }
 
 function resolveTrick(s: GameState): GameState {
-  const [first, second] = s.trick;
+  const first = s.trick[0]!;
+  const second = s.trick[1]!;
   const winner: PlayerIndex = beats(second.card, first.card, s.trump)
     ? second.player
     : first.player;
@@ -366,7 +367,7 @@ export function aiAnnounce(state: GameState): { suits: Suit[]; trump: Suit | nul
   const best = [...opts].sort((a, b) => {
     const cnt = (s: Suit) => state.hands[1].filter((c) => c.suit === s).length;
     return b.cards.length - a.cards.length || cnt(b.suit) - cnt(a.suit);
-  })[0];
+  })[0]!;
   return { suits, trump: state.trump === null ? best.suit : null };
 }
 
@@ -379,20 +380,20 @@ export function aiChooseCard(state: GameState): Card {
     // Mène : privilégie une bonne d'atout ou une carte forte hors atout
     const nonBonne = legal.filter((c) => !isBonne(c));
     const pool = nonBonne.length ? nonBonne : legal;
-    return [...pool].sort((a, b) => val(b) - val(a))[0];
+    return [...pool].sort((a, b) => val(b) - val(a))[0]!;
   }
-  const led = state.trick[0].card;
+  const led = state.trick[0]!.card;
   const winning = legal.filter((c) => beats(c, led, trump));
   if (winning.length) {
     const worthIt = isBonne(led) || (trump && led.suit === trump && led.rank === "10");
     if (worthIt || winning.some((c) => !isBonne(c))) {
       const cheap = winning.filter((c) => !isBonne(c));
       const pool = cheap.length ? cheap : winning;
-      return [...pool].sort((a, b) => val(a) - val(b))[0];
+      return [...pool].sort((a, b) => val(a) - val(b))[0]!;
     }
-    return [...winning].sort((a, b) => val(a) - val(b))[0];
+    return [...winning].sort((a, b) => val(a) - val(b))[0]!;
   }
   const safe = legal.filter((c) => !isBonne(c));
   const pool = safe.length ? safe : legal;
-  return [...pool].sort((a, b) => val(a) - val(b))[0];
+  return [...pool].sort((a, b) => val(a) - val(b))[0]!;
 }
