@@ -42,6 +42,12 @@ export async function createMatch(hostName: string, settings: Record<string, unk
   throw new Error("Impossible de générer un code de partie");
 }
 
+export async function getMatch(id: string) {
+  const { data, error } = await supabase.from("matches").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as unknown as MatchRow | null) ?? null;
+}
+
 export async function findMatch(code: string) {
   const { data, error } = await supabase
     .from("matches")
