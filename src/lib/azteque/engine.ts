@@ -637,6 +637,36 @@ function endgameBest(state: GameState): Card | null {
 
 /* --- IA avancée (maître / légende) --- */
 
+/** Valeur de conservation d'une carte pour un compte encore possible. */
+function meldValue(state: GameState, c: Card): number {
+  if (state.stock.length === 0) return 0; // plus d'annonce possible en phase finale
+  if (c.rank !== "K" && c.rank !== "Q" && c.rank !== "J") return 0;
+  if (state.melds[1].some((m) => m.suit === c.suit && m.type === "triple")) return 0;
+  const hand = state.hands[1];
+  const has = (r: Rank) => hand.some((x) => x.suit === c.suit && x.rank === r && x.id !== c.id);
+  const announced = state.melds[1].some((m) => m.suit === c.suit);
+  if (c.rank === "J") {
+    // Le valet ne vaut que s'il complète un compte simple annoncé ou en main
+    if (announced) return 2.2;
+    return has("K") && has("Q") ? 2.6 : 0.4;
+  }
+  const partner: Rank = c.rank === "K" ? "Q" : "K";
+  if (announced) return 0; // K/Q déjà posés : ils ne rapportent plus rien de neuf
+  if (has(partner)) return has("J") ? 3.4 : 2.8;
+  return 0.9; // espoir de retrouver le partenaire à la pioche
+}
+
+/** Valeur d'un atout gardé pour la phase finale (pioche épuisée). */
+function trumpKeepValue(state: GameState, c: Card): number {
+  const trump = state.trump;
+  if (!trump || c.suit !== trump) return 0;
+  const stock = state.stock.length;
+  if (stock === 0) return 0; // la phase finale est là : les atouts servent
+  const strength = rankValue(c.rank) / (RANKS.length - 1); // 0 → 1
+  const urgency = Math.min(1, stock / 10);
+  return (0.8 + strength * 2.2) * urgency;
+}
+
 function aiSmartCard(state: GameState, deep: boolean): Card {
   const legal = legalCards(state, 1);
   if (legal.length === 1) return legal[0]!;
@@ -648,6 +678,10 @@ function aiSmartCard(state: GameState, deep: boolean): Card {
   }
 
   const val = (c: Card) => rankValue(c.rank) + (trump && c.suit === trump ? 10 : 0);
+  // Coût total de la carte si on s'en sépare
+  const keep = (c: Card) => meldValue(state, c) + trumpKeepValue(state, c) + (isBonne(c) ? 3 : 0);
+  const cheapest = (pool: Card[]) =>
+    [...pool].sort((a, b) => keep(a) - keep(b) || val(a) - val(b))[0]!;
 
   // En second : décider si le pli vaut la dépense
   if (state.trick.length === 1) {
@@ -656,17 +690,16 @@ function aiSmartCard(state: GameState, deep: boolean): Card {
     const stake = isBonne(led) ? 1 : 0;
     const tenTrump = trump && led.rank === "10" && led.suit === trump;
     if (winning.length) {
-      const cheapWin = [...winning].sort((a, b) => val(a) - val(b))[0]!;
-      const cost = isBonne(cheapWin) ? 1 : 0;
-      if (stake > 0 || tenTrump || cost === 0) return cheapWin;
-      // Ne pas gaspiller une bonne pour un pli vide
-      const dump = legal.filter((c) => !isBonne(c));
-      if (dump.length) return [...dump].sort((a, b) => val(a) - val(b))[0]!;
+      const cheapWin = cheapest(winning);
+      const cost = keep(cheapWin);
+      // Gain espéré : bonne adverse capturée, 10 d'atout, ou pli gratuit
+      const gain = (stake ? 3 : 0) + (tenTrump ? 4 : 0) + (cost < 0.8 ? 1 : 0);
+      if (gain >= cost) return cheapWin;
+      const dump = legal.filter((c) => keep(c) < cost);
+      if (dump.length) return cheapest(dump);
       return cheapWin;
     }
-    const dump = legal.filter((c) => !isBonne(c));
-    const pool = dump.length ? dump : legal;
-    return [...pool].sort((a, b) => val(a) - val(b))[0]!;
+    return cheapest(legal);
   }
 
   // À l'entame : jouer la carte la plus sûre / la plus gênante
@@ -676,8 +709,12 @@ function aiSmartCard(state: GameState, deep: boolean): Card {
     // On veut : peu de risque de perdre une bonne, et forcer l'adversaire à se défausser
     let score = (1 - risk) * (isB ? 2.2 : 1);
     if (isB && risk > 0.35) score -= 2.5; // ne pas exposer une bonne
-    if (trump && c.suit === trump && state.stock.length > 2 && !isB) score -= 0.6; // garder les atouts
+    score -= trumpKeepValue(state, c) * 0.9; // garder les atouts pour la phase finale
+    score -= meldValue(state, c) * 1.1; // garder les cartes utiles à un compte
     if (!isB && risk > 0.6) score += 0.35; // écarter les cartes faibles utiles à rien
+    // Sortir tôt les bonnes hors atout tant que l'atout n'est pas fixé
+    if (isB && !trump && risk < 0.3) score += 0.8;
+    if (isB && trump && c.suit !== trump && state.stock.length > 4 && risk < 0.25) score += 0.5;
     score -= rankValue(c.rank) * 0.02;
     return { c, score };
   });
