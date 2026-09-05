@@ -493,6 +493,7 @@ function Azteque() {
         {showPlayerProfile && (
           <PlayerProfilePanel
             playerName={playerName}
+            tokens={tokens}
             onNameChange={setPlayerName}
             settings={settings}
             onChange={setSettings}
@@ -853,6 +854,7 @@ function Azteque() {
       {showPlayerProfile && (
         <PlayerProfilePanel
           playerName={playerName}
+          tokens={tokens}
           onNameChange={setPlayerName}
           settings={settings}
           onChange={setSettings}
@@ -1368,6 +1370,7 @@ const TOKEN_REWARDS: Record<Difficulty, number> = {
 
 function PlayerProfilePanel({
   playerName,
+  tokens,
   onNameChange,
   settings,
   onChange,
@@ -1375,6 +1378,7 @@ function PlayerProfilePanel({
   onClose,
 }: {
   playerName: string;
+  tokens: number;
   onNameChange: (name: string) => void;
   settings: Settings;
   onChange: (s: Settings) => void;
@@ -1395,6 +1399,11 @@ function PlayerProfilePanel({
             </div>
           </div>
           <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">×</Button>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between rounded-lg border border-gold/40 bg-gold/5 px-4 py-2.5">
+          <span className="text-sm text-foreground">Solde de jetons</span>
+          <span className="font-display text-lg font-semibold text-gold">🪙 {tokens}</span>
         </div>
 
         <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">Nom d'utilisateur</label>
