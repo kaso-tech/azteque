@@ -68,6 +68,9 @@ function Azteque() {
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
   >(null);
+  const [collect, setCollect] = useState<
+    { id: number; card: Card; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
   const [drawFlights, setDrawFlights] = useState<
     { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
@@ -75,7 +78,16 @@ function Azteque() {
   const stockRef = useRef<HTMLDivElement | null>(null);
   const opponentHandRef = useRef<HTMLDivElement | null>(null);
   const playerHandRef = useRef<HTMLDivElement | null>(null);
+  const trickSlotRefs = [
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+  ] as const;
+  const pileRefs = [
+    useRef<HTMLDivElement | null>(null),
+    useRef<HTMLDivElement | null>(null),
+  ] as const;
   const aiRedealChecked = useRef(-1);
+
 
   // Réglages persistants
   useEffect(() => {
@@ -143,44 +155,81 @@ function Azteque() {
     return;
   }, [started, freshRound, roundKey, state, settings.difficulty]);
 
-  // Résolution du pli après un délai réglable
+  // Résolution du pli : ramassage animé puis pioche, avec de petites pauses
   useEffect(() => {
     if (state.phase !== "playing" || state.trick.length < 2) return;
-    const t = setTimeout(() => {
-      const stockRect = stockRef.current?.getBoundingClientRect();
-      const targets = [playerHandRef.current, opponentHandRef.current] as const;
-      const next = resolveTrick(state);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const center = (el: HTMLElement | null | undefined) => {
+      const r = el?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    };
 
-      if (stockRect && state.stock.length > next.stock.length && next.lastTrickWinner !== null) {
+    timers.push(
+      setTimeout(() => {
+        const next = resolveTrick(state);
         const winner = next.lastTrickWinner;
-        const loser: PlayerIndex = winner === 0 ? 1 : 0;
-        const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
-        const from = {
-          x: stockRect.left + stockRect.width / 2,
-          y: stockRect.top + stockRect.height / 2,
-        };
-        const flights = order.flatMap((player, index) => {
-          const targetRect = targets[player]?.getBoundingClientRect();
-          if (!targetRect) return [];
-          return [{
-            id: Date.now() + index,
-            player,
-            from,
-            to: {
-              x: targetRect.left + targetRect.width / 2,
-              y: targetRect.top + targetRect.height / 2,
-            },
-            delay: index * 220,
-          }];
-        });
-        setDrawFlights(flights);
-        setTimeout(() => setDrawFlights([]), 1150);
-      }
+        const first = state.trick[0]!;
+        const second = state.trick[1]!;
+        const fromFirst = center(trickSlotRefs[first.player].current);
+        const fromSecond = center(trickSlotRefs[second.player].current);
+        const pileFirst = center(pileRefs[first.player].current);
+        const pileSecond = center(pileRefs[second.player].current);
 
-      setState(next);
-    }, settings.trickDelay);
-    return () => clearTimeout(t);
+        const flights: typeof collect = [];
+        let lastDelay = 0;
+        // 1. La carte du premier joueur rejoint son propre tas.
+        if (fromFirst && pileFirst)
+          flights.push({ id: 1, card: first.card, from: fromFirst, to: pileFirst, delay: 0 });
+
+        if (winner === first.player) {
+          // 2. La carte plus faible du second rejoint le tas du premier.
+          if (fromSecond && pileFirst)
+            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileFirst, delay: 380 });
+          lastDelay = 380;
+        } else {
+          // 2. Le second bat : sa carte va sur son tas…
+          if (fromSecond && pileSecond)
+            flights.push({ id: 2, card: second.card, from: fromSecond, to: pileSecond, delay: 380 });
+          // 3. …et la carte du premier quitte son tas pour le rejoindre.
+          if (pileFirst && pileSecond)
+            flights.push({ id: 3, card: first.card, from: pileFirst, to: pileSecond, delay: 780 });
+          lastDelay = 780;
+        }
+
+        setCollect(flights);
+
+        timers.push(
+          setTimeout(() => {
+            const stockRect = stockRef.current?.getBoundingClientRect();
+            const targets = [playerHandRef.current, opponentHandRef.current] as const;
+
+            if (stockRect && state.stock.length > next.stock.length && winner !== null) {
+              const loser: PlayerIndex = winner === 0 ? 1 : 0;
+              const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
+              const from = {
+                x: stockRect.left + stockRect.width / 2,
+                y: stockRect.top + stockRect.height / 2,
+              };
+              const draws = order.flatMap((player, index) => {
+                const to = center(targets[player]);
+                if (!to) return [];
+                return [{ id: Date.now() + index, player, from, to, delay: 260 + index * 320 }];
+              });
+              setDrawFlights(draws);
+              timers.push(setTimeout(() => setDrawFlights([]), 1600));
+            }
+
+            setCollect([]);
+            setState(next);
+          }, lastDelay + 520),
+        );
+      }, settings.trickDelay),
+    );
+
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.trickDelay]);
+
 
   // Tour de l'ordinateur
   useEffect(() => {
@@ -345,11 +394,11 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />
         </div>
 
-        <div className="absolute bottom-3 right-3">
+        <div className="absolute bottom-3 right-3" ref={pileRefs[0]}>
           <CapturedPile
             cards={state.gains[0]}
             owner="player"
@@ -368,7 +417,10 @@ function Azteque() {
         )}
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
-          <TrickPosition trick={state.trick} player={1} />
+          <div ref={trickSlotRefs[1]}>
+            <TrickPosition trick={state.trick} player={1} hidden={collect.length > 0} />
+          </div>
+
 
           <div
             ref={stockRef}
@@ -389,10 +441,12 @@ function Azteque() {
             )}
           </div>
 
-          <TrickPosition trick={state.trick} player={0} />
+          <div ref={trickSlotRefs[0]}>
+            <TrickPosition trick={state.trick} player={0} hidden={collect.length > 0} />
+          </div>
         </div>
 
-        {state.trick.length === 2 && (
+        {state.trick.length === 2 && collect.length === 0 && (
           <p className="text-[0.7rem] uppercase tracking-widest text-gold-soft">
             Comparaison des cartes…
           </p>
@@ -539,6 +593,12 @@ function Azteque() {
         <DrawCard key={flight.id} {...flight} />
       ))}
 
+      {/* Ramassage du pli vers les tas */}
+      {collect.map((flight) => (
+        <CollectCard key={flight.id} {...flight} />
+      ))}
+
+
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-md p-6 text-center">
@@ -591,9 +651,11 @@ function Azteque() {
 function TrickPosition({
   trick,
   player,
+  hidden,
 }: {
   trick: GameState["trick"];
   player: PlayerIndex;
+  hidden?: boolean;
 }) {
   const played = trick.find((entry) => entry.player === player);
   if (!played) return <div className="h-28 w-[4.5rem]" aria-hidden="true" />;
@@ -601,14 +663,53 @@ function TrickPosition({
 
   return (
     <div className="flex w-[4.5rem] flex-col items-center gap-1">
-      <PlayingCard card={played.card} size="lg" className="animate-trick" />
-      <span className="text-[0.65rem] text-muted-foreground">
+      <span className={cn("block w-full", hidden && "invisible")}>
+        <PlayingCard card={played.card} size="lg" className="animate-trick" />
+      </span>
+      <span className={cn("text-[0.65rem] text-muted-foreground", hidden && "opacity-0")}>
         {player === 0 ? "Vous" : "Adversaire"}
         {led ? " (mène)" : ""}
       </span>
     </div>
   );
 }
+
+function CollectCard({
+  card,
+  from,
+  to,
+  delay,
+}: {
+  card: Card;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  delay: number;
+}) {
+  const [departed, setDeparted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDeparted(true), delay + 20);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <div
+      className="pointer-events-none fixed z-50 w-[4.5rem] drop-shadow-[0_12px_18px_rgba(0,0,0,0.45)]"
+      aria-hidden="true"
+      style={{
+        left: departed ? to.x : from.x,
+        top: departed ? to.y : from.y,
+        transform: `translate(-50%, -50%) scale(${departed ? 0.6 : 1}) rotate(${departed ? 8 : 0}deg)`,
+        opacity: departed ? 0.15 : 1,
+        transition:
+          "left 0.45s cubic-bezier(.25,.9,.3,1), top 0.45s cubic-bezier(.25,.9,.3,1), transform 0.45s cubic-bezier(.25,.9,.3,1), opacity 0.2s ease 0.3s",
+      }}
+    >
+      <PlayingCard card={card} size="hand" />
+    </div>
+  );
+}
+
 
 function CapturedPile({
   cards,
@@ -742,8 +843,8 @@ function HandRow({
     dragId.current = id;
     startX.current = e.clientX;
     moved.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
   };
+
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const id = dragId.current;
@@ -782,6 +883,8 @@ function HandRow({
       onPointerMove={interactive ? handlePointerMove : undefined}
       onPointerUp={interactive ? handlePointerUp : undefined}
       onPointerCancel={interactive ? handlePointerUp : undefined}
+      onPointerLeave={interactive ? handlePointerUp : undefined}
+
     >
       {ordered.map((c) => (
         <div
