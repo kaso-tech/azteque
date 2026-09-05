@@ -9,6 +9,7 @@ import {
   aiWantsRedeal,
   announce,
   availableMelds,
+  drawNext,
   hasMainBlanche,
   isBonne,
   legalCards,
@@ -241,36 +242,9 @@ function Azteque() {
 
         timers.push(
           setTimeout(() => {
-            const stockRect = stockRef.current?.getBoundingClientRect();
-            const targets = [playerHandRef.current, opponentHandRef.current] as const;
-
-            if (stockRect && state.stock.length > next.stock.length && winner !== null) {
-              const loser: PlayerIndex = winner === 0 ? 1 : 0;
-              const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
-              const from = {
-                x: stockRect.left + stockRect.width / 2,
-                y: stockRect.top + stockRect.height / 2,
-              };
-              const draws = order.flatMap((player, index) => {
-                const to = center(targets[player]);
-                if (!to) return [];
-                return [{ id: Date.now() + index, player, from, to, delay: 320 + index * 420 }];
-              });
-              setPhaseMsg(
-                winner === 0 ? "Vous piochez en premier" : "L'adversaire pioche en premier",
-              );
-              setDrawFlights(draws);
-              draws.forEach((d) =>
-                timers.push(setTimeout(() => sfx.draw(), d.delay)),
-              );
-              timers.push(setTimeout(() => setDrawFlights([]), 1800));
-              timers.push(setTimeout(() => setPhaseMsg(null), 1800));
-            } else {
-              timers.push(setTimeout(() => setPhaseMsg(null), 600));
-            }
-
             setCollect([]);
             setState(next);
+            timers.push(setTimeout(() => setPhaseMsg(null), 600));
           }, lastDelay + 560),
         );
 
@@ -280,6 +254,66 @@ function Azteque() {
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.trickDelay]);
+
+  // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
+  // La carte n'apparaît dans la main qu'à l'arrivée de l'animation.
+  useEffect(() => {
+    if (state.phase !== "playing" || state.drawPending.length === 0) return;
+    if (state.stock.length === 0) return;
+    const player = state.drawPending[0]!;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // Phase d'annonce avant la pioche (5 cartes en main)
+    if (state.canAnnounce === player) {
+      if (player === 1) {
+        const t = setTimeout(() => {
+          setState((s) => {
+            if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
+            const a = aiAnnounce(s);
+            return a ? announce(s, 1, a.suits, a.trump) : { ...s, canAnnounce: null };
+          });
+        }, 650);
+        return () => clearTimeout(t);
+      }
+      // Joueur humain : attendre sa décision s'il a un compte annonçable
+      if (availableMelds(state, 0).length > 0 && !meldPassed) return;
+    }
+
+    const center = (el: HTMLElement | null | undefined) => {
+      const r = el?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    };
+
+    const t = setTimeout(() => {
+      const from = center(stockRef.current);
+      const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
+      setPhaseMsg(
+        player === 0
+          ? state.drawPending.length > 1
+            ? "Vous piochez en premier"
+            : "Vous piochez"
+          : state.drawPending.length > 1
+            ? "L'adversaire pioche en premier"
+            : "L'adversaire pioche",
+      );
+      if (from && to) {
+        setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
+        sfx.draw();
+      }
+      // La carte rejoint la main seulement quand l'animation est terminée
+      timers.push(
+        setTimeout(() => {
+          setDrawFlights([]);
+          setPhaseMsg(null);
+          setState((s) => drawNext(s));
+        }, 580),
+      );
+    }, 420);
+    timers.push(t);
+
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, meldPassed]);
 
 
   // Tour de l'ordinateur
