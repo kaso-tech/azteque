@@ -125,9 +125,13 @@ export interface MeldOption {
   cards: Card[];
 }
 
-export function availableMelds(state: GameState, p: PlayerIndex): MeldOption[] {
+export function availableMelds(
+  state: GameState,
+  p: PlayerIndex,
+  anytime = false,
+): MeldOption[] {
   if (state.stock.length === 0) return [];
-  if (state.canAnnounce !== p) return [];
+  if (!anytime && state.canAnnounce !== p) return [];
   const hand = state.hands[p];
   const done = new Set(state.melds[p].map((m) => m.suit));
   const out: MeldOption[] = [];
@@ -153,7 +157,7 @@ export function announce(
   suits: Suit[],
   trumpChoice: Suit | null,
 ): GameState {
-  const opts = availableMelds(state, p).filter((o) => suits.includes(o.suit));
+  const opts = availableMelds(state, p, true).filter((o) => suits.includes(o.suit));
   if (!opts.length) return state;
   const s = clone(state);
   const isFirstAnnounceOfRound = s.trump === null;
