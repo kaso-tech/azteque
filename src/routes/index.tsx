@@ -126,8 +126,8 @@ function Azteque() {
       if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
       const savedName = localStorage.getItem("azteque-player-name")?.trim();
       if (savedName) setPlayerName(savedName);
-      setTokens(Math.max(0, Number(localStorage.getItem("azteque-tokens")) || 0));
       else setShowPlayerProfile(true);
+      setTokens(Math.max(0, Number(localStorage.getItem("azteque-tokens")) || 0));
     } catch {
       /* ignore */
     } finally {
