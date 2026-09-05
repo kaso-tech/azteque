@@ -122,6 +122,29 @@ function Azteque() {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
   }, [state.phase, state.gains]);
 
+  // Historique des comptes annoncés
+  useEffect(() => {
+    setMeldHistory((prev) => {
+      const known = new Set(prev.map((e) => e.key));
+      const added: typeof prev = [];
+      ([0, 1] as PlayerIndex[]).forEach((p) => {
+        state.melds[p].forEach((m) => {
+          const key = `${roundKey}-${p}-${m.suit}-${m.type}`;
+          if (known.has(key)) return;
+          added.push({
+            key,
+            round: roundKey + 1,
+            player: p,
+            label: `${SUIT_SYMBOL[m.suit]} ${SUIT_NAME[m.suit]} — compte ${m.type === "triple" ? "trio" : "simple"}`,
+            points: m.points,
+          });
+        });
+      });
+      return added.length > 0 ? [...prev, ...added] : prev;
+    });
+  }, [state.melds, roundKey]);
+
+
   const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
     () =>
