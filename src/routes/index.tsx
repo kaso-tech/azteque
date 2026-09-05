@@ -566,7 +566,9 @@ function Azteque() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-
+                <span className="rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
+                  {state.stock.length}
+                </span>
               </>
             ) : (
               <div className="flex h-14 w-10 items-center justify-center rounded-[3px] border border-dashed border-gold/30 text-[0.6rem] text-muted-foreground">
