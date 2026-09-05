@@ -7,7 +7,7 @@ interface Props {
   disabled?: boolean;
   exposed?: boolean;
   size?: "sm" | "md" | "lg";
-  onClick?: () => void;
+  onClick?: (el: HTMLElement) => void;
   className?: string;
 }
 
