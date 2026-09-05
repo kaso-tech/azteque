@@ -1166,7 +1166,8 @@ function SettingsPanel({
         <h2 className="gold-text text-2xl">Paramètres</h2>
 
         <p className="mt-5 text-sm text-foreground">Niveau de l'adversaire</p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
+
           {levels.map((l) => (
             <button
               key={l}
