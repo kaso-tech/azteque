@@ -1,5 +1,6 @@
 import { SUIT_SYMBOL, type Card } from "@/lib/azteque/engine";
 import { cn } from "@/lib/utils";
+import cardReference from "@/assets/cartes-azteque-reference.jpg.asset.json";
 
 interface Props {
   card?: Card;
@@ -16,6 +17,31 @@ const sizes = {
   md: "w-14 h-20 text-sm",
   lg: "w-[4.5rem] h-[6.5rem] text-base",
 };
+
+const photographedRanks = new Set(["8", "9", "10", "J", "Q", "K"]);
+
+function PipFace({ card }: { card: Card }) {
+  const red = card.suit === "H" || card.suit === "D";
+  const pips = card.rank === "7" ? 7 : 1;
+
+  return (
+    <>
+      <span className={cn("card-corner card-corner-top", red ? "text-card-red" : "text-card-ink")}>
+        <b>{card.rank}</b>
+        <span>{SUIT_SYMBOL[card.suit]}</span>
+      </span>
+      <span className={cn("card-pips", `card-pips-${pips}`, red ? "text-card-red" : "text-card-ink")}>
+        {Array.from({ length: pips }, (_, index) => (
+          <i key={index}>{SUIT_SYMBOL[card.suit]}</i>
+        ))}
+      </span>
+      <span className={cn("card-corner card-corner-bottom", red ? "text-card-red" : "text-card-ink")}>
+        <b>{card.rank}</b>
+        <span>{SUIT_SYMBOL[card.suit]}</span>
+      </span>
+    </>
+  );
+}
 
 export function PlayingCard({
   card,
@@ -42,6 +68,7 @@ export function PlayingCard({
   }
 
   const red = card.suit === "H" || card.suit === "D";
+  const usesReference = photographedRanks.has(card.rank);
   const Tag = onClick ? "button" : "div";
 
   return (
@@ -50,38 +77,20 @@ export function PlayingCard({
       disabled={onClick ? disabled : undefined}
       className={cn(
         sizes[size],
-        "relative rounded-lg bg-card-face shadow-[var(--shadow-card)] border border-black/10",
-        "flex flex-col justify-between p-1.5 select-none transition-all duration-200",
+        "playing-card relative overflow-hidden rounded-md bg-card-face shadow-[var(--shadow-card)] border border-card-ink/70",
+        "flex flex-col justify-between select-none transition-all duration-200",
+        usesReference && "playing-card-reference",
         onClick && !disabled && "hover:-translate-y-3 hover:shadow-xl cursor-pointer",
         disabled && "opacity-45 saturate-50",
         exposed && "ring-2 ring-gold",
         className,
       )}
+      data-rank={card.rank}
+      data-suit={card.suit}
+      style={usesReference ? { backgroundImage: `url(${cardReference.url})` } : undefined}
+      aria-label={`${card.rank} de ${card.suit}`}
     >
-      <span
-        className={cn(
-          "font-display font-bold leading-none",
-          red ? "text-card-red" : "text-card-ink",
-        )}
-      >
-        {card.rank}
-      </span>
-      <span
-        className={cn(
-          "self-center text-xl leading-none",
-          red ? "text-card-red" : "text-card-ink",
-        )}
-      >
-        {SUIT_SYMBOL[card.suit]}
-      </span>
-      <span
-        className={cn(
-          "self-end font-display font-bold leading-none rotate-180",
-          red ? "text-card-red" : "text-card-ink",
-        )}
-      >
-        {card.rank}
-      </span>
+      {!usesReference && <PipFace card={card} />}
     </Tag>
   );
 }
