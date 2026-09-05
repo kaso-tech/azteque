@@ -507,11 +507,15 @@ function Azteque() {
           </div>
         </div>
 
-        {state.trick.length === 2 && collect.length === 0 && (
-          <p className="text-[0.7rem] uppercase tracking-widest text-gold-soft">
-            Comparaison des cartes…
+        {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
+          <p
+            key={phaseMsg ?? "compare"}
+            className="animate-banner rounded-full border border-gold/40 bg-felt-deep/70 px-3 py-1 text-[0.7rem] uppercase tracking-widest text-gold-soft"
+          >
+            {phaseMsg ?? "Comparaison des cartes…"}
           </p>
         )}
+
 
         {/* Main blanche */}
         {canRedeal && (
