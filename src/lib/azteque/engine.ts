@@ -392,6 +392,7 @@ export function endRound(s: GameState): GameState {
     s.instantWin = true;
   }
   s.roundWinner = winner;
+  s.pont = winner === null;
   if (winner !== null) s.roundsWon[winner] += 1;
   s.phase = "roundEnd";
   if (s.instantWin && winner !== null) {
