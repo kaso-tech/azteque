@@ -159,15 +159,14 @@ function Azteque() {
     [state],
   );
   const legalIds = useMemo(() => new Set(legal.map((c) => c.id)), [legal]);
-  const canPassMeldByPlaying =
+  // Tant que la proposition de compte est affichée et non tranchée,
+  // le joueur ne peut pas jouer : il doit annoncer ou passer.
+  const meldDecisionPending =
     state.phase === "playing" &&
     state.canAnnounce === 0 &&
     state.drawPending[0] === 0 &&
-    myMelds.length > 0;
-  const passableCardIds = useMemo(
-    () => new Set(canPassMeldByPlaying ? legalCards(state, 0).map((c) => c.id) : []),
-    [canPassMeldByPlaying, state],
-  );
+    myMelds.length > 0 &&
+    !meldPassed;
 
   const freshRound =
     state.phase === "playing" &&
@@ -359,17 +358,8 @@ function Azteque() {
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
-    // Toucher une carte pendant la proposition revient à renoncer au compte.
-    // La pioche obligatoire se déroule alors avant que le joueur puisse jouer.
-    if (
-      state.canAnnounce === 0 &&
-      state.drawPending[0] === 0 &&
-      availableMelds(state, 0).length > 0
-    ) {
-      setMeldPassed(true);
-      setMeldPick([]);
-      return;
-    }
+    // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
+    if (meldDecisionPending) return;
     const r = el.getBoundingClientRect();
     const t = tableRef.current?.getBoundingClientRect();
     if (t) {
@@ -589,7 +579,7 @@ function Azteque() {
         )}
 
         {/* Annonce de comptes */}
-        {state.phase === "playing" && myMelds.length > 0 && (
+        {state.phase === "playing" && myMelds.length > 0 && !meldPassed && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
             <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
               Annoncer un compte ?
@@ -616,6 +606,19 @@ function Azteque() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => {
+                  setMeldPassed(true);
+                  setMeldPick([]);
+                  // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
+                  setState((s) =>
+                    s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s,
+                  );
+                }}
+                className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                Passer
+              </button>
             </div>
             {meldPick.length > 0 && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -668,13 +671,12 @@ function Azteque() {
             exposedIds={state.exposed[0]}
             keepSlots={state.stock.length > 0}
             isDisabled={(c) =>
-              canPassMeldByPlaying
-                ? !passableCardIds.has(c.id)
-                : state.turn !== 0 ||
-                  state.phase !== "playing" ||
-                  state.trick.length >= 2 ||
-                  state.drawPending.length > 0 ||
-                  !legalIds.has(c.id)
+              meldDecisionPending ||
+              state.turn !== 0 ||
+              state.phase !== "playing" ||
+              state.trick.length >= 2 ||
+              state.drawPending.length > 0 ||
+              !legalIds.has(c.id)
             }
             onPlay={playMyCard}
           />
