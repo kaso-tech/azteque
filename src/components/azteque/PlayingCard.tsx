@@ -32,7 +32,7 @@ export function PlayingCard({
       <div
         className={cn(
           sizes[size],
-          "playing-card relative overflow-hidden rounded-md shadow-[var(--shadow-card)]",
+          "playing-card relative overflow-hidden rounded-[3px] shadow-[var(--shadow-card)]",
           className,
         )}
         aria-label="Carte face cachée"
@@ -50,7 +50,7 @@ export function PlayingCard({
       disabled={onClick ? disabled : undefined}
       className={cn(
         sizes[size],
-        "playing-card relative overflow-hidden rounded-md bg-card-face shadow-[var(--shadow-card)]",
+        "playing-card relative overflow-hidden rounded-[3px] bg-card-face shadow-[var(--shadow-card)]",
         "flex flex-col justify-between select-none transition-all duration-200",
         onClick && !disabled && "hover:-translate-y-3 hover:shadow-xl cursor-pointer",
         disabled && "opacity-45 saturate-50",
