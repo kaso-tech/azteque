@@ -342,8 +342,8 @@ function Azteque() {
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
         {state.stock.length > 0 && (
-          <div ref={stockRef} className="absolute left-3 top-3 flex items-center gap-2" aria-label={`Pioche, ${state.stock.length} cartes`}>
-            <PlayingCard faceDown size="sm" />
+          <div ref={stockRef} className="absolute left-3 top-3 flex items-center gap-3" aria-label={`Pioche, ${state.stock.length} cartes`}>
+            <StockPile count={state.stock.length} />
             <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-1 text-[0.65rem] font-semibold text-gold">
               {state.stock.length}
             </span>
@@ -669,6 +669,27 @@ function HandRow({
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+function StockPile({ count }: { count: number }) {
+  const visibleLayers = Math.min(5, Math.max(1, Math.ceil(count / 8)));
+
+  return (
+    <div className="relative h-16 w-12" aria-hidden="true">
+      {Array.from({ length: visibleLayers }, (_, index) => {
+        const offset = (visibleLayers - index - 1) * 2;
+        return (
+          <div
+            key={`${visibleLayers}-${index}`}
+            className="absolute left-0 top-0 w-10 transition-transform duration-300"
+            style={{ transform: `translate(${offset}px, ${-offset}px)` }}
+          >
+            <PlayingCard faceDown size="sm" />
+          </div>
+        );
+      })}
     </div>
   );
 }
