@@ -313,8 +313,10 @@ function Azteque() {
   }, []);
 
   const restart = useCallback(() => {
+    setMeldHistory([]);
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
+
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
