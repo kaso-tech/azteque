@@ -176,7 +176,7 @@ function Azteque() {
       </section>
 
       {/* Tapis */}
-      <section className="panel relative flex min-h-44 flex-1 flex-col items-center justify-center gap-3 p-4">
+      <section className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4">
         <div className="flex items-center gap-4">
           {state.trick.length === 0 ? (
             <p className="text-sm text-muted-foreground">
