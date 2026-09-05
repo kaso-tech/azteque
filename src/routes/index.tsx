@@ -823,6 +823,7 @@ function HandRow({
   onPlay,
   interactive = true,
   faceDown,
+  keepSlots = false,
 }: {
   cards: Card[];
   exposedIds: string[];
@@ -830,28 +831,33 @@ function HandRow({
   onPlay?: (c: Card, el: HTMLElement) => void;
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
+  keepSlots?: boolean;
 }) {
-  const [order, setOrder] = useState<string[]>([]);
+  const [slots, setSlots] = useState<(string | null)[]>([]);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const dragId = useRef<string | null>(null);
   const startX = useRef(0);
   const moved = useRef(false);
 
   useEffect(() => {
-    setOrder((prev) => {
+    setSlots((prev) => {
       const ids = cards.map((c) => c.id);
-      const kept = prev.filter((id) => ids.includes(id));
-      const added = ids.filter((id) => !kept.includes(id));
-      return [...kept, ...added];
+      let next = prev.map((id) => (id && ids.includes(id) ? id : null));
+      if (!keepSlots) next = next.filter((id): id is string => id !== null);
+      for (const id of ids) {
+        if (next.includes(id)) continue;
+        const empty = next.indexOf(null);
+        if (empty >= 0) next[empty] = id;
+        else next.push(id);
+      }
+      return next;
     });
-  }, [cards]);
+  }, [cards, keepSlots]);
 
   const ordered = useMemo(() => {
     const byId = new Map(cards.map((c) => [c.id, c] as const));
-    const list = order.map((id) => byId.get(id)).filter(Boolean) as Card[];
-    for (const c of cards) if (!list.includes(c)) list.push(c);
-    return list;
-  }, [cards, order]);
+    return slots.map((id) => (id ? (byId.get(id) ?? null) : null));
+  }, [cards, slots]);
 
   const handlePointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
     dragId.current = id;
