@@ -658,14 +658,14 @@ function HandRow({
             faceDown={faceDown ? faceDown(c) : false}
             exposed={exposedIds.includes(c.id)}
             disabled={isDisabled ? isDisabled(c) : false}
-            onClick={
-              interactive && onPlay
-                ? (el) => {
+            {...(interactive && onPlay
+              ? {
+                  onClick: (el: HTMLElement) => {
                     if (moved.current) return;
                     onPlay(c, el);
-                  }
-                : undefined
-            }
+                  },
+                }
+              : {})}
           />
         </div>
       ))}
