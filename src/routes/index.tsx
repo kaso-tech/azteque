@@ -76,6 +76,8 @@ function Azteque() {
   const [showAiProfile, setShowAiProfile] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
+  const [tokens, setTokens] = useState(0);
+  const tokenAwarded = useRef(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
@@ -125,6 +127,7 @@ function Azteque() {
       const savedName = localStorage.getItem("azteque-player-name")?.trim();
       if (savedName) setPlayerName(savedName);
       else setShowPlayerProfile(true);
+      setTokens(Math.max(0, Number(localStorage.getItem("azteque-tokens")) || 0));
     } catch {
       /* ignore */
     } finally {
@@ -151,6 +154,23 @@ function Azteque() {
   useEffect(() => {
     setSoundEnabled(settings.sound);
   }, [settings.sound]);
+
+  // Jetons : solde persistant + récompense en fin de partie
+  useEffect(() => {
+    if (!profileReady) return;
+    try {
+      localStorage.setItem("azteque-tokens", String(tokens));
+    } catch {
+      /* ignore */
+    }
+  }, [tokens, profileReady]);
+
+  useEffect(() => {
+    if (state.phase === "gameEnd" && state.champWinner === 0 && !tokenAwarded.current) {
+      tokenAwarded.current = true;
+      setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]);
+    }
+  }, [state.phase, state.champWinner, settings.difficulty]);
 
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
@@ -412,6 +432,7 @@ function Azteque() {
 
   const restart = useCallback(() => {
     setMeldHistory([]);
+    tokenAwarded.current = false;
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
@@ -472,6 +493,7 @@ function Azteque() {
         {showPlayerProfile && (
           <PlayerProfilePanel
             playerName={playerName}
+            tokens={tokens}
             onNameChange={setPlayerName}
             settings={settings}
             onChange={setSettings}
@@ -496,13 +518,9 @@ function Azteque() {
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
             {state.roundsWon[0]} <span className="text-muted-foreground">—</span> {state.roundsWon[1]}
           </p>
-          <button
-            type="button"
-            onClick={() => setShowHistory(true)}
-            className="text-[0.58rem] text-muted-foreground underline decoration-gold/40 underline-offset-2"
-          >
-            Comptes · {meldHistory.length}
-          </button>
+          <p className="mt-0.5 whitespace-nowrap text-[0.62rem] font-semibold text-gold">
+            🪙 {TOKEN_REWARDS[settings.difficulty]} jetons à gagner
+          </p>
         </div>
         <ProfileButton
           name={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
@@ -801,6 +819,11 @@ function Azteque() {
             {state.instantWin && (
               <p className="mt-1 text-xs text-accent">Treize bonnes ou plus en un tour.</p>
             )}
+            {state.phase === "gameEnd" && state.champWinner === 0 && (
+              <p className="mt-2 text-sm font-semibold text-gold">
+                🪙 +{TOKEN_REWARDS[settings.difficulty]} jetons remportés !
+              </p>
+            )}
             {state.pont && state.phase === "roundEnd" && (
               <p className="mt-1 text-xs text-accent">
                 Égalité parfaite : aucun tour marqué, on rejoue le tour.
@@ -831,6 +854,7 @@ function Azteque() {
       {showPlayerProfile && (
         <PlayerProfilePanel
           playerName={playerName}
+          tokens={tokens}
           onNameChange={setPlayerName}
           settings={settings}
           onChange={setSettings}
@@ -1336,8 +1360,17 @@ function ProfileButton({
 
 const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
 
+const TOKEN_REWARDS: Record<Difficulty, number> = {
+  facile: 50,
+  normal: 100,
+  expert: 150,
+  maitre: 200,
+  legende: 250,
+};
+
 function PlayerProfilePanel({
   playerName,
+  tokens,
   onNameChange,
   settings,
   onChange,
@@ -1345,6 +1378,7 @@ function PlayerProfilePanel({
   onClose,
 }: {
   playerName: string;
+  tokens: number;
   onNameChange: (name: string) => void;
   settings: Settings;
   onChange: (s: Settings) => void;
@@ -1365,6 +1399,11 @@ function PlayerProfilePanel({
             </div>
           </div>
           <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">×</Button>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between rounded-lg border border-gold/40 bg-gold/5 px-4 py-2.5">
+          <span className="text-sm text-foreground">Solde de jetons</span>
+          <span className="font-display text-lg font-semibold text-gold">🪙 {tokens}</span>
         </div>
 
         <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">Nom d'utilisateur</label>
