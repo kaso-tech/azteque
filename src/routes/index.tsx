@@ -438,6 +438,9 @@ function Azteque() {
   };
 
   const myBonnes = state.gains[0].filter(isBonne).length;
+  const myComptes = meldHistory
+    .filter((e) => e.player === 0)
+    .reduce((sum, e) => sum + e.points, 0);
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
   if (!started) {
