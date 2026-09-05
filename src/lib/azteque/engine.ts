@@ -239,10 +239,14 @@ export function playCard(state: GameState, p: PlayerIndex, cardId: string): Game
     s.turn = (p === 0 ? 1 : 0) as PlayerIndex;
     return s;
   }
-  return resolveTrick(s);
+  // Les deux cartes restent visibles au milieu : la résolution est déclenchée
+  // par l'interface après un court délai réglable.
+  return s;
 }
 
-function resolveTrick(s: GameState): GameState {
+export function resolveTrick(state: GameState): GameState {
+  if (state.trick.length < 2) return state;
+  const s = clone(state);
   const first = s.trick[0]!;
   const second = s.trick[1]!;
   const winner: PlayerIndex = beats(second.card, first.card, s.trump)
@@ -396,4 +400,46 @@ export function aiChooseCard(state: GameState): Card {
   const safe = legal.filter((c) => !isBonne(c));
   const pool = safe.length ? safe : legal;
   return [...pool].sort((a, b) => val(a) - val(b))[0]!;
+}
+
+/* ---------- Main blanche ---------- */
+
+export function hasMainBlanche(state: GameState, p: PlayerIndex): boolean {
+  return !state.hands[p].some((c) => c.rank === "K" || c.rank === "Q" || c.rank === "J");
+}
+
+/* ---------- Niveaux de difficulté ---------- */
+
+export type Difficulty = "facile" | "normal" | "expert";
+
+export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+  facile: "Facile",
+  normal: "Normal",
+  expert: "Expert",
+};
+
+export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
+  const legal = legalCards(state, 1);
+  if (level === "facile") {
+    // Joue presque au hasard, protège rarement ses bonnes
+    if (Math.random() < 0.7) return legal[Math.floor(Math.random() * legal.length)]!;
+    return aiChooseCard(state);
+  }
+  if (level === "normal") {
+    if (Math.random() < 0.25) return legal[Math.floor(Math.random() * legal.length)]!;
+    return aiChooseCard(state);
+  }
+  // Expert : heuristique complète + conservation des atouts forts en début de tour
+  const trump = state.trump;
+  if (state.trick.length === 0 && trump && state.stock.length > 2) {
+    const offTrump = legal.filter((c) => c.suit !== trump && !isBonne(c));
+    if (offTrump.length)
+      return [...offTrump].sort((a, b) => rankValue(b.rank) - rankValue(a.rank))[0]!;
+  }
+  return aiChooseCard(state);
+}
+
+export function aiWantsRedeal(state: GameState, level: Difficulty): boolean {
+  if (!hasMainBlanche(state, 1)) return false;
+  return level === "facile" ? Math.random() < 0.5 : true;
 }
