@@ -873,15 +873,15 @@ function HandRow({
     if (!moved.current) return;
     const row = rowRef.current;
     if (!row) return;
-    const slots = Array.from(row.children) as HTMLElement[];
-    const target = slots.findIndex((el) => {
+    const children = Array.from(row.children) as HTMLElement[];
+    const target = children.findIndex((el) => {
       const r = el.getBoundingClientRect();
       return e.clientX >= r.left && e.clientX <= r.right;
     });
     if (target < 0) return;
-    setOrder((prev) => {
+    setSlots((prev) => {
       const from = prev.indexOf(id);
-      if (from < 0 || from === target) return prev;
+      if (from < 0 || from === target || prev[target] === null) return prev;
       const next = [...prev];
       next.splice(from, 1);
       next.splice(target, 0, id);
