@@ -252,7 +252,30 @@ export function playCard(state: GameState, p: PlayerIndex, cardId: string): Game
   return s;
 }
 
-export function resolveTrick(state: GameState): GameState {
+export interface TrickOptions {
+  /** Règle optionnelle « Atout 10 » : capturer le 10 d'atout rafle tout le tas adverse. */
+  atout10?: boolean;
+}
+
+/** Le pli capture-t-il le 10 d'atout adverse (règle optionnelle activée) ? */
+export function trickCapturesPile(state: GameState, opts: TrickOptions = {}): boolean {
+  if (!opts.atout10 || state.trick.length < 2 || !state.trump) return false;
+  const first = state.trick[0]!;
+  const second = state.trick[1]!;
+  const winner: PlayerIndex = beats(second.card, first.card, state.trump)
+    ? second.player
+    : first.player;
+  const loser: PlayerIndex = winner === 0 ? 1 : 0;
+  const loserCard = state.trick.find((t) => t.player === loser)?.card;
+  return (
+    !!loserCard &&
+    loserCard.rank === "10" &&
+    loserCard.suit === state.trump &&
+    state.gains[loser].length > 0
+  );
+}
+
+export function resolveTrick(state: GameState, opts: TrickOptions = {}): GameState {
   if (state.trick.length < 2) return state;
   const s = clone(state);
   const first = s.trick[0]!;
@@ -267,18 +290,25 @@ export function resolveTrick(state: GameState): GameState {
     `${name(winner)} remporte le pli (${label(first.card)} / ${label(second.card)}).`,
   );
 
-  // Capture du 10 d'atout de l'adversaire
+  // Règle optionnelle « Atout 10 » : capturer le 10 d'atout rafle tout le tas adverse
   const loserCard = s.trick.find((t) => t.player === loser)?.card;
-  if (s.trump && loserCard && loserCard.rank === "10" && loserCard.suit === s.trump) {
-    const stolen = s.gains[loser].filter(isBonne);
+  if (
+    opts.atout10 &&
+    s.trump &&
+    loserCard &&
+    loserCard.rank === "10" &&
+    loserCard.suit === s.trump
+  ) {
+    const stolen = s.gains[loser];
     if (stolen.length) {
-      s.gains[loser] = s.gains[loser].filter((c) => !isBonne(c));
+      s.gains[loser] = [];
       s.gains[winner].push(...stolen);
       s.log.unshift(
-        `10 d'atout capturé ! ${name(winner)} récupère ${stolen.length} bonne(s).`,
+        `Atout 10 ! ${name(winner)} rafle tout le tas adverse (${stolen.length} cartes).`,
       );
     }
   }
+
 
   s.trick = [];
   s.lastTrickWinner = winner;
