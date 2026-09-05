@@ -24,7 +24,9 @@ import {
   TrickPosition,
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
+import { MatchChat } from "@/components/azteque/MatchChat";
 import { ensureOnlineIdentity, getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
+
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
