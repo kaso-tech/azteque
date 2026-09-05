@@ -394,11 +394,11 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />
         </div>
 
-        <div className="absolute bottom-3 right-3">
+        <div className="absolute bottom-3 right-3" ref={pileRefs[0]}>
           <CapturedPile
             cards={state.gains[0]}
             owner="player"
@@ -417,7 +417,10 @@ function Azteque() {
         )}
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
-          <TrickPosition trick={state.trick} player={1} />
+          <div ref={trickSlotRefs[1]}>
+            <TrickPosition trick={state.trick} player={1} hidden={collect.length > 0} />
+          </div>
+
 
           <div
             ref={stockRef}
