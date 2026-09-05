@@ -207,3 +207,54 @@
 }
 @utility animate-deal { animation: deal-in 0.35s ease-out both; }
 @utility animate-trick { animation: trick-in 0.3s ease-out both; }
+
+/* Jeu de cartes traditionnel fourni : chaque carte est recadrée depuis la planche modèle. */
+.playing-card-reference {
+  background-repeat: no-repeat;
+  background-size: 750% 466%;
+}
+.playing-card-reference[data-rank="8"] { background-position-x: 0%; }
+.playing-card-reference[data-rank="9"] { background-position-x: 20%; }
+.playing-card-reference[data-rank="10"] { background-position-x: 40%; }
+.playing-card-reference[data-rank="J"] { background-position-x: 60%; }
+.playing-card-reference[data-rank="Q"] { background-position-x: 80%; }
+.playing-card-reference[data-rank="K"] { background-position-x: 100%; }
+.playing-card-reference[data-suit="D"] { background-position-y: 0%; }
+.playing-card-reference[data-suit="C"] { background-position-y: 33.2%; }
+.playing-card-reference[data-suit="H"] { background-position-y: 66.6%; }
+.playing-card-reference[data-suit="S"] { background-position-y: 100%; }
+
+.card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Arial, sans-serif;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 0.8;
+}
+.card-corner span { font-size: 0.85em; }
+.card-corner-top { left: 0.1em; top: 0.16em; }
+.card-corner-bottom { bottom: 0.16em; right: 0.1em; transform: rotate(180deg); }
+.card-pips {
+  position: absolute;
+  inset: 15% 22%;
+  display: grid;
+  font-family: Georgia, serif;
+  font-size: 1.1em;
+  font-style: normal;
+  line-height: 1;
+}
+.card-pips i { align-self: center; justify-self: center; font-style: normal; }
+.card-pips-1 { place-items: center; font-size: 2em; }
+.card-pips-7 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); }
+.card-pips-7 i:nth-child(7) { grid-column: 1 / -1; grid-row: 2 / 4; }
+.card-pips-7 i:nth-child(2),
+.card-pips-7 i:nth-child(4),
+.card-pips-7 i:nth-child(6) { transform: rotate(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-deal, .animate-trick { animation: none; }
+  .playing-card { transition: none; }
+}
