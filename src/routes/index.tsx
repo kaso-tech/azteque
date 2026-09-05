@@ -116,7 +116,7 @@ function Azteque() {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
   }, [state.phase, state.gains]);
 
-  const myMelds = useMemo(() => availableMelds(state, 0, true), [state]);
+  const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
     () =>
       state.turn === 0 && state.phase === "playing" && state.trick.length < 2
@@ -713,10 +713,10 @@ function CollectCard({
       style={{
         left: departed ? to.x : from.x,
         top: departed ? to.y : from.y,
-        transform: `translate(-50%, -50%) scale(${departed ? 0.6 : 1}) rotate(${departed ? 8 : 0}deg)`,
-        opacity: departed ? 0.15 : 1,
+        transform: `translate(-50%, -50%) scale(${departed ? 0.555 : 1}) rotate(${departed ? 4 : 0}deg)`,
+        opacity: 1,
         transition:
-          "left 0.45s cubic-bezier(.25,.9,.3,1), top 0.45s cubic-bezier(.25,.9,.3,1), transform 0.45s cubic-bezier(.25,.9,.3,1), opacity 0.2s ease 0.3s",
+          "left 0.4s cubic-bezier(.3,.9,.3,1), top 0.4s cubic-bezier(.3,.9,.3,1), transform 0.4s cubic-bezier(.3,.9,.3,1)",
       }}
     >
       <PlayingCard card={card} size="hand" />
