@@ -593,6 +593,12 @@ function Azteque() {
         <DrawCard key={flight.id} {...flight} />
       ))}
 
+      {/* Ramassage du pli vers les tas */}
+      {collect.map((flight) => (
+        <CollectCard key={flight.id} {...flight} />
+      ))}
+
+
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-md p-6 text-center">
