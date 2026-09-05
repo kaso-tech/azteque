@@ -405,11 +405,18 @@ function Azteque() {
             highlight={!!state.trump}
           />
           <button
+            onClick={() => setShowHistory(true)}
+            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
+          >
+            Comptes · {meldHistory.length}
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
           >
             Paramètres
           </button>
+
           <button
             onClick={() => setShowRules(true)}
             className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
