@@ -603,17 +603,21 @@ function HandRow({
   return (
     <div
       ref={rowRef}
-      className="flex touch-none items-end justify-center gap-1 pt-4 sm:gap-2"
+      className="flex w-full touch-none items-end justify-center gap-1 pt-4 sm:gap-2"
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
       {ordered.map((c) => (
-        <div key={c.id} onPointerDown={onPointerDown(c.id)} className="transition-transform">
+        <div
+          key={c.id}
+          onPointerDown={onPointerDown(c.id)}
+          className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
+        >
           <PlayingCard
             card={c}
             size="lg"
-            className="animate-deal"
+            className="w-full animate-deal"
             exposed={exposedIds.includes(c.id)}
             disabled={isDisabled(c)}
             onClick={(el) => {
