@@ -818,6 +818,11 @@ function Azteque() {
             {state.instantWin && (
               <p className="mt-1 text-xs text-accent">Treize bonnes ou plus en un tour.</p>
             )}
+            {state.phase === "gameEnd" && state.champWinner === 0 && (
+              <p className="mt-2 text-sm font-semibold text-gold">
+                🪙 +{TOKEN_REWARDS[settings.difficulty]} jetons remportés !
+              </p>
+            )}
             {state.pont && state.phase === "roundEnd" && (
               <p className="mt-1 text-xs text-accent">
                 Égalité parfaite : aucun tour marqué, on rejoue le tour.
@@ -1352,6 +1357,14 @@ function ProfileButton({
 }
 
 const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
+
+const TOKEN_REWARDS: Record<Difficulty, number> = {
+  facile: 50,
+  normal: 100,
+  expert: 150,
+  maitre: 200,
+  legende: 250,
+};
 
 function PlayerProfilePanel({
   playerName,
