@@ -712,7 +712,7 @@ function Azteque() {
       </section>
 
       {/* Votre main */}
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-2">
         <div ref={playerHandRef}>
           <HandRow
             cards={state.hands[0]}
@@ -729,6 +729,25 @@ function Azteque() {
             onPlay={playMyCard}
           />
         </div>
+
+        {/* Informations du joueur */}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMyBonnes(true)}
+            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+          >
+            Bonnes · {myBonnes}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+          >
+            Comptes · {myComptes}
+          </button>
+        </div>
+
 
       </section>
 
