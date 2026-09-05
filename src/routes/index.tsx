@@ -59,6 +59,7 @@ function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMyGains, setShowMyGains] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [meldPick, setMeldPick] = useState<Suit[]>([]);
   const [started, setStarted] = useState(false);
@@ -92,6 +93,10 @@ function Azteque() {
       /* ignore */
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
+  }, [state.phase, state.gains]);
 
   const myMelds = useMemo(() => availableMelds(state, 0, true), [state]);
   const legal = useMemo(
@@ -340,34 +345,51 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
-        {state.stock.length > 0 && (
-          <div ref={stockRef} className="absolute left-3 top-3 flex items-center gap-3" aria-label={`Pioche, ${state.stock.length} cartes`}>
-            <StockPile count={state.stock.length} />
-            <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-1 text-[0.65rem] font-semibold text-gold">
-              {state.stock.length}
-            </span>
-          </div>
+        <div className="absolute left-3 top-3">
+          <CapturedPile cards={state.gains[1]} owner="opponent" />
+        </div>
+
+        <div className="absolute bottom-3 right-3">
+          <CapturedPile
+            cards={state.gains[0]}
+            owner="player"
+            onOpen={() => setShowMyGains(true)}
+          />
+        </div>
+
+        {state.trick.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {state.phase === "playing"
+              ? state.turn === 0
+                ? "À vous de mener."
+                : "L'adversaire réfléchit…"
+              : "Tour terminé."}
+          </p>
         )}
-        <div className="flex items-center gap-4">
-          {state.trick.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {state.phase === "playing"
-                ? state.turn === 0
-                  ? "À vous de mener."
-                  : "L'adversaire réfléchit…"
-                : "Tour terminé."}
-            </p>
-          ) : (
-            state.trick.map((t, i) => (
-              <div key={t.card.id} className="flex flex-col items-center gap-1">
-                <PlayingCard card={t.card} size="lg" className="animate-trick" />
-                <span className="text-[0.65rem] text-muted-foreground">
-                  {t.player === 0 ? "Vous" : "Adversaire"}
-                  {i === 0 ? " (mène)" : ""}
+
+        <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
+          <TrickPosition trick={state.trick} player={1} />
+
+          <div
+            ref={stockRef}
+            className="flex min-h-20 flex-col items-center justify-center gap-1"
+            aria-label={state.stock.length > 0 ? `Pioche, ${state.stock.length} cartes` : "Pioche vide"}
+          >
+            {state.stock.length > 0 ? (
+              <>
+                <StockPile count={state.stock.length} />
+                <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-0.5 text-[0.65rem] font-semibold text-gold">
+                  {state.stock.length}
                 </span>
+              </>
+            ) : (
+              <div className="flex h-14 w-10 items-center justify-center rounded-[3px] border border-dashed border-gold/30 text-[0.6rem] text-muted-foreground">
+                Vide
               </div>
-            ))
-          )}
+            )}
+          </div>
+
+          <TrickPosition trick={state.trick} player={0} />
         </div>
 
         {state.trick.length === 2 && (
@@ -559,7 +581,123 @@ function Azteque() {
           onClose={() => setShowSettings(false)}
         />
       )}
+      {showMyGains && (
+        <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
+      )}
     </main>
+  );
+}
+
+function TrickPosition({
+  trick,
+  player,
+}: {
+  trick: GameState["trick"];
+  player: PlayerIndex;
+}) {
+  const played = trick.find((entry) => entry.player === player);
+  if (!played) return <div className="h-28 w-[4.5rem]" aria-hidden="true" />;
+  const led = trick[0]?.card.id === played.card.id;
+
+  return (
+    <div className="flex w-[4.5rem] flex-col items-center gap-1">
+      <PlayingCard card={played.card} size="lg" className="animate-trick" />
+      <span className="text-[0.65rem] text-muted-foreground">
+        {player === 0 ? "Vous" : "Adversaire"}
+        {led ? " (mène)" : ""}
+      </span>
+    </div>
+  );
+}
+
+function CapturedPile({
+  cards,
+  owner,
+  onOpen,
+}: {
+  cards: Card[];
+  owner: "player" | "opponent";
+  onOpen?: () => void;
+}) {
+  const visibleLayers = Math.min(4, Math.max(1, Math.ceil(cards.length / 6)));
+  const isPlayer = owner === "player";
+  const label = isPlayer ? "Vos cartes sorties" : "Cartes sorties adverses";
+  const pile = (
+    <>
+      <span className="text-[0.58rem] font-semibold text-muted-foreground">{label}</span>
+      <span className="relative block h-14 w-12" aria-hidden="true">
+        {cards.length > 0 ? (
+          Array.from({ length: visibleLayers }, (_, index) => {
+            const offset = (visibleLayers - index - 1) * 2;
+            return (
+              <span
+                key={`${visibleLayers}-${index}`}
+                className="absolute left-0 top-1 block w-10"
+                style={{ transform: `translate(${offset}px, ${-offset}px)` }}
+              >
+                <PlayingCard faceDown size="sm" />
+              </span>
+            );
+          })
+        ) : (
+          <span className="absolute left-0 top-1 block h-14 w-10 rounded-[3px] border border-dashed border-gold/25" />
+        )}
+      </span>
+      {isPlayer && cards.length > 0 && (
+        <span className="text-[0.58rem] text-gold">Voir · {cards.length}</span>
+      )}
+    </>
+  );
+
+  if (isPlayer) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={cards.length === 0}
+        className="flex w-24 flex-col items-center gap-0.5 disabled:cursor-default"
+        aria-label={cards.length > 0 ? `Consulter vos ${cards.length} cartes sorties` : "Aucune carte sortie"}
+      >
+        {pile}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex w-24 cursor-not-allowed flex-col items-center gap-0.5" aria-label="Tas adverse non consultable">
+      {pile}
+    </div>
+  );
+}
+
+function GainsPanel({ cards, onClose }: { cards: Card[]; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="panel max-h-[85dvh] w-full max-w-lg overflow-y-auto p-4 sm:p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="gold-text text-2xl">Vos cartes sorties</h2>
+            <p className="text-xs text-muted-foreground">{cards.length} cartes remportées</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/40 text-lg text-gold"
+            aria-label="Fermer"
+          >
+            ×
+          </button>
+        </div>
+        <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6">
+          {cards.map((card) => (
+            <PlayingCard key={card.id} card={card} size="hand" />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
