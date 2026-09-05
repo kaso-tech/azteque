@@ -233,6 +233,9 @@ function Azteque() {
 
         if (winner === second.player) sfx.beat();
         else sfx.collect();
+        setPhaseMsg(
+          winner === 0 ? "Vous ramassez le pli" : "L'adversaire ramasse le pli",
+        );
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
 
@@ -251,19 +254,26 @@ function Azteque() {
               const draws = order.flatMap((player, index) => {
                 const to = center(targets[player]);
                 if (!to) return [];
-                return [{ id: Date.now() + index, player, from, to, delay: 260 + index * 320 }];
+                return [{ id: Date.now() + index, player, from, to, delay: 320 + index * 420 }];
               });
+              setPhaseMsg(
+                winner === 0 ? "Vous piochez en premier" : "L'adversaire pioche en premier",
+              );
               setDrawFlights(draws);
               draws.forEach((d) =>
                 timers.push(setTimeout(() => sfx.draw(), d.delay)),
               );
-              timers.push(setTimeout(() => setDrawFlights([]), 1600));
+              timers.push(setTimeout(() => setDrawFlights([]), 1800));
+              timers.push(setTimeout(() => setPhaseMsg(null), 1800));
+            } else {
+              timers.push(setTimeout(() => setPhaseMsg(null), 600));
             }
 
             setCollect([]);
             setState(next);
-          }, lastDelay + 520),
+          }, lastDelay + 560),
         );
+
       }, settings.trickDelay),
     );
 
