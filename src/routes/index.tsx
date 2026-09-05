@@ -169,7 +169,7 @@ function Azteque() {
           }];
         });
         setDrawFlights(flights);
-        setTimeout(() => setDrawFlights([]), 900);
+        setTimeout(() => setDrawFlights([]), 1150);
       }
 
       setState(next);
