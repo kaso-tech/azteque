@@ -579,7 +579,7 @@ function Azteque() {
         )}
 
         {/* Annonce de comptes */}
-        {state.phase === "playing" && myMelds.length > 0 && (
+        {state.phase === "playing" && myMelds.length > 0 && !meldPassed && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
             <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
               Annoncer un compte ?
