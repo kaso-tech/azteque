@@ -55,8 +55,10 @@ export interface GameState {
   leader: PlayerIndex;
   turn: PlayerIndex;
   dealer: PlayerIndex;
-  // Le joueur vient de remporter un pli : il peut annoncer avant de mener.
+  // Le joueur vient de remporter un pli : il peut annoncer avant de piocher.
   canAnnounce: PlayerIndex | null;
+  // Joueurs devant encore piocher (le vainqueur du pli en premier).
+  drawPending: PlayerIndex[];
   // Compte simple annoncé en attente d'un éventuel complément au 1er tirage
   pendingUpgrade: [Suit | null, Suit | null];
   lastTrickWinner: PlayerIndex | null;
@@ -105,6 +107,7 @@ export function newRound(
     turn: leader,
     dealer,
     canAnnounce: null,
+    drawPending: [],
     pendingUpgrade: [null, null],
     lastTrickWinner: null,
     phase: "playing",
