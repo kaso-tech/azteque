@@ -1243,3 +1243,70 @@ function Recap({
     </div>
   );
 }
+
+function MeldHistoryPanel({
+  entries,
+  onClose,
+}: {
+  entries: { key: string; round: number; player: PlayerIndex; label: string; points: number }[];
+  onClose: () => void;
+}) {
+  const totals = entries.reduce(
+    (acc, e) => {
+      acc[e.player] += e.points;
+      return acc;
+    },
+    [0, 0] as [number, number],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="panel animate-banner max-h-[85dvh] w-full max-w-md overflow-y-auto p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="gold-text text-2xl">Historique des comptes</h2>
+            <p className="text-xs text-muted-foreground">
+              Vous {totals[0]} pts · Adversaire {totals[1]} pts
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/40 text-lg text-gold"
+            aria-label="Fermer"
+          >
+            ×
+          </button>
+        </div>
+
+        {entries.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">
+            Aucun compte annoncé pour le moment.
+          </p>
+        ) : (
+          <ul className="mt-5 flex flex-col gap-2">
+            {entries.map((e) => (
+              <li
+                key={e.key}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs"
+              >
+                <span className="text-muted-foreground">Tour {e.round}</span>
+                <span className={e.player === 0 ? "text-gold" : "text-foreground"}>
+                  {e.player === 0 ? "Vous" : "Adversaire"}
+                </span>
+                <span className="flex-1 text-right text-muted-foreground">{e.label}</span>
+                <span className="font-semibold text-foreground">+{e.points}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
