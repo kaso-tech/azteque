@@ -446,31 +446,97 @@ function Azteque() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       {/* En-tête */}
-      <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
-        <ProfileButton
-          name={playerName}
-          icon="player"
-          align="left"
-          onClick={() => setShowPlayerProfile(true)}
-        />
-        <div className="min-w-16 text-center">
-          <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
-          <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
-            {state.roundsWon[0]} <span className="text-muted-foreground">—</span> {state.roundsWon[1]}
-          </p>
-          <button
-            onClick={() => setShowHistory(true)}
-            className="text-[0.58rem] text-muted-foreground underline decoration-gold/40 underline-offset-2"
-          >
-            Comptes · {meldHistory.length}
-          </button>
+                  <header className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-[image:var(--gradient-gold)] flex items-center justify-center shadow-lg">
+               <span className="text-primary-foreground font-display font-bold">A</span>
+            </div>
+            <h1 className="gold-text text-2xl sm:text-3xl tracking-tight">Aztèque</h1>
+          </div>
+          
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <Select
+              value={settings.difficulty}
+              onValueChange={(v) => setSettings(s => ({ ...s, difficulty: v as Difficulty }))}
+            >
+              <SelectTrigger className="h-8 w-[100px] sm:w-[120px] text-[0.7rem] border-gold/40 bg-secondary/30">
+                <SelectValue placeholder="Difficulté" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(DIFFICULTY_LABEL) as Difficulty[]).map((d) => (
+                  <SelectItem key={d} value={d} className="text-xs">
+                    {DIFFICULTY_LABEL[d]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-1 sm:gap-2 ml-1">
+              <button
+                onClick={() => setShowHistory(true)}
+                title="Historique"
+                className="p-2 rounded-full border border-gold/20 hover:bg-gold/10 transition-colors text-gold"
+              >
+                <History className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                title="Paramètres"
+                className="p-2 rounded-full border border-gold/20 hover:bg-gold/10 transition-colors text-gold"
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowRules(true)}
+                title="Règles"
+                className="p-2 rounded-full border border-gold/20 hover:bg-gold/10 transition-colors text-gold"
+              >
+                <Info className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
-        <ProfileButton
-          name={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
-          icon="ai"
-          align="right"
-          onClick={() => setShowAiProfile(true)}
-        />
+
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+           <ScoreBox
+             title="Ordinateur"
+             type="ai"
+             isTurn={state.turn === 1}
+             bonnes={revealOpp ? oppBonnes : null}
+             comptes={live1.comptes}
+             melds={state.melds[1].map(
+               (m) =>
+                 `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "t" : "s"} (${m.points})`,
+             )}
+           />
+
+           <div className="flex flex-row lg:flex-col items-center justify-center gap-3 lg:gap-1 min-w-[140px] panel px-4 py-2 bg-felt-deep/40 border-gold/20 shadow-inner">
+              <div className="flex gap-2 items-center">
+                 <Chip label="Tours" value={`${state.roundsWon[1]} - ${state.roundsWon[0]}`} />
+                 <Chip label="Stock" value={String(state.stock.length)} />
+              </div>
+              <div className="h-px w-8 bg-gold/20 hidden lg:block my-1" />
+              <Chip
+                label="Atout"
+                value={state.trump ? `${SUIT_SYMBOL[state.trump]} ${SUIT_NAME[state.trump]}` : "—"}
+                highlight={!!state.trump}
+                className="flex-1 lg:w-full text-center"
+              />
+           </div>
+
+           <ScoreBox
+             title={typeof playerName !== "undefined" ? playerName : "Vous"}
+             type="player"
+             isTurn={state.turn === 0}
+             bonnes={myBonnes}
+             comptes={live0.comptes}
+             melds={state.melds[0].map(
+               (m) =>
+                 `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "t" : "s"} (${m.points})`,
+             )}
+           />
+        </div>
       </header>
 
       {/* Adversaire */}
@@ -530,9 +596,7 @@ function Azteque() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-                <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-0.5 text-[0.65rem] font-semibold text-gold">
-                  {state.stock.length}
-                </span>
+
               </>
             ) : (
               <div className="flex h-14 w-10 items-center justify-center rounded-[3px] border border-dashed border-gold/30 text-[0.6rem] text-muted-foreground">
