@@ -606,6 +606,15 @@ function Azteque() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => {
+                  setMeldPassed(true);
+                  setMeldPick([]);
+                }}
+                className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                Passer
+              </button>
             </div>
             {meldPick.length > 0 && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
