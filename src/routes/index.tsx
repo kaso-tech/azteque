@@ -395,9 +395,6 @@ function Azteque() {
   const myBonnes = state.gains[0].filter(isBonne).length;
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
-  const live0 = scoreOf(state, 0, state.lastTrickWinner);
-  const live1 = scoreOf(state, 1, state.lastTrickWinner);
-
   if (!started) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
@@ -1296,51 +1293,6 @@ function AiProfilePanel({
           ))}
         </div>
         <Button type="button" onClick={onClose} className="mt-6 w-full">Enregistrer</Button>
-      </div>
-    </div>
-  );
-}
-
-function ScoreBox({
-  title,
-  bonnes,
-  comptes,
-  melds,
-  isTurn,
-  avatar,
-}: {
-  title: string;
-  bonnes: number | null;
-  comptes: number;
-  melds: string[];
-  isTurn?: boolean;
-  avatar?: string;
-}) {
-  return (
-    <div className={cn(
-      "panel flex flex-1 items-center gap-3 px-4 py-2 transition-all duration-300",
-      isTurn ? "ring-2 ring-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" : "opacity-90"
-    )}>
-      <Avatar className={cn("h-10 w-10 border-2 transition-colors", isTurn ? "border-gold" : "border-border")}>
-        <AvatarImage src={avatar} />
-        <AvatarFallback className="bg-gold/10 text-gold">{title[0]}</AvatarFallback>
-      </Avatar>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-display text-sm text-gold truncate">{title}</span>
-          {isTurn && (
-             <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
-          )}
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-0 text-[0.65rem] text-muted-foreground">
-          <span>Bonnes: {bonnes ?? "?"}</span>
-          <span>Comptes: {comptes}</span>
-        </div>
-        {melds.length > 0 && (
-          <p className="text-[0.6rem] text-muted-foreground/80 truncate italic">
-            {melds.join(" | ")}
-          </p>
-        )}
       </div>
     </div>
   );
