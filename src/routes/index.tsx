@@ -1049,11 +1049,17 @@ function GainsPanel({
             ×
           </button>
         </div>
-        <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6">
-          {cards.map((card) => (
-            <PlayingCard key={card.id} card={card} size="hand" />
-          ))}
-        </div>
+        {cards.length === 0 ? (
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            Aucune carte pour le moment.
+          </p>
+        ) : (
+          <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {cards.map((card) => (
+              <PlayingCard key={card.id} card={card} size="hand" />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
