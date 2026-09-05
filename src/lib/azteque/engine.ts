@@ -283,43 +283,44 @@ export function resolveTrick(state: GameState): GameState {
   s.trick = [];
   s.lastTrickWinner = winner;
 
-  // Pioche : le vainqueur d'abord
+  // La pioche est différée : le vainqueur peut d'abord annoncer un compte
+  // (à 5 cartes en main), puis pioche sa 6e carte, suivi du perdant.
+  s.drawPending = [];
   if (s.stock.length > 0) {
-    const drawn = s.stock.shift()!;
-    s.hands[winner].push(drawn);
-    // Compléter un compte simple au premier tirage suivant l'annonce
-    const pend = s.pendingUpgrade[winner];
-    if (pend && drawn.suit === pend && drawn.rank === "J") {
-      const m = s.melds[winner].find((x) => x.suit === pend && x.type === "simple");
-      if (m) {
-        m.type = "triple";
-        m.points = meldPoints("triple", m.first);
-        s.exposed[winner].push(drawn.id);
-        s.log.unshift(`${name(winner)} complète son compte à ${SUIT_NAME[pend]} (triple).`);
-      }
-    }
-    s.pendingUpgrade[winner] = null;
-    if (s.stock.length > 0) {
-      const d2 = s.stock.shift()!;
-      s.hands[loser].push(d2);
-      const pl = s.pendingUpgrade[loser];
-      if (pl && d2.suit === pl && d2.rank === "J") {
-        const m = s.melds[loser].find((x) => x.suit === pl && x.type === "simple");
-        if (m) {
-          m.type = "triple";
-          m.points = meldPoints("triple", m.first);
-          s.exposed[loser].push(d2.id);
-        }
-      }
-      s.pendingUpgrade[loser] = null;
-    }
+    s.drawPending.push(winner);
+    if (s.stock.length > 1) s.drawPending.push(loser);
   }
 
   s.leader = winner;
   s.turn = winner;
-  s.canAnnounce = s.stock.length > 0 ? winner : null;
+  s.canAnnounce = s.drawPending.length > 0 ? winner : null;
 
-  if (s.hands[0].length === 0 && s.hands[1].length === 0) return endRound(s);
+  if (s.drawPending.length === 0 && s.hands[0].length === 0 && s.hands[1].length === 0)
+    return endRound(s);
+  return s;
+}
+
+/** Fait piocher une carte au prochain joueur en attente. */
+export function drawNext(state: GameState): GameState {
+  if (state.phase !== "playing" || state.drawPending.length === 0 || state.stock.length === 0)
+    return state;
+  const s = clone(state);
+  const p = s.drawPending.shift()!;
+  const drawn = s.stock.shift()!;
+  s.hands[p].push(drawn);
+  // Compléter un compte simple au premier tirage suivant l'annonce
+  const pend = s.pendingUpgrade[p];
+  if (pend && drawn.suit === pend && drawn.rank === "J") {
+    const m = s.melds[p].find((x) => x.suit === pend && x.type === "simple");
+    if (m) {
+      m.type = "triple";
+      m.points = meldPoints("triple", m.first);
+      s.exposed[p].push(drawn.id);
+      s.log.unshift(`${name(p)} complète son compte à ${SUIT_NAME[pend]} (triple).`);
+    }
+  }
+  s.pendingUpgrade[p] = null;
+  s.log.unshift(`${name(p)} pioche une carte.`);
   return s;
 }
 
