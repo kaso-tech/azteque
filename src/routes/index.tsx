@@ -439,24 +439,17 @@ function Azteque() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-end justify-center gap-1 pt-4 sm:gap-2">
-          {state.hands[0].map((c) => (
-            <PlayingCard
-              key={c.id}
-              card={c}
-              size="lg"
-              className="animate-deal"
-              exposed={state.exposed[0].includes(c.id)}
-              disabled={
-                state.turn !== 0 ||
-                state.phase !== "playing" ||
-                state.trick.length >= 2 ||
-                !legalIds.has(c.id)
-              }
-              onClick={(el) => playMyCard(c, el)}
-            />
-          ))}
-        </div>
+        <HandRow
+          cards={state.hands[0]}
+          exposedIds={state.exposed[0]}
+          isDisabled={(c) =>
+            state.turn !== 0 ||
+            state.phase !== "playing" ||
+            state.trick.length >= 2 ||
+            !legalIds.has(c.id)
+          }
+          onPlay={playMyCard}
+        />
         <ScoreBox
           title="Vous"
           bonnes={myBonnes}
