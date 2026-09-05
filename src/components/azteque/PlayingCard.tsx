@@ -7,7 +7,7 @@ interface Props {
   disabled?: boolean;
   exposed?: boolean;
   size?: "sm" | "md" | "lg";
-  onClick?: () => void;
+  onClick?: (el: HTMLElement) => void;
   className?: string;
 }
 
@@ -46,7 +46,7 @@ export function PlayingCard({
 
   return (
     <Tag
-      onClick={onClick}
+      onClick={onClick ? (e: React.MouseEvent<HTMLElement>) => onClick(e.currentTarget) : undefined}
       disabled={onClick ? disabled : undefined}
       className={cn(
         sizes[size],
