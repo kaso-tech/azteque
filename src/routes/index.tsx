@@ -67,7 +67,13 @@ function Azteque() {
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
   >(null);
+  const [drawFlights, setDrawFlights] = useState<
+    { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const stockRef = useRef<HTMLDivElement | null>(null);
+  const opponentHandRef = useRef<HTMLDivElement | null>(null);
+  const playerHandRef = useRef<HTMLDivElement | null>(null);
   const aiRedealChecked = useRef(-1);
 
   // Réglages persistants
@@ -135,10 +141,39 @@ function Azteque() {
   // Résolution du pli après un délai réglable
   useEffect(() => {
     if (state.phase !== "playing" || state.trick.length < 2) return;
-    const t = setTimeout(
-      () => setState((s) => (s.trick.length === 2 ? resolveTrick(s) : s)),
-      settings.trickDelay,
-    );
+    const t = setTimeout(() => {
+      const stockRect = stockRef.current?.getBoundingClientRect();
+      const targets = [playerHandRef.current, opponentHandRef.current] as const;
+      const next = resolveTrick(state);
+
+      if (stockRect && state.stock.length > next.stock.length && next.lastTrickWinner !== null) {
+        const winner = next.lastTrickWinner;
+        const loser: PlayerIndex = winner === 0 ? 1 : 0;
+        const order: PlayerIndex[] = state.stock.length > 1 ? [winner, loser] : [winner];
+        const from = {
+          x: stockRect.left + stockRect.width / 2,
+          y: stockRect.top + stockRect.height / 2,
+        };
+        const flights = order.flatMap((player, index) => {
+          const targetRect = targets[player]?.getBoundingClientRect();
+          if (!targetRect) return [];
+          return [{
+            id: Date.now() + index,
+            player,
+            from,
+            to: {
+              x: targetRect.left + targetRect.width / 2,
+              y: targetRect.top + targetRect.height / 2,
+            },
+            delay: index * 220,
+          }];
+        });
+        setDrawFlights(flights);
+        setTimeout(() => setDrawFlights([]), 1150);
+      }
+
+      setState(next);
+    }, settings.trickDelay);
     return () => clearTimeout(t);
   }, [state, settings.trickDelay]);
 
@@ -288,7 +323,7 @@ function Azteque() {
               `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
           )}
         />
-        <div className="flex -space-x-4">
+        <div ref={opponentHandRef} className="flex -space-x-4">
           {state.hands[1].map((c) => (
             <PlayingCard
               key={c.id}
@@ -307,7 +342,7 @@ function Azteque() {
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
         {state.stock.length > 0 && (
-          <div className="absolute left-3 top-3 flex items-center gap-2" aria-label={`Pioche, ${state.stock.length} cartes`}>
+          <div ref={stockRef} className="absolute left-3 top-3 flex items-center gap-2" aria-label={`Pioche, ${state.stock.length} cartes`}>
             <PlayingCard faceDown size="sm" />
             <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-1 text-[0.65rem] font-semibold text-gold">
               {state.stock.length}
@@ -439,17 +474,19 @@ function Azteque() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-3">
-        <HandRow
-          cards={state.hands[0]}
-          exposedIds={state.exposed[0]}
-          isDisabled={(c) =>
-            state.turn !== 0 ||
-            state.phase !== "playing" ||
-            state.trick.length >= 2 ||
-            !legalIds.has(c.id)
-          }
-          onPlay={playMyCard}
-        />
+        <div ref={playerHandRef}>
+          <HandRow
+            cards={state.hands[0]}
+            exposedIds={state.exposed[0]}
+            isDisabled={(c) =>
+              state.turn !== 0 ||
+              state.phase !== "playing" ||
+              state.trick.length >= 2 ||
+              !legalIds.has(c.id)
+            }
+            onPlay={playMyCard}
+          />
+        </div>
         <ScoreBox
           title="Vous"
           bonnes={myBonnes}
@@ -483,6 +520,11 @@ function Azteque() {
           })()}
         />
       )}
+
+      {/* Cartes piochées, vainqueur du pli en premier */}
+      {drawFlights.map((flight) => (
+        <DrawCard key={flight.id} {...flight} />
+      ))}
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
@@ -658,6 +700,41 @@ function FlyingCard({
       }}
     >
       <PlayingCard card={card} size="lg" />
+    </div>
+  );
+}
+
+function DrawCard({
+  from,
+  to,
+  delay,
+  player,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  delay: number;
+  player: PlayerIndex;
+}) {
+  const [departed, setDeparted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDeparted(true), delay + 20);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <div
+      className="pointer-events-none fixed z-50 w-10"
+      aria-hidden="true"
+      style={{
+        left: departed ? to.x : from.x,
+        top: departed ? to.y : from.y,
+        transform: `translate(-50%, -50%) scale(${departed ? 0.82 : 1}) rotate(${player === 0 ? 5 : -5}deg)`,
+        opacity: departed ? 0 : 1,
+        transition: `left 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, top 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, opacity 0.16s ease ${delay + 380}ms, transform 0.48s ease ${delay}ms`,
+      }}
+    >
+      <PlayingCard faceDown size="sm" />
     </div>
   );
 }
