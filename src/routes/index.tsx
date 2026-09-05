@@ -906,30 +906,40 @@ function HandRow({
       onPointerLeave={interactive ? handlePointerUp : undefined}
 
     >
-      {ordered.map((c) => (
-        <div
-          key={c.id}
-          onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
-          className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
-        >
-          <PlayingCard
-            card={c}
-            size="hand"
-            className="animate-deal"
-            faceDown={faceDown ? faceDown(c) : false}
-            exposed={exposedIds.includes(c.id)}
-            disabled={isDisabled ? isDisabled(c) : false}
-            {...(interactive && onPlay
-              ? {
-                  onClick: (el: HTMLElement) => {
-                    if (moved.current) return;
-                    onPlay(c, el);
-                  },
-                }
-              : {})}
-          />
-        </div>
-      ))}
+      {ordered.map((c, i) =>
+        c === null ? (
+          <div
+            key={`empty-${i}`}
+            className="min-w-0 max-w-[4.5rem] flex-1"
+            aria-hidden="true"
+          >
+            <div className="aspect-[5/7] w-full rounded-[3px] border border-dashed border-white/15" />
+          </div>
+        ) : (
+          <div
+            key={c.id}
+            onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
+            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
+          >
+            <PlayingCard
+              card={c}
+              size="hand"
+              className="animate-deal"
+              faceDown={faceDown ? faceDown(c) : false}
+              exposed={exposedIds.includes(c.id)}
+              disabled={isDisabled ? isDisabled(c) : false}
+              {...(interactive && onPlay
+                ? {
+                    onClick: (el: HTMLElement) => {
+                      if (moved.current) return;
+                      onPlay(c, el);
+                    },
+                  }
+                : {})}
+            />
+          </div>
+        ),
+      )}
     </div>
   );
 }
