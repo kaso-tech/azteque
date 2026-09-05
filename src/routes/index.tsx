@@ -75,6 +75,7 @@ function Azteque() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [showAiProfile, setShowAiProfile] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
+  const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
@@ -437,6 +438,9 @@ function Azteque() {
   };
 
   const myBonnes = state.gains[0].filter(isBonne).length;
+  const myComptes = meldHistory
+    .filter((e) => e.player === 0)
+    .reduce((sum, e) => sum + e.points, 0);
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
   if (!started) {
@@ -565,7 +569,9 @@ function Azteque() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-
+                <span className="rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
+                  {state.stock.length}
+                </span>
               </>
             ) : (
               <div className="flex h-14 w-10 items-center justify-center rounded-[3px] border border-dashed border-gold/30 text-[0.6rem] text-muted-foreground">
@@ -706,7 +712,7 @@ function Azteque() {
       </section>
 
       {/* Votre main */}
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-2">
         <div ref={playerHandRef}>
           <HandRow
             cards={state.hands[0]}
@@ -723,6 +729,25 @@ function Azteque() {
             onPlay={playMyCard}
           />
         </div>
+
+        {/* Informations du joueur */}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMyBonnes(true)}
+            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+          >
+            Bonnes · {myBonnes}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+          >
+            Comptes · {myComptes}
+          </button>
+        </div>
+
 
       </section>
 
@@ -816,6 +841,14 @@ function Azteque() {
       )}
       {showMyGains && (
         <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
+      )}
+      {showMyBonnes && (
+        <GainsPanel
+          cards={state.gains[0].filter(isBonne)}
+          title="Vos bonnes"
+          subtitle={`${myBonnes} bonnes remportées — treize bonnes gagnent le tour`}
+          onClose={() => setShowMyBonnes(false)}
+        />
       )}
       {showHistory && (
         <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
@@ -983,7 +1016,17 @@ function CapturedPile({
   );
 }
 
-function GainsPanel({ cards, onClose }: { cards: Card[]; onClose: () => void }) {
+function GainsPanel({
+  cards,
+  onClose,
+  title = "Vos cartes sorties",
+  subtitle,
+}: {
+  cards: Card[];
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
@@ -992,8 +1035,10 @@ function GainsPanel({ cards, onClose }: { cards: Card[]; onClose: () => void }) 
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="gold-text text-2xl">Vos cartes sorties</h2>
-            <p className="text-xs text-muted-foreground">{cards.length} cartes remportées</p>
+            <h2 className="gold-text text-2xl">{title}</h2>
+            <p className="text-xs text-muted-foreground">
+              {subtitle ?? `${cards.length} cartes remportées`}
+            </p>
           </div>
           <button
             type="button"
@@ -1004,11 +1049,17 @@ function GainsPanel({ cards, onClose }: { cards: Card[]; onClose: () => void }) 
             ×
           </button>
         </div>
-        <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6">
-          {cards.map((card) => (
-            <PlayingCard key={card.id} card={card} size="hand" />
-          ))}
-        </div>
+        {cards.length === 0 ? (
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            Aucune carte pour le moment.
+          </p>
+        ) : (
+          <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {cards.map((card) => (
+              <PlayingCard key={card.id} card={card} size="hand" />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
