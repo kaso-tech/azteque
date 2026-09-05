@@ -10,9 +10,9 @@ import {
 } from "@/lib/azteque/online";
 
 export const Route = createFileRoute("/online")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    code: typeof search["code"] === "string" ? (search["code"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { code?: string } =>
+    typeof search["code"] === "string" ? { code: search["code"] as string } : {},
+
   head: () => ({
     meta: [
       { title: "Aztèque en ligne — Jouer à deux avec un code de partie" },
