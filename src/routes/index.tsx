@@ -25,8 +25,10 @@ import {
 } from "@/lib/azteque/engine";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
+import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -61,9 +63,12 @@ const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal", sou
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
   const [showRules, setShowRules] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+  const [showAiProfile, setShowAiProfile] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [playerName, setPlayerName] = useState("Joueur");
+  const [profileReady, setProfileReady] = useState(false);
   const [meldPick, setMeldPick] = useState<Suit[]>([]);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
@@ -104,8 +109,13 @@ function Azteque() {
     try {
       const raw = localStorage.getItem("azteque-settings");
       if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
+      const savedName = localStorage.getItem("azteque-player-name")?.trim();
+      if (savedName) setPlayerName(savedName);
+      else setShowPlayerProfile(true);
     } catch {
       /* ignore */
+    } finally {
+      setProfileReady(true);
     }
   }, []);
   useEffect(() => {
@@ -115,6 +125,15 @@ function Azteque() {
       /* ignore */
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!profileReady) return;
+    try {
+      localStorage.setItem("azteque-player-name", playerName.trim() || "Joueur");
+    } catch {
+      /* ignore */
+    }
+  }, [playerName, profileReady]);
 
   useEffect(() => {
     setSoundEnabled(settings.sound);
@@ -376,9 +395,6 @@ function Azteque() {
   const myBonnes = state.gains[0].filter(isBonne).length;
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
-  const live0 = scoreOf(state, 0, state.lastTrickWinner);
-  const live1 = scoreOf(state, 1, state.lastTrickWinner);
-
   if (!started) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
@@ -397,25 +413,25 @@ function Azteque() {
           >
             Commencer une partie
           </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="rounded-full border border-gold/40 px-8 py-3 font-display text-sm text-foreground transition-colors hover:bg-secondary"
-          >
-            Paramètres
-          </button>
-          <button
-            onClick={() => setShowRules(true)}
-            className="rounded-full border border-gold/40 px-8 py-3 font-display text-sm text-foreground transition-colors hover:bg-secondary"
-          >
-            Lire le règlement
-          </button>
+          <ProfileButton
+            name={playerName}
+            icon="player"
+            align="center"
+            onClick={() => setShowPlayerProfile(true)}
+          />
         </div>
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
-        {showSettings && (
-          <SettingsPanel
+        {showPlayerProfile && (
+          <PlayerProfilePanel
+            playerName={playerName}
+            onNameChange={setPlayerName}
             settings={settings}
             onChange={setSettings}
-            onClose={() => setShowSettings(false)}
+            onRules={() => {
+              setShowPlayerProfile(false);
+              setShowRules(true);
+            }}
+            onClose={() => setShowPlayerProfile(false)}
           />
         )}
       </main>
@@ -424,58 +440,34 @@ function Azteque() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
-      {/* En-tête */}
-      <header className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div>
-          <h1 className="gold-text text-2xl leading-none">Aztèque</h1>
-          <p className="text-[0.7rem] text-muted-foreground">
-            Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]} ·{" "}
-            {DIFFICULTY_LABEL[settings.difficulty]}
+      {/* Tableau des profils */}
+      <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
+        <ProfileButton name={playerName} icon="player" align="left" onClick={() => setShowPlayerProfile(true)} />
+        <div className="min-w-16 text-center">
+          <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
+          <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
+            {state.roundsWon[0]} <span className="text-muted-foreground">—</span> {state.roundsWon[1]}
           </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <Chip label="Pioche" value={String(state.stock.length)} />
-          <Chip
-            label="Atout"
-            value={
-              state.trump ? `${SUIT_SYMBOL[state.trump]} ${SUIT_NAME[state.trump]}` : "—"
-            }
-            highlight={!!state.trump}
-          />
           <button
+            type="button"
             onClick={() => setShowHistory(true)}
-            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
+            className="text-[0.58rem] text-muted-foreground underline decoration-gold/40 underline-offset-2"
           >
             Comptes · {meldHistory.length}
           </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
-          >
-            Paramètres
-          </button>
-
-          <button
-            onClick={() => setShowRules(true)}
-            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
-          >
-            Règles
-          </button>
         </div>
+        <ProfileButton
+          name={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
+          icon="ai"
+          align="right"
+          onClick={() => setShowAiProfile(true)}
+        />
       </header>
 
       {/* Adversaire */}
       <section className="flex items-start justify-between gap-3">
         <div className="flex w-full flex-col gap-2">
-          <ScoreBox
-            title="Adversaire"
-            bonnes={revealOpp ? oppBonnes : null}
-            comptes={live1.comptes}
-            melds={state.melds[1].map(
-              (m) =>
-                `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
-            )}
-          />
+
           <div ref={opponentHandRef}>
             <HandRow
               cards={state.hands[1]}
@@ -529,9 +521,7 @@ function Azteque() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-                <span className="rounded-full border border-gold/40 bg-felt-deep px-2 py-0.5 text-[0.65rem] font-semibold text-gold">
-                  {state.stock.length}
-                </span>
+
               </>
             ) : (
               <div className="flex h-14 w-10 items-center justify-center rounded-[3px] border border-dashed border-gold/30 text-[0.6rem] text-muted-foreground">
@@ -545,13 +535,22 @@ function Azteque() {
           </div>
         </div>
 
-        {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
-          <p
-            key={phaseMsg ?? "compare"}
-            className="animate-banner pointer-events-none absolute right-2 top-2 z-20 max-w-32 rounded border border-gold/35 bg-felt-deep/90 px-2 py-1 text-center text-[0.58rem] font-semibold leading-tight text-gold-soft shadow-[var(--shadow-card)]"
-          >
-            {phaseMsg ?? "Comparaison des cartes…"}
-          </p>
+        {(phaseMsg || (state.trick.length === 2 && collect.length === 0) || state.trump) && (
+          <div className="pointer-events-none absolute right-2 top-2 z-20 flex max-w-32 flex-col items-end gap-1">
+            {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
+              <p
+                key={phaseMsg ?? "compare"}
+                className="animate-banner rounded border border-gold/35 bg-felt-deep/90 px-2 py-1 text-center text-[0.58rem] font-semibold leading-tight text-gold-soft shadow-[var(--shadow-card)]"
+              >
+                {phaseMsg ?? "Comparaison des cartes…"}
+              </p>
+            )}
+            {state.trump && (
+              <span className="rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
+                Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
+              </span>
+            )}
+          </div>
         )}
 
 
@@ -681,15 +680,7 @@ function Azteque() {
             onPlay={playMyCard}
           />
         </div>
-        <ScoreBox
-          title="Vous"
-          bonnes={myBonnes}
-          comptes={live0.comptes}
-          melds={state.melds[0].map(
-            (m) =>
-              `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
-          )}
-        />
+
       </section>
 
 
@@ -753,11 +744,24 @@ function Azteque() {
       )}
 
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
-      {showSettings && (
-        <SettingsPanel
+      {showPlayerProfile && (
+        <PlayerProfilePanel
+          playerName={playerName}
+          onNameChange={setPlayerName}
           settings={settings}
           onChange={setSettings}
-          onClose={() => setShowSettings(false)}
+          onRules={() => {
+            setShowPlayerProfile(false);
+            setShowRules(true);
+          }}
+          onClose={() => setShowPlayerProfile(false)}
+        />
+      )}
+      {showAiProfile && (
+        <AiProfilePanel
+          difficulty={settings.difficulty}
+          onChange={(difficulty) => setSettings((current) => ({ ...current, difficulty }))}
+          onClose={() => setShowAiProfile(false)}
         />
       )}
       {showMyGains && (
@@ -1152,128 +1156,144 @@ function DrawCard({
   );
 }
 
-function SettingsPanel({
+function ProfileButton({
+  name,
+  icon,
+  align,
+  onClick,
+}: {
+  name: string;
+  icon: "player" | "ai";
+  align: "left" | "center" | "right";
+  onClick: () => void;
+}) {
+  const Icon = icon === "ai" ? Bot : UserRound;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-1 rounded-md px-1 py-1 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        align === "left" && "justify-self-start",
+        align === "right" && "justify-self-end",
+      )}
+      aria-label={`Ouvrir le profil ${name}`}
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)] sm:h-12 sm:w-12">
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <span className="max-w-24 truncate text-[0.65rem] font-semibold text-foreground sm:max-w-36 sm:text-xs">
+        {name}
+      </span>
+    </button>
+  );
+}
+
+const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
+
+function PlayerProfilePanel({
+  playerName,
+  onNameChange,
   settings,
   onChange,
+  onRules,
   onClose,
 }: {
+  playerName: string;
+  onNameChange: (name: string) => void;
   settings: Settings;
   onChange: (s: Settings) => void;
+  onRules: () => void;
   onClose: () => void;
 }) {
-  const levels: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
-      <div className="panel w-full max-w-md p-6 text-left">
-        <h2 className="gold-text text-2xl">Paramètres</h2>
-
-        <p className="mt-5 text-sm text-foreground">Niveau de l'adversaire</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-
-          {levels.map((l) => (
-            <button
-              key={l}
-              onClick={() => onChange({ ...settings, difficulty: l })}
-              className={cn(
-                "rounded-full border px-4 py-1.5 text-xs transition-colors",
-                settings.difficulty === l
-                  ? "border-gold bg-gold/20 text-gold"
-                  : "border-border text-muted-foreground hover:bg-secondary",
-              )}
-            >
-              {DIFFICULTY_LABEL[l]}
-            </button>
-          ))}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
+      <div className="panel max-h-[90dvh] w-full max-w-md overflow-y-auto p-6 text-left" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
+              <UserRound className="h-7 w-7" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="gold-text text-2xl">Votre profil</h2>
+              <p className="text-xs text-muted-foreground">Nom et préférences de jeu</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">×</Button>
         </div>
+
+        <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">Nom d'utilisateur</label>
+        <input
+          id="player-name"
+          value={playerName}
+          maxLength={20}
+          autoFocus
+          onChange={(event) => onNameChange(event.target.value)}
+          onBlur={() => { if (!playerName.trim()) onNameChange("Joueur"); }}
+          className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+          placeholder="Votre nom"
+        />
 
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>
         <div className="mt-2 flex gap-2">
           {[true, false].map((on) => (
-            <button
-              key={String(on)}
-              onClick={() => onChange({ ...settings, sound: on })}
-              className={cn(
-                "rounded-full border px-4 py-1.5 text-xs transition-colors",
-                settings.sound === on
-                  ? "border-gold bg-gold/20 text-gold"
-                  : "border-border text-muted-foreground hover:bg-secondary",
-              )}
-            >
+            <Button key={String(on)} type="button" size="sm" variant={settings.sound === on ? "default" : "outline"} onClick={() => onChange({ ...settings, sound: on })}>
               {on ? "Activés" : "Coupés"}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <p className="mt-6 text-sm text-foreground">
-          Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s
-        </p>
+        <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
         <input
           type="range"
           min={300}
           max={4000}
           step={100}
           value={settings.trickDelay}
-          onChange={(e) =>
-            onChange({ ...settings, trickDelay: Number(e.target.value) })
-          }
+          onChange={(event) => onChange({ ...settings, trickDelay: Number(event.target.value) })}
           className="mt-2 w-full accent-[var(--gold)]"
         />
-        <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          Les deux cartes restent visibles au milieu pendant ce temps avant que le pli
-          soit tranché.
-        </p>
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">Les deux cartes restent visibles au milieu pendant ce temps.</p>
 
-        <button
-          onClick={onClose}
-          className="mt-6 w-full rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
-        >
-          Fermer
-        </button>
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={onRules}><BookOpen aria-hidden="true" /> Règles</Button>
+          <Button type="button" onClick={onClose}><Settings2 aria-hidden="true" /> Enregistrer</Button>
+        </div>
       </div>
     </div>
   );
 }
 
-function Chip({
-  label,
-  value,
-  highlight,
+function AiProfilePanel({
+  difficulty,
+  onChange,
+  onClose,
 }: {
-  label: string;
-  value: string;
-  highlight?: boolean;
+  difficulty: Difficulty;
+  onChange: (difficulty: Difficulty) => void;
+  onClose: () => void;
 }) {
   return (
-    <span
-      className={cn(
-        "rounded-full border px-3 py-1.5",
-        highlight ? "border-gold/60 text-gold" : "border-border text-muted-foreground",
-      )}
-    >
-      {label} · {value}
-    </span>
-  );
-}
-
-function ScoreBox({
-  title,
-  bonnes,
-  comptes,
-  melds,
-}: {
-  title: string;
-  bonnes: number | null;
-  comptes: number;
-  melds: string[];
-}) {
-  return (
-    <div className="panel flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs">
-      <span className="font-display text-sm text-gold">{title}</span>
-      <span className="text-muted-foreground">Bonnes · {bonnes ?? "?"}</span>
-      <span className="text-muted-foreground">Comptes · {comptes}</span>
-      {melds.length > 0 && (
-        <span className="text-[0.65rem] text-muted-foreground">{melds.join(" | ")}</span>
-      )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
+      <div className="panel w-full max-w-md p-6 text-left" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
+            <Bot className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="gold-text truncate text-2xl">IA {DIFFICULTY_LABEL[difficulty]}</h2>
+            <p className="text-xs text-muted-foreground">Choisir le niveau de l'adversaire</p>
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {DIFFICULTIES.map((level) => (
+            <Button key={level} type="button" variant={difficulty === level ? "default" : "outline"} onClick={() => onChange(level)} className="w-full">
+              {DIFFICULTY_LABEL[level]}
+            </Button>
+          ))}
+        </div>
+        <Button type="button" onClick={onClose} className="mt-6 w-full">Enregistrer</Button>
+      </div>
     </div>
   );
 }
