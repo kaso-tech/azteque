@@ -25,6 +25,7 @@ import {
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
+import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,9 +52,10 @@ export const Route = createFileRoute("/")({
 interface Settings {
   trickDelay: number; // ms
   difficulty: Difficulty;
+  sound: boolean;
 }
 
-const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal" };
+const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal", sound: true };
 
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
@@ -105,6 +107,10 @@ function Azteque() {
       /* ignore */
     }
   }, [settings]);
+
+  useEffect(() => {
+    setSoundEnabled(settings.sound);
+  }, [settings.sound]);
 
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
@@ -196,7 +202,10 @@ function Azteque() {
           lastDelay = 780;
         }
 
+        if (winner === second.player) sfx.beat();
+        else sfx.collect();
         setCollect(flights);
+        timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
 
         timers.push(
           setTimeout(() => {
@@ -216,6 +225,9 @@ function Azteque() {
                 return [{ id: Date.now() + index, player, from, to, delay: 260 + index * 320 }];
               });
               setDrawFlights(draws);
+              draws.forEach((d) =>
+                timers.push(setTimeout(() => sfx.draw(), d.delay)),
+              );
               timers.push(setTimeout(() => setDrawFlights([]), 1600));
             }
 
@@ -243,6 +255,7 @@ function Azteque() {
           if (a) next = announce(next, 1, a.suits, a.trump);
         }
         const card = aiChooseCardAt(next, settings.difficulty);
+        sfx.place();
         return playCard(next, 1, card.id);
       });
     }, 750);
@@ -279,6 +292,7 @@ function Azteque() {
       });
       setTimeout(() => setFlying(null), 380);
     }
+    sfx.place();
     setState((s) => playCard(s, 0, card.id));
   };
 
@@ -1030,6 +1044,24 @@ function SettingsPanel({
               )}
             >
               {DIFFICULTY_LABEL[l]}
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-6 text-sm text-foreground">Effets sonores</p>
+        <div className="mt-2 flex gap-2">
+          {[true, false].map((on) => (
+            <button
+              key={String(on)}
+              onClick={() => onChange({ ...settings, sound: on })}
+              className={cn(
+                "rounded-full border px-4 py-1.5 text-xs transition-colors",
+                settings.sound === on
+                  ? "border-gold bg-gold/20 text-gold"
+                  : "border-border text-muted-foreground hover:bg-secondary",
+              )}
+            >
+              {on ? "Activés" : "Coupés"}
             </button>
           ))}
         </div>
