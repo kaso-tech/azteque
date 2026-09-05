@@ -313,26 +313,25 @@ function Azteque() {
       </header>
 
       {/* Adversaire */}
-      <section className="flex items-center justify-between gap-3">
-        <ScoreBox
-          title="Adversaire"
-          bonnes={revealOpp ? oppBonnes : null}
-          comptes={live1.comptes}
-          melds={state.melds[1].map(
-            (m) =>
-              `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
-          )}
-        />
-        <div ref={opponentHandRef} className="flex -space-x-4">
-          {state.hands[1].map((c) => (
-            <PlayingCard
-              key={c.id}
-              card={c}
-              size="sm"
-              faceDown={!state.exposed[1].includes(c.id)}
-              exposed={state.exposed[1].includes(c.id)}
+      <section className="flex items-start justify-between gap-3">
+        <div className="flex w-full flex-col gap-2">
+          <ScoreBox
+            title="Adversaire"
+            bonnes={revealOpp ? oppBonnes : null}
+            comptes={live1.comptes}
+            melds={state.melds[1].map(
+              (m) =>
+                `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
+            )}
+          />
+          <div ref={opponentHandRef}>
+            <HandRow
+              cards={state.hands[1]}
+              exposedIds={state.exposed[1]}
+              faceDown={(c) => !state.exposed[1].includes(c.id)}
+              interactive={false}
             />
-          ))}
+          </div>
         </div>
       </section>
 
@@ -498,14 +497,6 @@ function Azteque() {
         />
       </section>
 
-      {/* Journal */}
-      <section className="panel max-h-28 overflow-y-auto p-3 text-xs text-muted-foreground">
-        {state.log.slice(0, 12).map((l, i) => (
-          <p key={i} className={i === 0 ? "text-foreground" : undefined}>
-            {l}
-          </p>
-        ))}
-      </section>
 
       {/* Carte en vol vers le tapis */}
       {flying && (
@@ -577,11 +568,15 @@ function HandRow({
   exposedIds,
   isDisabled,
   onPlay,
+  interactive = true,
+  faceDown,
 }: {
   cards: Card[];
   exposedIds: string[];
-  isDisabled: (c: Card) => boolean;
-  onPlay: (c: Card, el: HTMLElement) => void;
+  isDisabled?: (c: Card) => boolean;
+  onPlay?: (c: Card, el: HTMLElement) => void;
+  interactive?: boolean;
+  faceDown?: (c: Card) => boolean;
 }) {
   const [order, setOrder] = useState<string[]>([]);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -605,14 +600,14 @@ function HandRow({
     return list;
   }, [cards, order]);
 
-  const onPointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
     dragId.current = id;
     startX.current = e.clientX;
     moved.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const id = dragId.current;
     if (!id) return;
     if (Math.abs(e.clientX - startX.current) > 10) moved.current = true;
@@ -635,7 +630,7 @@ function HandRow({
     });
   };
 
-  const onPointerUp = () => {
+  const handlePointerUp = () => {
     dragId.current = null;
     setTimeout(() => {
       moved.current = false;
@@ -645,27 +640,32 @@ function HandRow({
   return (
     <div
       ref={rowRef}
-      className="flex w-full touch-none items-end justify-center gap-1 pt-4 sm:gap-2"
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      className="flex w-full touch-none items-end justify-center gap-1 sm:gap-2"
+      onPointerMove={interactive ? handlePointerMove : undefined}
+      onPointerUp={interactive ? handlePointerUp : undefined}
+      onPointerCancel={interactive ? handlePointerUp : undefined}
     >
       {ordered.map((c) => (
         <div
           key={c.id}
-          onPointerDown={onPointerDown(c.id)}
+          onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
           className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
         >
           <PlayingCard
             card={c}
             size="hand"
             className="animate-deal"
+            faceDown={faceDown ? faceDown(c) : false}
             exposed={exposedIds.includes(c.id)}
-            disabled={isDisabled(c)}
-            onClick={(el) => {
-              if (moved.current) return;
-              onPlay(c, el);
-            }}
+            disabled={isDisabled ? isDisabled(c) : false}
+            onClick={
+              interactive && onPlay
+                ? (el) => {
+                    if (moved.current) return;
+                    onPlay(c, el);
+                  }
+                : undefined
+            }
           />
         </div>
       ))}
