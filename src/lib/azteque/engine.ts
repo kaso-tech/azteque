@@ -68,6 +68,8 @@ export interface GameState {
   roundWinner: PlayerIndex | null;
   champWinner: PlayerIndex | null;
   instantWin: boolean;
+  /** Égalité : le tour est rejoué (« Pont »). */
+  pont: boolean;
   log: string[];
 }
 
