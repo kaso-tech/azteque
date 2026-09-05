@@ -366,7 +366,7 @@ function Azteque() {
         )}
 
         {/* Annonce de comptes */}
-        {state.phase === "playing" && state.canAnnounce === 0 && myMelds.length > 0 && (
+        {state.phase === "playing" && myMelds.length > 0 && (
           <div className="w-full max-w-lg rounded-lg border border-gold/30 bg-secondary/60 p-3">
             <p className="mb-2 text-xs text-gold">
               Vous pouvez annoncer un ou plusieurs comptes (facultatif) :
