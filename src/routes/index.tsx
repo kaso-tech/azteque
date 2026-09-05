@@ -441,10 +441,12 @@ function Azteque() {
             )}
           </div>
 
-          <TrickPosition trick={state.trick} player={0} />
+          <div ref={trickSlotRefs[0]}>
+            <TrickPosition trick={state.trick} player={0} hidden={collect.length > 0} />
+          </div>
         </div>
 
-        {state.trick.length === 2 && (
+        {state.trick.length === 2 && collect.length === 0 && (
           <p className="text-[0.7rem] uppercase tracking-widest text-gold-soft">
             Comparaison des cartes…
           </p>
