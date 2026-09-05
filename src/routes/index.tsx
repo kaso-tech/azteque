@@ -87,7 +87,6 @@ function Azteque() {
   >([]);
   const [showHistory, setShowHistory] = useState(false);
   const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
-  const [meldPassed, setMeldPassed] = useState(false);
 
   const [flying, setFlying] = useState<
     { card: Card; from: { x: number; y: number } } | null
@@ -197,8 +196,9 @@ function Azteque() {
     state.phase === "playing" &&
     state.canAnnounce === 0 &&
     state.drawPending[0] === 0 &&
+    state.hands[0].length === 5 &&
     myMelds.length > 0 &&
-    !meldPassed;
+    state.stock.length > 0;
 
   const freshRound =
     state.phase === "playing" &&
@@ -343,7 +343,7 @@ function Azteque() {
         return () => clearTimeout(t);
       }
       // Joueur humain : attendre sa décision s'il a un compte annonçable
-      if (availableMelds(state, 0).length > 0 && !meldPassed) return;
+      if (availableMelds(state, 0).length > 0) return;
     }
 
     const center = (el: HTMLElement | null | undefined) => {
@@ -380,13 +380,7 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, meldPassed]);
-
-
-  // Réinitialise le choix « ne pas annoncer » à chaque nouvelle opportunité
-  useEffect(() => {
-    if (state.canAnnounce === 0) setMeldPassed(false);
-  }, [state.canAnnounce, state.drawPending.length]);
+  }, [state]);
 
   // Tour de l'ordinateur
   useEffect(() => {
@@ -628,7 +622,7 @@ function Azteque() {
         )}
 
         {/* Annonce de comptes */}
-        {state.phase === "playing" && myMelds.length > 0 && !meldPassed && (
+        {meldDecisionPending && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
             <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
               Annoncer un compte ?
@@ -657,7 +651,6 @@ function Azteque() {
               })}
               <button
                 onClick={() => {
-                  setMeldPassed(true);
                   setMeldPick([]);
                   // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
                   setState((s) =>
