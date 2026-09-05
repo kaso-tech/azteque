@@ -898,6 +898,17 @@ function HandRow({
     }, 0);
   };
 
+  const seen = useRef<Set<string>>(new Set());
+  const [arriving, setArriving] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = cards.map((c) => c.id).filter((id) => !seen.current.has(id));
+    cards.forEach((c) => seen.current.add(c.id));
+    if (fresh.length === 0) return;
+    setArriving(new Set(fresh));
+    const t = setTimeout(() => setArriving(new Set()), 600);
+    return () => clearTimeout(t);
+  }, [cards]);
+
   return (
     <div
       ref={rowRef}
@@ -915,18 +926,18 @@ function HandRow({
             className="min-w-0 max-w-[4.5rem] flex-1"
             aria-hidden="true"
           >
-            <div className="aspect-[5/7] w-full rounded-[3px] border border-dashed border-white/15" />
+            <div className="animate-slot-wait aspect-[5/7] w-full rounded-[3px] border border-dashed border-gold/30" />
           </div>
         ) : (
           <div
             key={c.id}
             onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
-            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform"
+            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform duration-300"
           >
             <PlayingCard
               card={c}
               size="hand"
-              className="animate-deal"
+              className={arriving.has(c.id) ? "animate-slot-fill" : "animate-deal"}
               faceDown={faceDown ? faceDown(c) : false}
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
@@ -945,6 +956,7 @@ function HandRow({
     </div>
   );
 }
+
 
 function StockPile({ count }: { count: number }) {
   const visibleLayers = Math.min(5, Math.max(1, Math.ceil(count / 8)));
