@@ -439,6 +439,9 @@ function OnlineTable() {
           onClose={() => setShowMyBonnes(false)}
         />
       )}
+
+      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
     </main>
+
   );
 }
