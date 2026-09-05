@@ -1,17 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DIFFICULTY_LABEL,
   SUIT_NAME,
   SUIT_SYMBOL,
   aiAnnounce,
-  aiChooseCard,
+  aiChooseCardAt,
+  aiWantsRedeal,
   announce,
   availableMelds,
+  hasMainBlanche,
   isBonne,
   legalCards,
   newRound,
   playCard,
+  resolveTrick,
   scoreOf,
+  type Card,
+  type Difficulty,
   type GameState,
   type PlayerIndex,
   type Suit,
@@ -42,57 +48,154 @@ export const Route = createFileRoute("/")({
   component: Azteque,
 });
 
+interface Settings {
+  trickDelay: number; // ms
+  difficulty: Difficulty;
+}
+
+const DEFAULT_SETTINGS: Settings = { trickDelay: 1000, difficulty: "normal" };
+
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
   const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [meldPick, setMeldPick] = useState<Suit[]>([]);
   const [started, setStarted] = useState(false);
+  const [roundKey, setRoundKey] = useState(0);
+  const [redealDone, setRedealDone] = useState(false);
+  const [flying, setFlying] = useState<
+    { card: Card; from: { x: number; y: number } } | null
+  >(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const aiRedealChecked = useRef(-1);
+
+  // Réglages persistants
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("azteque-settings");
+      if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("azteque-settings", JSON.stringify(settings));
+    } catch {
+      /* ignore */
+    }
+  }, [settings]);
 
   const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
-    () => (state.turn === 0 && state.phase === "playing" ? legalCards(state, 0) : []),
+    () =>
+      state.turn === 0 && state.phase === "playing" && state.trick.length < 2
+        ? legalCards(state, 0)
+        : [],
     [state],
   );
   const legalIds = useMemo(() => new Set(legal.map((c) => c.id)), [legal]);
 
+  const freshRound =
+    state.phase === "playing" &&
+    state.trick.length === 0 &&
+    state.gains[0].length === 0 &&
+    state.gains[1].length === 0 &&
+    state.melds[0].length === 0 &&
+    state.melds[1].length === 0;
+
+  const canRedeal = freshRound && !redealDone && hasMainBlanche(state, 0);
+
+  const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
+    setState(newRound(dealer, won));
+    setMeldPick([]);
+    setRedealDone(false);
+    setRoundKey((k) => k + 1);
+  }, []);
+
+  // Main blanche de l'ordinateur
+  useEffect(() => {
+    if (!started || !freshRound || aiRedealChecked.current === roundKey) return;
+    aiRedealChecked.current = roundKey;
+    if (aiWantsRedeal(state, settings.difficulty)) {
+      const t = setTimeout(() => {
+        setState((s) => {
+          const ns = newRound(s.dealer, s.roundsWon);
+          ns.log.unshift("L'adversaire avait une main blanche : redistribution.");
+          return ns;
+        });
+        setRoundKey((k) => k + 1);
+      }, 500);
+      return () => clearTimeout(t);
+    }
+    return;
+  }, [started, freshRound, roundKey, state, settings.difficulty]);
+
+  // Résolution du pli après un délai réglable
+  useEffect(() => {
+    if (state.phase !== "playing" || state.trick.length < 2) return;
+    const t = setTimeout(
+      () => setState((s) => (s.trick.length === 2 ? resolveTrick(s) : s)),
+      settings.trickDelay,
+    );
+    return () => clearTimeout(t);
+  }, [state, settings.trickDelay]);
+
   // Tour de l'ordinateur
   useEffect(() => {
-    if (state.phase !== "playing" || state.turn !== 1) return;
+    if (state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2) return;
     const t = setTimeout(() => {
       setState((s) => {
-        if (s.phase !== "playing" || s.turn !== 1) return s;
+        if (s.phase !== "playing" || s.turn !== 1 || s.trick.length >= 2) return s;
         let next = s;
         if (next.canAnnounce === 1) {
           const a = aiAnnounce(next);
           if (a) next = announce(next, 1, a.suits, a.trump);
         }
-        const card = aiChooseCard(next);
+        const card = aiChooseCardAt(next, settings.difficulty);
         return playCard(next, 1, card.id);
       });
     }, 750);
     return () => clearTimeout(t);
-  }, [state]);
+  }, [state, settings.difficulty]);
 
   const nextRound = useCallback(() => {
     setState((s) => {
       const dealer: PlayerIndex = (s.lastTrickWinner ?? s.dealer) as PlayerIndex;
-      return newRound(dealer, s.roundsWon);
+      const ns = newRound(dealer, s.roundsWon);
+      return ns;
     });
     setMeldPick([]);
+    setRedealDone(false);
+    setRoundKey((k) => k + 1);
   }, []);
 
   const restart = useCallback(() => {
-    setState(newRound(Math.random() < 0.5 ? 0 : 1));
-    setMeldPick([]);
-  }, []);
+    deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
+  }, [deal]);
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
     setMeldPick([]);
   };
 
+  const playMyCard = (card: Card, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const t = tableRef.current?.getBoundingClientRect();
+    if (t) {
+      setFlying({
+        card,
+        from: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
+      });
+      setTimeout(() => setFlying(null), 380);
+    }
+    setState((s) => playCard(s, 0, card.id));
+  };
+
   const myBonnes = state.gains[0].filter(isBonne).length;
   const oppBonnes = state.gains[1].filter(isBonne).length;
+  const revealOpp = state.phase !== "playing";
   const live0 = scoreOf(state, 0, state.lastTrickWinner);
   const live1 = scoreOf(state, 1, state.lastTrickWinner);
 
@@ -115,6 +218,12 @@ function Azteque() {
             Commencer une partie
           </button>
           <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-full border border-gold/40 px-8 py-3 font-display text-sm text-foreground transition-colors hover:bg-secondary"
+          >
+            Paramètres
+          </button>
+          <button
             onClick={() => setShowRules(true)}
             className="rounded-full border border-gold/40 px-8 py-3 font-display text-sm text-foreground transition-colors hover:bg-secondary"
           >
@@ -122,6 +231,13 @@ function Azteque() {
           </button>
         </div>
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
+        {showSettings && (
+          <SettingsPanel
+            settings={settings}
+            onChange={setSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
       </main>
     );
   }
@@ -133,7 +249,8 @@ function Azteque() {
         <div>
           <h1 className="gold-text text-2xl leading-none">Aztèque</h1>
           <p className="text-[0.7rem] text-muted-foreground">
-            Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]}
+            Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]} ·{" "}
+            {DIFFICULTY_LABEL[settings.difficulty]}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
@@ -145,6 +262,12 @@ function Azteque() {
             }
             highlight={!!state.trump}
           />
+          <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
+          >
+            Paramètres
+          </button>
           <button
             onClick={() => setShowRules(true)}
             className="rounded-full border border-gold/40 px-3 py-1.5 text-xs transition-colors hover:bg-secondary"
@@ -158,9 +281,12 @@ function Azteque() {
       <section className="flex items-center justify-between gap-3">
         <ScoreBox
           title="Adversaire"
-          bonnes={oppBonnes}
+          bonnes={revealOpp ? oppBonnes : null}
           comptes={live1.comptes}
-          melds={state.melds[1].map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`)}
+          melds={state.melds[1].map(
+            (m) =>
+              `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
+          )}
         />
         <div className="flex -space-x-4">
           {state.hands[1].map((c) => (
@@ -176,7 +302,10 @@ function Azteque() {
       </section>
 
       {/* Tapis */}
-      <section className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4">
+      <section
+        ref={tableRef}
+        className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
+      >
         <div className="flex items-center gap-4">
           {state.trick.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -198,6 +327,35 @@ function Azteque() {
             ))
           )}
         </div>
+
+        {state.trick.length === 2 && (
+          <p className="text-[0.7rem] uppercase tracking-widest text-gold-soft">
+            Comparaison des cartes…
+          </p>
+        )}
+
+        {/* Main blanche */}
+        {canRedeal && (
+          <div className="w-full max-w-lg rounded-lg border border-accent/50 bg-secondary/60 p-3 text-center">
+            <p className="text-xs text-accent">
+              Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
+            </p>
+            <div className="mt-2 flex justify-center gap-2">
+              <button
+                onClick={() => deal(state.dealer, state.roundsWon)}
+                className="rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground"
+              >
+                Demander une redistribution
+              </button>
+              <button
+                onClick={() => setRedealDone(true)}
+                className="text-xs text-muted-foreground underline"
+              >
+                Garder ma main
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Annonce de comptes */}
         {state.phase === "playing" && state.canAnnounce === 0 && myMelds.length > 0 && (
@@ -281,8 +439,13 @@ function Azteque() {
               size="lg"
               className="animate-deal"
               exposed={state.exposed[0].includes(c.id)}
-              disabled={state.turn !== 0 || state.phase !== "playing" || !legalIds.has(c.id)}
-              onClick={() => setState((s) => playCard(s, 0, c.id))}
+              disabled={
+                state.turn !== 0 ||
+                state.phase !== "playing" ||
+                state.trick.length >= 2 ||
+                !legalIds.has(c.id)
+              }
+              onClick={(el) => playMyCard(c, el)}
             />
           ))}
         </div>
@@ -290,7 +453,10 @@ function Azteque() {
           title="Vous"
           bonnes={myBonnes}
           comptes={live0.comptes}
-          melds={state.melds[0].map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`)}
+          melds={state.melds[0].map(
+            (m) =>
+              `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "triple" : "simple"} (${m.points})`,
+          )}
         />
       </section>
 
@@ -302,6 +468,20 @@ function Azteque() {
           </p>
         ))}
       </section>
+
+      {/* Carte en vol vers le tapis */}
+      {flying && (
+        <FlyingCard
+          card={flying.card}
+          from={flying.from}
+          to={(() => {
+            const r = tableRef.current?.getBoundingClientRect();
+            return r
+              ? { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+              : flying.from;
+          })()}
+        />
+      )}
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
@@ -338,7 +518,108 @@ function Azteque() {
       )}
 
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onChange={setSettings}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </main>
+  );
+}
+
+function FlyingCard({
+  card,
+  from,
+  to,
+}: {
+  card: Card;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}) {
+  const [pos, setPos] = useState(from);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPos(to));
+    return () => cancelAnimationFrame(id);
+  }, [to.x, to.y]);
+  const done = pos !== from;
+  return (
+    <div
+      className="pointer-events-none fixed z-50"
+      style={{
+        left: pos.x,
+        top: pos.y,
+        transform: `translate(-50%, -50%) scale(${done ? 0.9 : 1})`,
+        opacity: done ? 0 : 1,
+        transition: "left 0.35s ease-out, top 0.35s ease-out, opacity 0.35s ease-out, transform 0.35s ease-out",
+      }}
+    >
+      <PlayingCard card={card} size="lg" />
+    </div>
+  );
+}
+
+function SettingsPanel({
+  settings,
+  onChange,
+  onClose,
+}: {
+  settings: Settings;
+  onChange: (s: Settings) => void;
+  onClose: () => void;
+}) {
+  const levels: Difficulty[] = ["facile", "normal", "expert"];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
+      <div className="panel w-full max-w-md p-6 text-left">
+        <h2 className="gold-text text-2xl">Paramètres</h2>
+
+        <p className="mt-5 text-sm text-foreground">Niveau de l'adversaire</p>
+        <div className="mt-2 flex gap-2">
+          {levels.map((l) => (
+            <button
+              key={l}
+              onClick={() => onChange({ ...settings, difficulty: l })}
+              className={cn(
+                "rounded-full border px-4 py-1.5 text-xs transition-colors",
+                settings.difficulty === l
+                  ? "border-gold bg-gold/20 text-gold"
+                  : "border-border text-muted-foreground hover:bg-secondary",
+              )}
+            >
+              {DIFFICULTY_LABEL[l]}
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-6 text-sm text-foreground">
+          Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s
+        </p>
+        <input
+          type="range"
+          min={300}
+          max={4000}
+          step={100}
+          value={settings.trickDelay}
+          onChange={(e) =>
+            onChange({ ...settings, trickDelay: Number(e.target.value) })
+          }
+          className="mt-2 w-full accent-[var(--gold)]"
+        />
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">
+          Les deux cartes restent visibles au milieu pendant ce temps avant que le pli
+          soit tranché.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="mt-6 w-full rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
+        >
+          Fermer
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -370,14 +651,14 @@ function ScoreBox({
   melds,
 }: {
   title: string;
-  bonnes: number;
+  bonnes: number | null;
   comptes: number;
   melds: string[];
 }) {
   return (
     <div className="panel flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs">
       <span className="font-display text-sm text-gold">{title}</span>
-      <span className="text-muted-foreground">Bonnes · {bonnes}</span>
+      <span className="text-muted-foreground">Bonnes · {bonnes ?? "?"}</span>
       <span className="text-muted-foreground">Comptes · {comptes}</span>
       {melds.length > 0 && (
         <span className="text-[0.65rem] text-muted-foreground">{melds.join(" | ")}</span>
