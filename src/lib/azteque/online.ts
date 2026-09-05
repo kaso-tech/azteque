@@ -5,6 +5,8 @@ export type MatchStatus = "waiting" | "playing" | "finished";
 export interface MatchRow {
   id: string;
   code: string;
+  host_id: string | null;
+  guest_id: string | null;
   host_name: string;
   guest_name: string | null;
   status: MatchStatus;
@@ -12,6 +14,17 @@ export interface MatchRow {
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+}
+
+export async function ensureOnlineIdentity() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (sessionData.session?.user) return sessionData.session.user;
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+  if (error) throw error;
+  if (!data.user) throw new Error("Impossible de créer votre accès joueur.");
+  return data.user;
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -29,11 +42,18 @@ export function normalizeCode(raw: string) {
 }
 
 export async function createMatch(hostName: string, settings: Record<string, unknown> = {}) {
+  const user = await ensureOnlineIdentity();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = makeCode();
     const { data, error } = await supabase
       .from("matches")
-      .insert({ code, host_name: hostName || "Hôte", status: "waiting", settings: settings as never })
+      .insert({
+        code,
+        host_id: user.id,
+        host_name: hostName || "Hôte",
+        status: "waiting",
+        settings: settings as never,
+      })
       .select()
       .single();
     if (!error && data) return data as unknown as MatchRow;
@@ -43,35 +63,31 @@ export async function createMatch(hostName: string, settings: Record<string, unk
 }
 
 export async function getMatch(id: string) {
+  await ensureOnlineIdentity();
   const { data, error } = await supabase.from("matches").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as unknown as MatchRow | null) ?? null;
 }
 
 export async function findMatch(code: string) {
-  const { data, error } = await supabase
-    .from("matches")
-    .select("*")
-    .eq("code", normalizeCode(code))
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("join_match_by_code", {
+    _code: normalizeCode(code),
+    _guest_name: "Invité",
+  });
   if (error) throw error;
-  return (data as unknown as MatchRow | null) ?? null;
+  return ((data?.[0] as unknown as MatchRow | undefined) ?? null);
 }
 
 export async function joinMatch(code: string, guestName: string) {
-  const match = await findMatch(code);
-  if (!match) throw new Error("Aucune partie ne correspond à ce code.");
-  if (match.guest_name && match.guest_name !== guestName) {
-    throw new Error("Cette partie est déjà complète.");
-  }
-  const { data, error } = await supabase
-    .from("matches")
-    .update({ guest_name: guestName || "Invité", status: "playing" })
-    .eq("id", match.id)
-    .select()
-    .single();
+  await ensureOnlineIdentity();
+  const { data, error } = await supabase.rpc("join_match_by_code", {
+    _code: normalizeCode(code),
+    _guest_name: guestName || "Invité",
+  });
   if (error) throw error;
-  return data as unknown as MatchRow;
+  const match = data?.[0] as unknown as MatchRow | undefined;
+  if (!match) throw new Error("Partie introuvable, complète ou déjà rejointe.");
+  return match;
 }
 
 export async function pushMatchState(id: string, state: unknown, status: MatchStatus = "playing") {

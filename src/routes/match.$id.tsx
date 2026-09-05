@@ -24,7 +24,7 @@ import {
   TrickPosition,
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
-import { getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
+import { ensureOnlineIdentity, getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -54,7 +54,8 @@ const TRICK_DELAY = 1000;
 function OnlineTable() {
   const { id } = Route.useParams();
   const { seat } = Route.useSearch();
-  const me: PlayerIndex = seat === "guest" ? 1 : 0;
+  const [verifiedSeat, setVerifiedSeat] = useState<"host" | "guest" | null>(null);
+  const me: PlayerIndex = verifiedSeat === "guest" ? 1 : 0;
   const opp: PlayerIndex = me === 0 ? 1 : 0;
   const isHost = me === 0;
 
@@ -72,11 +73,22 @@ function OnlineTable() {
 
   useEffect(() => {
     let alive = true;
-    getMatch(id)
-      .then((r) => {
+    ensureOnlineIdentity()
+      .then(async (user) => {
+        const match = await getMatch(id);
+        if (!match) return { match: null, userId: user.id };
+        return { match, userId: user.id };
+      })
+      .then(({ match: r, userId }) => {
         if (!alive) return;
         if (!r) {
           setError("Cette partie n'existe plus.");
+          return;
+        }
+        if (r.host_id === userId) setVerifiedSeat("host");
+        else if (r.guest_id === userId) setVerifiedSeat("guest");
+        else {
+          setError("Vous ne participez pas à cette partie.");
           return;
         }
         applyRow(r);
@@ -87,7 +99,7 @@ function OnlineTable() {
       alive = false;
       unsub();
     };
-  }, [id, applyRow]);
+  }, [id, applyRow, seat]);
 
   // Publication d'un nouvel état (optimiste + synchronisation)
   const publish = useCallback(
@@ -181,7 +193,7 @@ function OnlineTable() {
     );
   }
 
-  if (!row || !state) {
+  if (!row || !state || !verifiedSeat) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
         <h1 className="gold-text text-3xl">Table en préparation…</h1>
