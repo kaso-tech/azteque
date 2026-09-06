@@ -1091,21 +1091,19 @@ function FlyingCard({
   from: { x: number; y: number };
   to: { x: number; y: number };
 }) {
-  const [pos, setPos] = useState(from);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setPos(to));
-    return () => cancelAnimationFrame(id);
-  }, [to.x, to.y]);
-  const done = pos !== from;
+  const departed = useDeparture(0);
   return (
     <div
       className="pointer-events-none fixed z-50"
       style={{
-        left: pos.x,
-        top: pos.y,
-        transform: `translate(-50%, -50%) scale(${done ? 0.9 : 1})`,
-        opacity: done ? 0 : 1,
-        transition: "left 0.35s ease-out, top 0.35s ease-out, opacity 0.35s ease-out, transform 0.35s ease-out",
+        ...flightStyle(from, to, departed, {
+          scale: 0.94,
+          rotate: 0,
+          duration: 380,
+          ease: "cubic-bezier(.3,.8,.25,1)",
+        }),
+        opacity: departed ? 0 : 1,
+        filter: "drop-shadow(0 14px 20px rgba(0,0,0,0.45))",
       }}
     >
       <PlayingCard card={card} size="lg" />
