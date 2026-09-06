@@ -11,7 +11,11 @@ projet, que l'agent n'a pas.
 Fichiers, dans cet ordre :
 
 1. `supabase/migrations/20260906200000_accounts_friends_invites.sql`
-2. `supabase/migrations/20260906210000_sync_offline_tokens.sql`
+2. `supabase/migrations/20260906230000_sync_offline_tokens.sql`
+
+La seconde doit passer **après** `20260906224310_...`, la copie de la première
+appliquée par Lovable : celle-ci recrée l'ancienne fonction
+`claim_local_tokens`, et l'ordre des noms de fichiers est ce qui l'en empêche.
 
 Il crée les tables `profiles`, `friendships`, `game_invites`, ajoute trois
 colonnes de résultat à `matches` (`winner_id`, `finished_at`, `settled_at`) et
@@ -28,7 +32,7 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > fonctions `accept_game_invite`, `claim_local_tokens`, `settle_match` et
 > `award_ai_win`. Elle ajoute aussi `game_invites` à la publication temps réel
 > `supabase_realtime`. Applique ensuite, toujours telle quelle, la migration
-> `supabase/migrations/20260906210000_sync_offline_tokens.sql`, qui ajoute la
+> `supabase/migrations/20260906230000_sync_offline_tokens.sql`, qui ajoute la
 > colonne `local_tokens_total` à `profiles` et remplace la fonction
 > `claim_local_tokens`. Enfin, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.

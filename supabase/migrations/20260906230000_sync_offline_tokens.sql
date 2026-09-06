@@ -1,5 +1,9 @@
 -- Report des jetons gagnés hors connexion vers un compte existant.
 --
+-- Datée après 20260906224310, qui reprend à l'identique la migration des
+-- comptes : appliquée ensuite, elle rétablirait l'ancienne fonction et
+-- annulerait tout ce fichier. L'ordre des noms est ici la seule garantie.
+--
 -- La première version de `claim_local_tokens` n'acceptait qu'un seul report
 -- par compte (`claimed_local_tokens`). Elle couvrait la création d'un compte,
 -- mais laissait de côté le cas courant : un joueur déjà inscrit qui joue
