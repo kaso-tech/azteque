@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   SUIT_NAME,
@@ -559,6 +559,37 @@ function OnlineTable() {
                 Retour au salon
               </Link>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmQuit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Quitter la table ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Si la partie est en cours, quitter la table vous déclare perdant du champ.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmQuit(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Rester
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmQuit(false);
+                  declareForfeit(me, "quit");
+                  navigate({ to: "/online" });
+                }}
+                className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
+              >
+                Quitter
+              </button>
+            </div>
           </div>
         </div>
       )}
