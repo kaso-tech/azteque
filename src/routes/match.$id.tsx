@@ -66,6 +66,7 @@ const DISCONNECT_LIMIT = 30;
 
 function OnlineTable() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const { seat } = Route.useSearch();
   const [verifiedSeat, setVerifiedSeat] = useState<"host" | "guest" | null>(null);
   const me: PlayerIndex = verifiedSeat === "guest" ? 1 : 0;
