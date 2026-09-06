@@ -478,6 +478,35 @@ function Azteque() {
     );
   }, [turnLeft, myTurnActive]);
 
+  // Barre de temps de l'IA (visuelle)
+  const oppTurnActive =
+    state.phase === "playing" &&
+    state.trick.length < 2 &&
+    state.turn === 1 &&
+    !meldDecisionPending &&
+    state.drawPending.length === 0;
+  const [oppLeft, setOppLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!oppTurnActive) {
+      setOppLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setOppLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setOppLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey, oppTurnActive]);
+
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const quitTable = useCallback(() => {
+    setConfirmQuit(false);
+    setStarted(false);
+  }, []);
+
+
   const nextRound = useCallback(() => {
     setState((s) => {
       const dealer: PlayerIndex = (s.lastTrickWinner ?? s.dealer) as PlayerIndex;
