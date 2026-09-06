@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   SUIT_NAME,
@@ -66,6 +66,7 @@ const DISCONNECT_LIMIT = 30;
 
 function OnlineTable() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const { seat } = Route.useSearch();
   const [verifiedSeat, setVerifiedSeat] = useState<"host" | "guest" | null>(null);
   const me: PlayerIndex = verifiedSeat === "guest" ? 1 : 0;
@@ -78,6 +79,7 @@ function OnlineTable() {
   const [meldPick, setMeldPick] = useState<Suit[]>([]);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
   const applyRow = useCallback((next: MatchRow) => {
     setRow(next);
@@ -173,7 +175,7 @@ function OnlineTable() {
 
   // --- Chronomètre du tour et surveillance de la connexion ---
   const declareForfeit = useCallback(
-    (loser: PlayerIndex, reason: "timeout" | "disconnect") => {
+    (loser: PlayerIndex, reason: "timeout" | "disconnect" | "quit") => {
       if (!state || state.phase === "gameEnd") return;
       publish({
         ...state,
@@ -493,9 +495,15 @@ function OnlineTable() {
           >
             Bonnes · {myBonnes}
           </button>
-          <Link to="/online" className="text-[0.68rem] text-muted-foreground underline">
-            Quitter la table
-          </Link>
+          {state.phase !== "gameEnd" && (
+            <button
+              type="button"
+              onClick={() => setConfirmQuit(true)}
+              className="rounded-full border border-destructive/50 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-destructive"
+            >
+              Quitter la table
+            </button>
+          )}
         </div>
       </section>
 
@@ -518,10 +526,14 @@ function OnlineTable() {
                 {state.forfeit.loser === me
                   ? state.forfeit.reason === "timeout"
                     ? "Temps écoulé : vous avez tardé à jouer."
-                    : "Connexion perdue trop longtemps de votre côté."
+                    : state.forfeit.reason === "quit"
+                      ? "Vous avez quitté la table."
+                      : "Connexion perdue trop longtemps de votre côté."
                   : state.forfeit.reason === "timeout"
                     ? `${oppName} a dépassé le temps de jeu.`
-                    : `${oppName} a perdu la connexion.`}
+                    : state.forfeit.reason === "quit"
+                      ? `${oppName} a quitté la table.`
+                      : `${oppName} a perdu la connexion.`}
               </p>
             )}
             <p className="mt-4 text-xs text-muted-foreground">
@@ -548,6 +560,37 @@ function OnlineTable() {
                 Retour au salon
               </Link>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmQuit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Quitter la table ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Si la partie est en cours, quitter la table vous déclare perdant du champ.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmQuit(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Rester
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmQuit(false);
+                  declareForfeit(me, "quit");
+                  navigate({ to: "/online" });
+                }}
+                className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
+              >
+                Quitter
+              </button>
+            </div>
           </div>
         </div>
       )}
