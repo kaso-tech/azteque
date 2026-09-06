@@ -368,7 +368,9 @@ function Azteque() {
           setState((s) => {
             if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
             const a = aiAnnounceAt(s, settings.difficulty);
-            return a ? announce(s, 1, a.suits, a.trump) : { ...s, canAnnounce: null };
+            if (!a) return { ...s, canAnnounce: null };
+            sfx.chuckle();
+            return announce(s, 1, a.suits, a.trump);
           });
         }, 650);
         return () => clearTimeout(t);
