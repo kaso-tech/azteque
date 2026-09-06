@@ -37,6 +37,7 @@ import {
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
+import { headToHead, type HeadToHead } from "@/lib/azteque/account";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -199,6 +200,7 @@ function OnlineTable() {
 
   /* ---------- Mise de jetons ---------- */
   const { bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
+    matchId: id,
     row,
     state,
     me,
@@ -212,6 +214,21 @@ function OnlineTable() {
     if (!isHost || !row?.guest_name || !betReady || state) return;
     void runAction({ type: "new_round" }, { silent: true });
   }, [isHost, row?.guest_name, state, betReady, runAction]);
+
+  // Bilan des champs déjà joués contre cet adversaire. Chargé seulement à la
+  // fin du champ, quand il devient une information utile — et une fois le
+  // résultat de CETTE partie enregistré par le règlement des jetons.
+  const [record, setRecord] = useState<HeadToHead | null>(null);
+  const oppUserId = row ? (me === 0 ? row.guest_id : row.host_id) : null;
+  useEffect(() => {
+    if (!state || state.phase !== "gameEnd" || !oppUserId) return;
+    const t = setTimeout(() => {
+      headToHead(oppUserId)
+        .then(setRecord)
+        .catch(() => setRecord(null));
+    }, 900);
+    return () => clearTimeout(t);
+  }, [state, oppUserId]);
 
   // Accord d'enchaînement du tour suivant, remis à zéro à chaque donne.
   const nextReady = ((row?.settings as Record<string, unknown> | undefined)?.["nextRound"] ??
@@ -800,6 +817,12 @@ function OnlineTable() {
             <p className="mt-4 text-xs text-muted-foreground">
               Tours gagnés — {myName} {state.roundsWon[me]} · {oppName} {state.roundsWon[opp]}
             </p>
+            {state.phase === "gameEnd" && record && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Face à {oppName} : {record.wins} victoire{record.wins > 1 ? "s" : ""} ·{" "}
+                {record.losses} défaite{record.losses > 1 ? "s" : ""}
+              </p>
+            )}
             {bet?.status === "accepted" && (
               <p className="mt-1 text-xs text-gold">
                 {state.phase === "gameEnd"

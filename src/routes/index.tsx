@@ -33,6 +33,7 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
+import { awardAiWin, getMyProfile } from "@/lib/azteque/account";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
 import {
@@ -164,21 +165,50 @@ function Azteque() {
   }, [settings.sound]);
 
   // Jetons : solde persistant + récompense en fin de partie
+  // Le solde d'un joueur connecté vit sur son compte : il le retrouve d'un
+  // appareil à l'autre, et c'est le serveur qui le crédite. Hors connexion, le
+  // solde local du navigateur continue de servir.
+  const [accountBound, setAccountBound] = useState(false);
   useEffect(() => {
-    if (!profileReady) return;
+    let alive = true;
+    getMyProfile()
+      .then((p) => {
+        if (!alive || !p) return;
+        setAccountBound(true);
+        setTokens(p.tokens);
+      })
+      .catch(() => {
+        /* hors ligne ou non connecté : on reste sur le solde du navigateur */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!profileReady || accountBound) return;
     try {
       localStorage.setItem("azteque-tokens", String(tokens));
     } catch {
       /* ignore */
     }
-  }, [tokens, profileReady]);
+  }, [tokens, profileReady, accountBound]);
 
   useEffect(() => {
-    if (state.phase === "gameEnd" && state.champWinner === 0 && !tokenAwarded.current) {
-      tokenAwarded.current = true;
+    if (state.phase !== "gameEnd" || state.champWinner !== 0 || tokenAwarded.current) return;
+    tokenAwarded.current = true;
+    if (!accountBound) {
       setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]);
+      return;
     }
-  }, [state.phase, state.champWinner, settings.difficulty]);
+    // Le montant de la récompense est fixé par le serveur selon le niveau
+    // réellement affronté : le client ne peut pas se l'attribuer lui-même.
+    awardAiWin(settings.difficulty)
+      .then((balance) => {
+        if (balance !== null) setTokens(balance);
+      })
+      .catch(() => setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]));
+  }, [state.phase, state.champWinner, settings.difficulty, accountBound]);
 
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);

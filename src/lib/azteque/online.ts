@@ -16,15 +16,19 @@ export interface MatchRow {
   updated_at: string;
 }
 
+/**
+ * Exige une session ouverte. Le jeu en ligne repose désormais sur de vrais
+ * comptes (connexion Google, voir account.ts) : les jetons, les amis et
+ * l'historique des confrontations sont attachés à ce compte, ce qu'une
+ * identité anonyme — propre à un navigateur et perdue avec lui — ne
+ * permettait pas.
+ */
 export async function ensureOnlineIdentity() {
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) throw sessionError;
-  if (sessionData.session?.user) return sessionData.session.user;
-
-  const { data, error } = await supabase.auth.signInAnonymously();
+  const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
-  if (!data.user) throw new Error("Impossible de créer votre accès joueur.");
-  return data.user;
+  const user = data.session?.user;
+  if (!user) throw new Error("Connectez-vous pour jouer en ligne.");
+  return user;
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
