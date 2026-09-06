@@ -261,19 +261,14 @@ export async function getMyProfile(): Promise<Profile | null> {
   return (data as unknown as Profile | null) ?? null;
 }
 
-export async function isUsernameFree(username: string): Promise<boolean> {
-  const { data, error } = await anyTable("profiles")
-    .select("id")
-    .eq("username", username)
-    .maybeSingle();
-  if (error) throw error;
-  return !data;
-}
-
 /**
- * Crée le profil du joueur connecté. Le pseudo est unique en base : deux
+ * Crée le profil du joueur connecté.
+ *
+ * L'unicité du pseudo est garantie par un index sur `lower(username)` : deux
  * joueurs qui le choisissent en même temps ne peuvent pas l'obtenir tous les
- * deux, et le second reçoit un message clair plutôt qu'une erreur SQL.
+ * deux, et le second reçoit un message clair plutôt qu'une erreur SQL. On ne
+ * vérifie donc pas la disponibilité au préalable — entre la vérification et
+ * l'insertion, le pseudo pourrait de toute façon être pris.
  */
 export async function createProfile(username: string): Promise<Profile> {
   const id = await currentUserId();

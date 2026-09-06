@@ -6,16 +6,13 @@
 -- d'amis, des invitations à jouer sans code, et un solde conservé côté
 -- serveur — donc infalsifiable depuis le client.
 
--- Pseudo insensible à la casse : « Kofi » et « kofi » désignent le même joueur.
-CREATE EXTENSION IF NOT EXISTS citext;
-
 /* ------------------------------------------------------------------ */
 /* Profils                                                             */
 /* ------------------------------------------------------------------ */
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
-  username citext NOT NULL UNIQUE,
+  username text NOT NULL,
   tokens integer NOT NULL DEFAULT 0 CHECK (tokens >= 0),
   -- Le solde local d'un navigateur ne peut créditer qu'un seul compte.
   claimed_local_tokens boolean NOT NULL DEFAULT false,
@@ -23,6 +20,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT profiles_username_format CHECK (username ~ '^[A-Za-z0-9_-]{3,20}$')
 );
+
+-- Pseudo unique et insensible à la casse : « Kofi » et « kofi » désignent le
+-- même joueur. Un index sur lower() plutôt que le type citext, qui exigerait
+-- CREATE EXTENSION — une instruction privilégiée dont l'échec annulerait toute
+-- la migration, tables comprises.
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_unique ON public.profiles (lower(username));
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -134,11 +137,16 @@ USING (auth.uid() IN (from_id, to_id))
 WITH CHECK (status IN ('declined', 'cancelled'));
 
 ALTER TABLE public.game_invites REPLICA IDENTITY FULL;
+
+-- Le temps réel est un confort — l'invité voit l'invitation arriver sans
+-- recharger. Modifier une publication demande d'en être propriétaire : si le
+-- droit manque, on s'en passe plutôt que d'annuler toute la migration.
 DO $$
 BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.game_invites;
 EXCEPTION
-  WHEN duplicate_object THEN NULL;
+  WHEN OTHERS THEN
+    RAISE NOTICE 'game_invites non ajoutée à supabase_realtime (%). Les invitations demanderont un rafraîchissement.', SQLERRM;
 END;
 $$;
 
@@ -350,3 +358,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.award_ai_win(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.award_ai_win(text) TO authenticated;
+
+-- PostgREST garde en mémoire le schéma exposé : sans ce signal, les tables
+-- fraîchement créées restent introuvables (« Could not find the table ... in
+-- the schema cache ») jusqu'au prochain redémarrage de l'API.
+NOTIFY pgrst, 'reload schema';

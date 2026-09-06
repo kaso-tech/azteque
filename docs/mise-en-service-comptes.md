@@ -45,6 +45,26 @@ Dans la console Supabase du projet, **Authentication → Providers → Google** 
 L'application redirige vers `/online` après connexion ; sans ces URL dans la
 liste, Supabase refusera la redirection.
 
+## Si l'application dit « Les tables des comptes sont introuvables »
+
+C'est le code PostgREST `PGRST205` : la table `profiles` n'est pas visible sur
+le projet interrogé. Deux causes, dans cet ordre de probabilité.
+
+**1. La migration a échoué en bloc.** Une migration s'exécute dans une
+transaction : la moindre instruction refusée annule tout, y compris les tables
+déjà créées. La première version de ce fichier commençait par
+`CREATE EXTENSION citext`, qui demande un privilège élevé — refusé, il
+emportait toute la migration avec lui. La version actuelle n'utilise plus
+d'extension et rend l'ajout au canal temps réel non bloquant : **il suffit de
+la relancer**, elle est rejouable sans risque.
+
+**2. Le cache de schéma de PostgREST n'a pas été rechargé.** La migration se
+termine désormais par `NOTIFY pgrst, 'reload schema';`, ce qui suffit
+normalement. À défaut, redémarrer l'API du projet depuis la console Supabase.
+
+Pour savoir laquelle des deux, ouvrir l'éditeur de tables du projet : si
+`profiles` n'y figure pas, c'est la cause 1.
+
 ## Vérifier que Google est bien activé sur LE BON projet
 
 L'erreur `{"code":400,"error_code":"validation_failed","msg":"Unsupported
