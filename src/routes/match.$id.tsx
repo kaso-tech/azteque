@@ -222,6 +222,14 @@ function OnlineTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey, me, opp]);
 
+  // Rire léger lorsque l'adversaire annonce un compte
+  const oppMeldCount = state ? state.melds[opp].length : 0;
+  const prevOppMelds = useRef(0);
+  useEffect(() => {
+    if (oppMeldCount > prevOppMelds.current) sfx.chuckle();
+    prevOppMelds.current = oppMeldCount;
+  }, [oppMeldCount]);
+
   // --- Chronomètre du tour et surveillance de la connexion ---
   const declareForfeit = useCallback(
     (loser: PlayerIndex, reason: "timeout" | "disconnect" | "quit") => {
@@ -276,7 +284,7 @@ function OnlineTable() {
   }, [id, verifiedSeat]);
 
   useEffect(() => {
-    if (oppOnline || !state || state.phase === "gameEnd") {
+    if (oppOnline || !state || state.phase !== "playing") {
       setOfflineLeft(null);
       return;
     }
