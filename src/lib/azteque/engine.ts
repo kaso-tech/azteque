@@ -71,7 +71,7 @@ export interface GameState {
   /** Égalité : le tour est rejoué (« Pont »). */
   pont: boolean;
   /** Partie perdue par dépassement de temps ou déconnexion. */
-  forfeit?: { loser: PlayerIndex; reason: "timeout" | "disconnect" } | null;
+  forfeit?: { loser: PlayerIndex; reason: "timeout" | "disconnect" | "quit" } | null;
   log: string[];
 }
 

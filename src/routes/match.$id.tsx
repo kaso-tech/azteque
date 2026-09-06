@@ -173,7 +173,7 @@ function OnlineTable() {
 
   // --- Chronomètre du tour et surveillance de la connexion ---
   const declareForfeit = useCallback(
-    (loser: PlayerIndex, reason: "timeout" | "disconnect") => {
+    (loser: PlayerIndex, reason: "timeout" | "disconnect" | "quit") => {
       if (!state || state.phase === "gameEnd") return;
       publish({
         ...state,
