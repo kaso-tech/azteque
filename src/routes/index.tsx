@@ -566,27 +566,27 @@ function Azteque() {
           Conquérez les plis, ramassez les bonnes, annoncez vos comptes et créez l'atout.
           Trois tours gagnés — ou treize bonnes — et le champ est à vous.
         </p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <button
-            onClick={() => setStarted(true)}
-            className="rounded-full bg-[image:var(--gradient-gold)] px-8 py-3 font-display text-sm font-semibold text-primary-foreground shadow-[var(--shadow-table)] transition-transform hover:scale-105"
-          >
-            Commencer une partie
-          </button>
-          <Link
-            to="/online"
-            className="rounded-full border border-gold/50 px-8 py-3 font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
-          >
-            Jouer en ligne
-          </Link>
-
+        <div className="mt-9 flex w-full max-w-xs flex-col items-center gap-4">
           <ProfileButton
             name={playerName}
             icon="player"
             align="center"
             onClick={() => setShowPlayerProfile(true)}
           />
+          <button
+            onClick={() => setStarted(true)}
+            className="w-full rounded-full bg-[image:var(--gradient-gold)] px-8 py-3 text-center font-display text-sm font-semibold text-primary-foreground shadow-[var(--shadow-table)] transition-transform hover:scale-105"
+          >
+            Commencer une partie
+          </button>
+          <Link
+            to="/online"
+            className="w-full rounded-full border border-gold/50 px-8 py-3 text-center font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
+          >
+            Jouer en ligne
+          </Link>
         </div>
+
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
         {showPlayerProfile && (
           <PlayerProfilePanel
