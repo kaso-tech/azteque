@@ -132,6 +132,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Retour de la connexion Google (redirection pleine page) : établit la
+  // session à partir des jetons présents dans l'adresse, le cas échéant.
+  useEffect(() => {
+    void import("@/lib/azteque/account").then((m) => m.completeOAuthRedirect());
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

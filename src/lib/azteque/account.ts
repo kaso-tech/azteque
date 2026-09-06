@@ -101,29 +101,65 @@ export async function clearStaleSession(): Promise<void> {
 }
 
 /**
- * Termine le retour de Google.
+ * Ouvre la connexion Google via le courtier Lovable (fonctionne aussi dans
+ * l'aperçu en iframe). La session est établie au retour.
+ */
+export async function signInWithGoogle() {
+  const { lovable } = await import("@/integrations/lovable");
+  await lovable.auth.signInWithOAuth("google", {
+    redirect_uri: window.location.origin,
+  });
+}
+
+/**
+ * Termine une connexion Google après la redirection pleine page.
  *
- * Le flux PKCE ramène le navigateur sur `/online?code=…&state=…` : ce code
- * doit être échangé contre une session. Le client Supabase sait le faire seul
- * (`detectSessionInUrl`), mais seulement s'il est construit tant que l'URL
- * porte encore ces paramètres — or il est créé paresseusement, à la première
- * utilisation, et le routeur a pu réécrire l'URL entre-temps. On procède donc
- * à l'échange explicitement, ce qui ne dépend d'aucun ordre d'exécution.
+ * Hors iframe, le courtier Lovable recharge l'application avec les jetons de
+ * session dans l'adresse (`?access_token=…&refresh_token=…`, ou dans le
+ * fragment `#`). Sans traitement, l'utilisateur retombe simplement sur la
+ * page de connexion sans être connecté. On lit donc ces jetons au chargement,
+ * on établit la session, puis on nettoie l'adresse pour ne pas les y laisser
+ * visibles ni rejouables.
  *
- * Renvoie vrai si un retour d'authentification a été traité.
+ * Un retour au format PKCE (`?code=`) est également accepté : c'est la forme
+ * qu'aurait une connexion Supabase directe, sans passer par le courtier.
+ *
+ * Renvoie vrai si un retour d'authentification a été traité ; lève si Google
+ * a refusé, pour que la raison soit montrée plutôt que passée sous silence.
  */
 export async function completeOAuthRedirect(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const url = new URL(window.location.href);
-  const denied = url.searchParams.get("error_description") ?? url.searchParams.get("error");
-  const code = url.searchParams.get("code");
-  if (!denied && !code) return false;
+  const query = url.searchParams;
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const pick = (k: string) => query.get(k) ?? hash.get(k);
 
+  const denied = pick("error_description") ?? pick("error");
+  const accessToken = pick("access_token");
+  const refreshToken = pick("refresh_token");
+  const code = pick("code");
+  if (!denied && !accessToken && !code) return false;
+
+  // Ne retire QUE les paramètres d'authentification : l'adresse peut porter
+  // par ailleurs un code de partie (`?partie=…`) qu'il ne faut pas perdre.
   const clean = () => {
-    for (const k of ["code", "state", "error", "error_description", "error_code"]) {
-      url.searchParams.delete(k);
+    for (const k of [
+      "access_token",
+      "refresh_token",
+      "expires_in",
+      "expires_at",
+      "token_type",
+      "provider_token",
+      "code",
+      "state",
+      "error",
+      "error_code",
+      "error_description",
+    ]) {
+      query.delete(k);
     }
-    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    const search = query.toString();
+    window.history.replaceState(null, "", url.pathname + (search ? `?${search}` : ""));
   };
 
   if (denied) {
@@ -132,22 +168,31 @@ export async function completeOAuthRedirect(): Promise<boolean> {
   }
 
   try {
-    // Même garde-fou qu'ailleurs : un échange sans réponse ne doit pas figer
-    // l'écran. L'appel peut aussi bien renvoyer une erreur que rejeter (perte
-    // de réseau) : les deux mènent au même contrôle.
+    // Comme ailleurs, un appel sans réponse ne doit pas figer l'écran : mieux
+    // vaut revenir à la connexion avec un message.
     let failure: unknown = null;
     try {
-      const { error } = await withTimeout(supabase.auth.exchangeCodeForSession(code!), 8000, {
-        error: new Error("délai dépassé"),
-      } as Awaited<ReturnType<typeof supabase.auth.exchangeCodeForSession>>);
-      failure = error;
+      if (accessToken && refreshToken) {
+        const { error } = await withTimeout(
+          supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
+          8000,
+          { error: new Error("délai dépassé") } as Awaited<
+            ReturnType<typeof supabase.auth.setSession>
+          >,
+        );
+        failure = error;
+      } else if (code) {
+        const { error } = await withTimeout(supabase.auth.exchangeCodeForSession(code), 8000, {
+          error: new Error("délai dépassé"),
+        } as Awaited<ReturnType<typeof supabase.auth.exchangeCodeForSession>>);
+        failure = error;
+      }
     } catch (e: unknown) {
       failure = e;
     }
     if (failure) {
-      // Le client Supabase a pu échanger ce code de lui-même : un code n'étant
-      // utilisable qu'une fois, l'échec n'en est vraiment un que si aucune
-      // session n'en est ressortie.
+      // La session a pu être établie malgré tout — le client Supabase traite
+      // lui aussi ces retours. L'échec n'en est un que s'il n'en reste rien.
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
         throw new Error(
@@ -158,30 +203,6 @@ export async function completeOAuthRedirect(): Promise<boolean> {
     return true;
   } finally {
     clean();
-  }
-}
-
-/**
- * Ouvre la connexion Google. La page est quittée puis rechargée à l'adresse
- * courante, session établie.
- */
-export async function signInWithGoogle() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    ...(typeof window === "undefined"
-      ? {}
-      : { options: { redirectTo: `${window.location.origin}/online` } }),
-  });
-  if (error) {
-    // Réponse du serveur d'authentification lui-même : le fournisseur Google
-    // n'est pas actif sur le projet Supabase que vise l'application.
-    if (/provider is not enabled/i.test(error.message)) {
-      throw new Error(
-        "La connexion Google n'est pas activée sur ce projet Supabase. " +
-          "Voir docs/mise-en-service-comptes.md, étape 2.",
-      );
-    }
-    throw error;
   }
 }
 
