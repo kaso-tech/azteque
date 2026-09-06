@@ -111,6 +111,38 @@ export async function signInWithGoogle() {
   });
 }
 
+/**
+ * Termine une connexion Google après la redirection pleine page.
+ *
+ * Hors iframe, le courtier Lovable recharge l'application avec les jetons de
+ * session dans l'adresse (`?access_token=…&refresh_token=…`, ou dans le
+ * fragment `#`). Sans traitement, l'utilisateur retombe simplement sur la
+ * page de connexion sans être connecté. On lit donc ces jetons au
+ * chargement, on établit la session, puis on nettoie l'adresse pour ne pas
+ * les laisser visibles ni rejouables.
+ */
+export async function completeOAuthRedirect(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const accessToken = query.get("access_token") ?? hash.get("access_token");
+  const refreshToken = query.get("refresh_token") ?? hash.get("refresh_token");
+  if (!accessToken || !refreshToken) return false;
+  try {
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) return false;
+  } catch {
+    return false;
+  } finally {
+    // Retire les jetons de l'adresse quelle que soit l'issue.
+    window.history.replaceState(null, "", window.location.pathname);
+  }
+  return true;
+}
+
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
