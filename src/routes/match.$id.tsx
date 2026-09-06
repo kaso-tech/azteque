@@ -190,15 +190,18 @@ function OnlineTable() {
   }, [isHost, state, publish]);
 
   useEffect(() => {
-    if (!isHost || !state || state.phase !== "playing") return;
+    if (!state || state.phase !== "playing") return;
     if (state.drawPending.length === 0 || state.stock.length === 0) return;
     const player = state.drawPending[0]!;
     // Le vainqueur peut annoncer avant de piocher (5 cartes en main)
     if (state.canAnnounce === player && availableMelds(state, player).length > 0) return;
-    const t = setTimeout(() => {
-      publish(drawNext(state));
-      sfx.draw();
-    }, 700);
+    const t = setTimeout(
+      () => {
+        publish(drawNext(state));
+        sfx.draw();
+      },
+      isHost ? 700 : 4700,
+    );
     return () => clearTimeout(t);
   }, [isHost, state, publish]);
 
@@ -234,12 +237,18 @@ function OnlineTable() {
   );
 
   // Le compte à rebours redémarre à chaque changement de tour
+  const oppMustAct =
+    !!state &&
+    state.phase === "playing" &&
+    state.turn === opp &&
+    state.trick.length < 2 &&
+    state.drawPending.length === 0;
   const turnKey = state
-    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}`
+    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}-${String(oppMustAct)}`
     : "";
   const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
   useEffect(() => {
-    if (!state || state.phase !== "playing") {
+    if (!state || state.phase !== "playing" || !oppMustAct) {
       setTurnLeft(TURN_LIMIT);
       return;
     }
@@ -254,11 +263,10 @@ function OnlineTable() {
 
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
-    if (!state || state.phase !== "playing") return;
+    if (!state || state.phase !== "playing" || !oppMustAct) return;
     if (turnLeft > 0) return;
-    if (state.turn !== opp || state.drawPending.length > 0) return;
     declareForfeit(opp, "timeout");
-  }, [turnLeft, state, opp, declareForfeit]);
+  }, [turnLeft, state, opp, oppMustAct, declareForfeit]);
 
   const [oppOnline, setOppOnline] = useState(true);
   const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
@@ -316,6 +324,7 @@ function OnlineTable() {
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
+    sfx.chuckle();
     publish(announce(state, me, meldPick, trumpChoice));
     setMeldPick([]);
   };
@@ -436,7 +445,7 @@ function OnlineTable() {
                 : "border-gold/40 bg-felt-deep/90 text-gold")
             }
           >
-            {state.turn === me ? "Votre tour" : "Tour adverse"} · {turnLeft}s
+            {state.turn === me ? "Votre tour" : "Tour adverse"}{oppMustAct ? ` · ${turnLeft}s` : ""}
           </span>
         )}
 
@@ -553,7 +562,7 @@ function OnlineTable() {
         </div>
       </section>
 
-      {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
+      {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-md p-6 text-center">
             <h2 className="gold-text text-3xl">
