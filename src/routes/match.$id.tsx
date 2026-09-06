@@ -343,6 +343,7 @@ function OnlineTable() {
             roundNo={roundNo}
             onPropose={proposeBet}
             onAccept={acceptBet}
+            onQuit={() => navigate({ to: "/online" })}
           />
         )}
       </main>
@@ -653,6 +654,7 @@ function OnlineTable() {
           roundNo={roundNo}
           onPropose={proposeBet}
           onAccept={acceptBet}
+          onQuit={() => setConfirmQuit(true)}
         />
       )}
 

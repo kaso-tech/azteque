@@ -10,6 +10,7 @@ export function BetPanel({
   roundNo,
   onPropose,
   onAccept,
+  onQuit,
 }: {
   bet: BetNegotiation | null;
   mySeat: "host" | "guest";
@@ -18,6 +19,7 @@ export function BetPanel({
   roundNo: number;
   onPropose: (amount: number) => void;
   onAccept: () => void;
+  onQuit: () => void;
 }) {
   const live = bet && bet.round === roundNo ? bet : null;
   const mine = live?.by === mySeat;
@@ -102,6 +104,14 @@ export function BetPanel({
             Vous pouvez ajuster votre proposition tant qu'elle n'est pas acceptée.
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={onQuit}
+          className="mt-5 w-full rounded-full border border-destructive/50 px-5 py-2 text-xs font-semibold text-destructive"
+        >
+          Quitter la table
+        </button>
       </div>
     </div>
   );
