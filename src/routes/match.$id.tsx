@@ -25,7 +25,14 @@ import {
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
-import { ensureOnlineIdentity, getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
+import {
+  ensureOnlineIdentity,
+  getMatch,
+  pushMatchState,
+  subscribeMatch,
+  trackPresence,
+  type MatchRow,
+} from "@/lib/azteque/online";
 
 
 export const Route = createFileRoute("/match/$id")({
@@ -52,6 +59,10 @@ export const Route = createFileRoute("/match/$id")({
 });
 
 const TRICK_DELAY = 1000;
+/** Temps maximum pour jouer son coup (secondes). */
+const TURN_LIMIT = 30;
+/** Temps toléré avant de déclarer un joueur déconnecté perdant (secondes). */
+const DISCONNECT_LIMIT = 30;
 
 function OnlineTable() {
   const { id } = Route.useParams();
