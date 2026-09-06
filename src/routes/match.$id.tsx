@@ -6,6 +6,8 @@ import {
   availableMelds,
   isBonne,
   legalCards,
+  resolveTrick,
+  trickCapturesPile,
   type Card,
   type GameState,
   type PlayerIndex,
@@ -19,6 +21,7 @@ import {
   TrickPosition,
   TurnBar,
 } from "@/components/azteque/table";
+import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
@@ -80,6 +83,66 @@ function OnlineTable() {
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+
+  // --- Animations de déplacement des cartes -----------------------------
+  // Le serveur reste seul maître du résultat (voir match-actions.ts) : ces
+  // refs et cet état ne servent qu'à faire VOYAGER les cartes à l'écran
+  // entre les positions déjà affichées, jamais à décider quoi que ce soit.
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const stockRef = useRef<HTMLDivElement | null>(null);
+  // Indexées par PlayerIndex (0|1), comme les tableaux de `state` lui-même.
+  // Mémorisées : les refs elles-mêmes sont déjà stables (useRef), seul le
+  // tableau qui les regroupe ne doit pas changer d'identité à chaque rendu.
+  const handRef0 = useRef<HTMLDivElement | null>(null);
+  const handRef1 = useRef<HTMLDivElement | null>(null);
+  const handRefs = useMemo(() => [handRef0, handRef1] as const, []);
+  const trickSlotRef0 = useRef<HTMLDivElement | null>(null);
+  const trickSlotRef1 = useRef<HTMLDivElement | null>(null);
+  const trickSlotRefs = useMemo(() => [trickSlotRef0, trickSlotRef1] as const, []);
+  const pileRef0 = useRef<HTMLDivElement | null>(null);
+  const pileRef1 = useRef<HTMLDivElement | null>(null);
+  const pileRefs = useMemo(() => [pileRef0, pileRef1] as const, []);
+
+  const [flying, setFlying] = useState<{ card: Card; from: { x: number; y: number } } | null>(null);
+  const [collect, setCollect] = useState<
+    {
+      id: number;
+      card: Card;
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      delay: number;
+    }[]
+  >([]);
+  const [drawFlights, setDrawFlights] = useState<
+    {
+      id: number;
+      player: PlayerIndex;
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      delay: number;
+    }[]
+  >([]);
+  const [sweepFlights, setSweepFlights] = useState<
+    { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+  >([]);
+  // Pendant la résolution d'un pli (ramassage puis éventuel transfert « atout
+  // 10 »), le serveur a déjà avancé l'état bien avant que l'animation locale
+  // n'ait fini de jouer (l'aller-retour réseau est plus rapide que le vol des
+  // cartes). On fige donc l'AFFICHAGE du pli et des tas sur leur valeur d'avant
+  // résolution le temps de l'animation, pendant que `state` — la vérité —
+  // continue d'avancer normalement en arrière-plan.
+  const [frozenTable, setFrozenTable] = useState<{
+    trick: GameState["trick"];
+    gains: [Card[], Card[]];
+  } | null>(null);
+  // Empêche la pioche et l'annonce de compte de s'afficher avant la fin de
+  // cette même animation.
+  const [animating, setAnimating] = useState(false);
+
+  const center = (el: HTMLElement | null | undefined) => {
+    const r = el?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  };
 
   const applyRow = useCallback((next: MatchRow) => {
     setRow(next);
@@ -156,39 +219,153 @@ function OnlineTable() {
   const iAmReady = !!nextReady?.[isHost ? "host" : "guest"];
   const oppIsReady = !!nextReady?.[isHost ? "guest" : "host"];
 
+  // Détecte la carte que l'ADVERSAIRE vient de jouer (celle du joueur local
+  // est animée directement au clic, voir playMyCard) pour la faire voyager de
+  // sa main vers le tapis, qu'elle arrive par la réponse de notre propre appel
+  // serveur ou par la souscription temps réel (les deux mettent `state` à jour
+  // de la même façon).
+  const prevTrickRef = useRef<GameState["trick"]>([]);
+  const sawStateRef = useRef(false);
+  useEffect(() => {
+    if (!state) {
+      prevTrickRef.current = [];
+      sawStateRef.current = false;
+      return;
+    }
+    const already = prevTrickRef.current.some((entry) => entry.player === opp);
+    const oppEntry = state.trick.find((entry) => entry.player === opp);
+    if (oppEntry && !already && sawStateRef.current) {
+      const from = center(handRefs[opp].current);
+      if (from) {
+        setFlying({ card: oppEntry.card, from });
+        setTimeout(() => setFlying(null), 380);
+      }
+      sfx.place();
+    }
+    prevTrickRef.current = state.trick;
+    sawStateRef.current = true;
+  }, [state, opp, handRefs]);
+
   // L'hôte arbitre : résolution du pli puis pioches.
   // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
   // Les deux appels sont validés par le serveur : si l'un des deux arrive
   // après coup (l'autre a déjà résolu), il est simplement rejeté (silencieux).
+  //
+  // Le résultat qui compte est toujours celui renvoyé par le serveur — voir
+  // match-actions.ts. Mais l'aller-retour réseau est presque toujours plus
+  // rapide que le temps de vol des cartes à l'écran : sans précaution, `state`
+  // afficherait déjà le pli vide et les tas mis à jour avant même que
+  // l'animation n'ait commencé à bouger quoi que ce soit. On calcule donc ICI,
+  // sur les mêmes fonctions pures que celles rejouées côté serveur, le
+  // résultat probable (vainqueur, transfert « atout 10 ») à seule fin
+  // d'afficher le bon mouvement ; l'affichage reste figé sur l'état d'avant
+  // résolution (`frozenTable`) le temps que l'animation joue, pendant que
+  // `state` continue d'avancer normalement en arrière-plan.
   useEffect(() => {
     if (!state || state.phase !== "playing" || state.trick.length < 2) return;
+    if (animating) return;
     const hadBonne = state.trick.some((entry) => isBonne(entry.card));
-    const t = setTimeout(
-      () => {
-        void runAction({ type: "resolve_trick" }, { silent: true }).then(() => {
-          sfx.collect();
-          if (hadBonne) setTimeout(() => sfx.snicker(), 320);
-        });
-      },
-      isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(
+      setTimeout(
+        () => {
+          void runAction({ type: "resolve_trick" }, { silent: true });
+
+          const preTrick = state;
+          const predicted = resolveTrick(preTrick, { atout10: true });
+          const winner = predicted.lastTrickWinner;
+          if (winner === null) return;
+          const loser: PlayerIndex = winner === 0 ? 1 : 0;
+          const first = preTrick.trick[0]!;
+          const second = preTrick.trick[1]!;
+          const fromFirst = center(trickSlotRefs[first.player].current);
+          const fromSecond = center(trickSlotRefs[second.player].current);
+          const winnerPile = center(pileRefs[winner].current);
+          if (!fromFirst || !fromSecond || !winnerPile) return;
+
+          setAnimating(true);
+          setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
+
+          const lastDelay = 140;
+          setCollect([
+            { id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 },
+            { id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay },
+          ]);
+          timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+          if (hadBonne) timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
+
+          const sweeps = trickCapturesPile(preTrick, { atout10: true })
+            ? preTrick.gains[loser].length
+            : 0;
+          const loserPile = center(pileRefs[loser].current);
+
+          timers.push(
+            setTimeout(() => {
+              setCollect([]);
+              if (sweeps > 0 && loserPile) {
+                const layers = Math.min(6, sweeps);
+                sfx.sweep();
+                setSweepFlights(
+                  Array.from({ length: layers }, (_, i) => ({
+                    id: i,
+                    from: loserPile,
+                    to: winnerPile,
+                    delay: i * 90,
+                  })),
+                );
+                timers.push(
+                  setTimeout(
+                    () => {
+                      setSweepFlights([]);
+                      setFrozenTable(null);
+                      setAnimating(false);
+                    },
+                    layers * 90 + 620,
+                  ),
+                );
+                return;
+              }
+              setFrozenTable(null);
+              setAnimating(false);
+            }, lastDelay + 560),
+          );
+        },
+        isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
+      ),
     );
-    return () => clearTimeout(t);
-  }, [isHost, state, runAction]);
+    return () => timers.forEach(clearTimeout);
+  }, [isHost, state, animating, runAction, pileRefs, trickSlotRefs]);
 
   useEffect(() => {
+    if (animating) return;
     if (!state || state.phase !== "playing") return;
     if (state.drawPending.length === 0 || state.stock.length === 0) return;
     const player = state.drawPending[0]!;
     // Le vainqueur peut annoncer avant de piocher (5 cartes en main)
     if (state.canAnnounce === player && availableMelds(state, player).length > 0) return;
-    const t = setTimeout(
-      () => {
-        void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
-      },
-      isHost ? 700 : 4700,
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(
+      setTimeout(
+        () => {
+          const from = center(stockRef.current);
+          const to = center(handRefs[player].current);
+          if (from && to) {
+            setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
+            timers.push(
+              setTimeout(() => {
+                setDrawFlights([]);
+                void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
+              }, 580),
+            );
+            return;
+          }
+          void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
+        },
+        isHost ? 700 : 4700,
+      ),
     );
-    return () => clearTimeout(t);
-  }, [isHost, state, runAction]);
+    return () => timers.forEach(clearTimeout);
+  }, [isHost, state, animating, runAction, handRefs, stockRef]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
@@ -287,6 +464,7 @@ function OnlineTable() {
 
   const meldDecisionPending =
     !!state &&
+    !animating &&
     state.phase === "playing" &&
     state.canAnnounce === me &&
     state.drawPending[0] === me &&
@@ -294,8 +472,19 @@ function OnlineTable() {
     myMelds.length > 0 &&
     state.stock.length > 0;
 
-  const playMyCard = (card: Card) => {
+  // Affichage figé du pli et des tas pendant le ramassage/transfert animé
+  // (voir la déclaration de `frozenTable` plus haut) : le reste de l'état
+  // (mains, tour, pioche…) continue de refléter la vérité serveur normalement.
+  const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
+  const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
+
+  const playMyCard = (card: Card, el: HTMLElement) => {
     if (!state || meldDecisionPending) return;
+    const from = center(el);
+    if (from) {
+      setFlying({ card, from });
+      setTimeout(() => setFlying(null), 380);
+    }
     sfx.place();
     void runAction({ type: "play_card", cardId: card.id });
   };
@@ -358,7 +547,7 @@ function OnlineTable() {
 
   const myName = me === 0 ? row.host_name : (row.guest_name ?? "Invité");
   const oppName = me === 0 ? (row.guest_name ?? "Invité") : row.host_name;
-  const myBonnes = state.gains[me].filter(isBonne).length;
+  const myBonnes = displayGains[me].filter(isBonne).length;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
@@ -384,24 +573,29 @@ function OnlineTable() {
 
       {/* Main adverse */}
       <section>
-        <HandRow
-          cards={state.hands[opp]}
-          exposedIds={state.exposed[opp]}
-          faceDown={(c) => !state.exposed[opp].includes(c.id)}
-          interactive={false}
-          keepSlots={state.stock.length > 0}
-        />
+        <div ref={handRefs[opp]}>
+          <HandRow
+            cards={state.hands[opp]}
+            exposedIds={state.exposed[opp]}
+            faceDown={(c) => !state.exposed[opp].includes(c.id)}
+            interactive={false}
+            keepSlots={state.stock.length > 0}
+          />
+        </div>
         <TurnBar left={turnLeft} total={TURN_LIMIT} active={oppMustAct} label={oppName} />
       </section>
 
       {/* Tapis */}
-      <section className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4">
-        <div className="absolute left-3 top-3">
-          <CapturedPile cards={state.gains[opp]} owner="opponent" />
+      <section
+        ref={tableRef}
+        className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
+      >
+        <div className="absolute left-3 top-3" ref={pileRefs[opp]}>
+          <CapturedPile cards={displayGains[opp]} owner="opponent" />
         </div>
-        <div className="absolute bottom-3 right-3">
+        <div className="absolute bottom-3 right-3" ref={pileRefs[me]}>
           <CapturedPile
-            cards={state.gains[me]}
+            cards={displayGains[me]}
             owner="player"
             onOpen={() => setShowMyGains(true)}
           />
@@ -418,8 +612,10 @@ function OnlineTable() {
         )}
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
-          <TrickPosition trick={state.trick} player={opp} me={me} />
-          <div className="flex min-h-20 flex-col items-center justify-center gap-1">
+          <div ref={trickSlotRefs[opp]}>
+            <TrickPosition trick={displayTrick} player={opp} me={me} hidden={collect.length > 0} />
+          </div>
+          <div className="flex min-h-20 flex-col items-center justify-center gap-1" ref={stockRef}>
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
@@ -433,7 +629,9 @@ function OnlineTable() {
               </div>
             )}
           </div>
-          <TrickPosition trick={state.trick} player={me} me={me} />
+          <div ref={trickSlotRefs[me]}>
+            <TrickPosition trick={displayTrick} player={me} me={me} hidden={collect.length > 0} />
+          </div>
         </div>
 
         {offlineLeft !== null && (
@@ -511,20 +709,23 @@ function OnlineTable() {
       {/* Votre main */}
       <section className="flex flex-col gap-2">
         <TurnBar left={myLeft} total={TURN_LIMIT} active={myMustAct} label={myName} />
-        <HandRow
-          cards={state.hands[me]}
-          exposedIds={state.exposed[me]}
-          keepSlots={state.stock.length > 0}
-          isDisabled={(c) =>
-            meldDecisionPending ||
-            state.turn !== me ||
-            state.phase !== "playing" ||
-            state.trick.length >= 2 ||
-            state.drawPending.length > 0 ||
-            !legalIds.has(c.id)
-          }
-          onPlay={(card) => playMyCard(card)}
-        />
+        <div ref={handRefs[me]}>
+          <HandRow
+            cards={state.hands[me]}
+            exposedIds={state.exposed[me]}
+            keepSlots={state.stock.length > 0}
+            isDisabled={(c) =>
+              meldDecisionPending ||
+              animating ||
+              state.turn !== me ||
+              state.phase !== "playing" ||
+              state.trick.length >= 2 ||
+              state.drawPending.length > 0 ||
+              !legalIds.has(c.id)
+            }
+            onPlay={(card, el) => playMyCard(card, el)}
+          />
+        </div>
         <div className="flex items-center justify-center gap-2">
           <button
             type="button"
@@ -691,6 +892,34 @@ function OnlineTable() {
           onClose={() => setShowMyBonnes(false)}
         />
       )}
+
+      {/* Carte en vol vers le tapis (la mienne au clic, celle de l'adversaire
+          détectée dès qu'elle apparaît dans le pli) */}
+      {flying && (
+        <FlyingCard
+          card={flying.card}
+          from={flying.from}
+          to={(() => {
+            const r = tableRef.current?.getBoundingClientRect();
+            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : flying.from;
+          })()}
+        />
+      )}
+
+      {/* Cartes piochées */}
+      {drawFlights.map((flight) => (
+        <DrawCard key={flight.id} {...flight} />
+      ))}
+
+      {/* Ramassage du pli vers le tas du vainqueur */}
+      {collect.map((flight) => (
+        <CollectCard key={flight.id} {...flight} />
+      ))}
+
+      {/* Atout 10 : transfert du tas adverse */}
+      {sweepFlights.map((flight) => (
+        <SweepCard key={flight.id} {...flight} />
+      ))}
 
       <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
     </main>
