@@ -20,8 +20,12 @@ dist-ssr
 .wrangler/
 .dev.vars
 
-# Environment variables (see .env.example)
-.env
+# Surcharges locales : elles peuvent contenir des secrets (clé de service).
+# `.env` lui-même reste versionné : Lovable y lit les variables VITE_* au
+# build, et elles ne contiennent que des valeurs publishable déjà exposées
+# dans le bundle client. Voir .env.example.
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
