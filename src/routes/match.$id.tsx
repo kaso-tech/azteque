@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SUIT_NAME,
   SUIT_SYMBOL,
@@ -130,19 +130,62 @@ function OnlineTable() {
     [id],
   );
 
-  // L'hôte distribue la première donne dès que l'invité est là
-  useEffect(() => {
-    if (!isHost || !row?.guest_name || state) return;
-    publish(newRound(1));
-  }, [isHost, row?.guest_name, state, publish]);
+  /* ---------- Mise de jetons ---------- */
+  const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
+  const settings = (row?.settings ?? {}) as Record<string, unknown>;
+  const bet = (settings["bet"] as BetNegotiation | undefined) ?? null;
+  const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
+  const [balance, setBalance] = useState(0);
+  useEffect(() => setBalance(getTokens()), []);
 
-  // L'hôte arbitre : résolution du pli puis pioches
+  const proposeBet = useCallback(
+    (amount: number) => {
+      if (!row || !verifiedSeat) return;
+      const next: BetNegotiation = { amount, by: verifiedSeat, status: "pending", round: roundNo };
+      setRow({ ...row, settings: { ...settings, bet: next } });
+      void pushMatchSettings(id, { ...settings, bet: next });
+    },
+    [id, row, settings, roundNo, verifiedSeat],
+  );
+
+  const acceptBet = useCallback(() => {
+    if (!row || !bet) return;
+    const next: BetNegotiation = { ...bet, status: "accepted", round: roundNo };
+    setRow({ ...row, settings: { ...settings, bet: next } });
+    void pushMatchSettings(id, { ...settings, bet: next });
+  }, [id, row, settings, bet, roundNo]);
+
+  // Règlement des jetons en fin de champ
+  const settled = useRef(false);
   useEffect(() => {
-    if (!isHost || !state || state.phase !== "playing" || state.trick.length < 2) return;
-    const t = setTimeout(() => {
-      publish(resolveTrick(state, { atout10: true }));
-      sfx.collect();
-    }, TRICK_DELAY);
+    if (!state || state.phase !== "gameEnd" || !bet || bet.status !== "accepted") return;
+    if (settled.current) return;
+    settled.current = true;
+    setBalance(addTokens(state.champWinner === me ? bet.amount : -bet.amount));
+  }, [state, bet, me]);
+
+  // L'hôte distribue la donne une fois la mise acceptée
+  useEffect(() => {
+    if (!isHost || !row?.guest_name || !betReady) return;
+    if (state && state.phase !== "roundEnd") return;
+    if (state && state.roundsWon[0] + state.roundsWon[1] + 1 !== roundNo) return;
+    if (state) return;
+    publish(newRound(1));
+  }, [isHost, row?.guest_name, state, publish, betReady, roundNo]);
+
+  // L'hôte arbitre : résolution du pli puis pioches.
+  // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
+  useEffect(() => {
+    if (!state || state.phase !== "playing" || state.trick.length < 2) return;
+    const t = setTimeout(
+      () => {
+        publish(resolveTrick(state, { atout10: true }));
+        sfx.collect();
+        if (state.trick.some((entry) => isBonne(entry.card)))
+          setTimeout(() => sfx.snicker(), 320);
+      },
+      isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
+    );
     return () => clearTimeout(t);
   }, [isHost, state, publish]);
 
