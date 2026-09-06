@@ -497,6 +497,7 @@ function Azteque() {
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
     setMeldPick([]);
+    sfx.chuckle();
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
