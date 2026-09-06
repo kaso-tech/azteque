@@ -493,9 +493,15 @@ function OnlineTable() {
           >
             Bonnes · {myBonnes}
           </button>
-          <Link to="/online" className="text-[0.68rem] text-muted-foreground underline">
-            Quitter la table
-          </Link>
+          {state.phase !== "gameEnd" && (
+            <button
+              type="button"
+              onClick={() => setConfirmQuit(true)}
+              className="rounded-full border border-destructive/50 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-destructive"
+            >
+              Quitter la table
+            </button>
+          )}
         </div>
       </section>
 
