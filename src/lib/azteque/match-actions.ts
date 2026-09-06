@@ -62,6 +62,93 @@ export interface MatchActionResult {
   settings: Record<string, unknown>;
 }
 
+interface ReadyRoundRow {
+  updated_at: string;
+  state: unknown;
+  settings: unknown;
+}
+
+interface ReadyRoundIO {
+  /** Relit la ligne depuis la base après un conflit d'écriture. */
+  reload: () => Promise<ReadyRoundRow>;
+  /**
+   * Tente l'écriture, sous condition que `updated_at` n'ait pas bougé depuis
+   * la lecture passée en paramètre. Renvoie `null` en cas de conflit (ligne
+   * modifiée entre-temps), la ligne écrite sinon.
+   */
+  tryWrite: (
+    patch: Record<string, unknown>,
+    expectedUpdatedAt: string,
+  ) => Promise<ReadyRoundRow | null>;
+}
+
+/**
+ * Accord des deux joueurs pour enchaîner le tour suivant, une fois le
+ * précédent terminé (`phase === "roundEnd"`).
+ *
+ * En fin de tour les deux joueurs cliquent souvent en même temps. Un simple
+ * lire-modifier-écrire perdrait alors la marque du plus lent — le second
+ * écrasant l'objet `nextRound` entier — et la table resterait bloquée, les
+ * deux joueurs s'attendant mutuellement. On écrit donc en concurrence
+ * optimiste : la mise à jour n'est appliquée que si `updated_at` n'a pas
+ * bougé depuis la lecture (le déclencheur `matches_touch_updated_at` le
+ * rafraîchit à chaque écriture), et on rejoue la décision sur la ligne
+ * relue en cas de conflit.
+ *
+ * Extraite du handler pour rester testable sans dépendre de Supabase — voir
+ * match-actions.race.test.ts, qui simule deux appels concurrents.
+ */
+export async function resolveReadyNextRound(
+  seat: "host" | "guest",
+  initialRow: ReadyRoundRow,
+  io: ReadyRoundIO,
+): Promise<MatchActionResult> {
+  let current = initialRow;
+  for (let attempt = 0; ; attempt++) {
+    const curState = (current.state as GameState | null) ?? null;
+    const curSettings = (current.settings ?? {}) as Record<string, unknown>;
+
+    if (!curState || curState.phase !== "roundEnd") {
+      // Au premier essai, c'est une demande invalide. Après un conflit, c'est
+      // que l'adversaire a fait aboutir la donne entre-temps : la demande a
+      // bien produit son effet, on renvoie l'état à jour.
+      if (attempt === 0)
+        throw new Error(curState ? "Le tour est encore en cours." : "Aucune partie en cours.");
+      return { state: curState, settings: curSettings };
+    }
+
+    const previous = (curSettings["nextRound"] as NextRoundReady | undefined) ?? {
+      host: false,
+      guest: false,
+    };
+    const ready: NextRoundReady = { ...previous, [seat]: true };
+    const bothReady = ready.host && ready.guest;
+
+    // La marque d'accord est remise à zéro avec la donne : elle ne vaut que
+    // pour le tour qui vient de s'achever.
+    const nextSettings = {
+      ...curSettings,
+      nextRound: bothReady ? { host: false, guest: false } : ready,
+    };
+    const patch: Record<string, unknown> = { settings: nextSettings };
+    if (bothReady) {
+      const dealer = (curState.lastTrickWinner ?? curState.dealer) as PlayerIndex;
+      patch["state"] = newRound(dealer, curState.roundsWon);
+      patch["status"] = "playing" satisfies MatchStatus;
+    }
+
+    const written = await io.tryWrite(patch, current.updated_at);
+    if (written)
+      return {
+        state: (written.state as GameState | null) ?? null,
+        settings: (written.settings ?? {}) as Record<string, unknown>,
+      };
+
+    if (attempt >= 3) throw new Error("Table occupée, réessayez.");
+    current = await io.reload();
+  }
+}
+
 export const applyMatchAction = createServerFn({ method: "POST", strict: { output: false } })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => requestSchema.parse(data))
@@ -137,77 +224,33 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       return { state: next, settings };
     }
 
-    // Donnes suivantes : les DEUX joueurs doivent accepter d'enchaîner. Le
-    // récapitulatif du tour reste donc affiché tant que l'un des deux n'a pas
-    // répondu, et aucune mise n'est renégociée au passage.
-    //
-    // En fin de tour les deux joueurs cliquent souvent en même temps. Un simple
-    // lire-modifier-écrire perdrait alors la marque du plus lent — le second
-    // écrasant l'objet `nextRound` entier — et la table resterait bloquée, les
-    // deux joueurs s'attendant mutuellement. On écrit donc en concurrence
-    // optimiste : la mise à jour n'est appliquée que si `updated_at` n'a pas
-    // bougé depuis la lecture (le déclencheur `matches_touch_updated_at` le
-    // rafraîchit à chaque écriture), et on rejoue la décision sur la ligne
-    // relue en cas d'échec.
+    // Donnes suivantes : les DEUX joueurs doivent accepter d'enchaîner — voir
+    // resolveReadyNextRound ci-dessous (logique extraite pour rester testable
+    // indépendamment de Supabase).
     if (data.type === "ready_next_round") {
-      let current = row;
-      for (let attempt = 0; ; attempt++) {
-        const curState = (current.state as GameState | null) ?? null;
-        const curSettings = (current.settings ?? {}) as Record<string, unknown>;
-
-        if (!curState || curState.phase !== "roundEnd") {
-          // Au premier essai, c'est une demande invalide. Après un conflit,
-          // c'est que l'adversaire a fait aboutir la donne entre-temps : la
-          // demande a bien produit son effet, on renvoie l'état à jour.
-          if (attempt === 0)
-            throw new Error(curState ? "Le tour est encore en cours." : "Aucune partie en cours.");
-          return { state: curState, settings: curSettings };
-        }
-
-        const previous = (curSettings["nextRound"] as NextRoundReady | undefined) ?? {
-          host: false,
-          guest: false,
-        };
-        const ready: NextRoundReady = { ...previous, [seat]: true };
-        const bothReady = ready.host && ready.guest;
-
-        // La marque d'accord est remise à zéro avec la donne : elle ne vaut
-        // que pour le tour qui vient de s'achever.
-        const nextSettings = {
-          ...curSettings,
-          nextRound: bothReady ? { host: false, guest: false } : ready,
-        };
-        const patch: Record<string, unknown> = { settings: nextSettings };
-        if (bothReady) {
-          const dealer = (curState.lastTrickWinner ?? curState.dealer) as PlayerIndex;
-          patch["state"] = newRound(dealer, curState.roundsWon);
-          patch["status"] = "playing" satisfies MatchStatus;
-        }
-
-        const { data: written, error: writeError } = await supabaseAdmin
-          .from("matches")
-          .update(patch as never)
-          .eq("id", matchId)
-          .eq("updated_at", current.updated_at)
-          .select()
-          .maybeSingle();
-        if (writeError) throw writeError;
-        if (written)
-          return {
-            state: (written.state as GameState | null) ?? null,
-            settings: (written.settings ?? {}) as Record<string, unknown>,
-          };
-
-        if (attempt >= 3) throw new Error("Table occupée, réessayez.");
-        const { data: again, error: reloadError } = await supabaseAdmin
-          .from("matches")
-          .select("*")
-          .eq("id", matchId)
-          .maybeSingle();
-        if (reloadError) throw reloadError;
-        if (!again) throw new Error("Cette partie n'existe plus.");
-        current = again;
-      }
+      return resolveReadyNextRound(seat, row, {
+        reload: async () => {
+          const { data: again, error } = await supabaseAdmin
+            .from("matches")
+            .select("*")
+            .eq("id", matchId)
+            .maybeSingle();
+          if (error) throw error;
+          if (!again) throw new Error("Cette partie n'existe plus.");
+          return again;
+        },
+        tryWrite: async (patch, expectedUpdatedAt) => {
+          const { data: written, error } = await supabaseAdmin
+            .from("matches")
+            .update(patch as never)
+            .eq("id", matchId)
+            .eq("updated_at", expectedUpdatedAt)
+            .select()
+            .maybeSingle();
+          if (error) throw error;
+          return written ?? null;
+        },
+      });
     }
 
     if (data.type === "forfeit") {
