@@ -479,6 +479,10 @@ export function unseenCards(state: GameState): Card[] {
 /**
  * Probabilité que l'adversaire détienne au moins une carte du sous-ensemble
  * `matches` parmi les `unseen` cartes encore invisibles (loi hypergéométrique).
+ *
+ * `handSize` doit être le nombre de cartes CACHÉES de sa main : les cartes
+ * d'un compte posé face visible ne font pas partie du tirage, elles sont
+ * déjà connues (et déjà retirées de `unseen`).
  */
 function chanceOpponentHolds(unseen: Card[], handSize: number, matches: (c: Card) => boolean) {
   const n = unseen.length;
@@ -500,8 +504,13 @@ function chanceOpponentHolds(unseen: Card[], handSize: number, matches: (c: Card
  * confrontée à l'IA figée dans scripts/legacy-ai.ts sur des donnes identiques.
  */
 const TUNE = {
-  /** Valeur d'une bonne encore en main (un point à moitié acquis). */
-  bonneInHand: 0.55,
+  /**
+   * Valeur d'un 10 encore en main. Moins qu'un As de la même couleur : le 10
+   * tombe devant un As, et le jeu en compte deux exemplaires.
+   */
+  tenInHand: 0.5,
+  /** Valeur d'un As encore en main : rien ne le prend dans sa couleur. */
+  aceInHand: 0.72,
   /** Un As imprenable (hors atout adverse) est un point quasi certain. */
   safeAceInHand: 0.95,
   /**
@@ -511,8 +520,16 @@ const TUNE = {
    * juste si la recherche était un jour étendue au milieu de partie.
    */
   meldPotential: 0.6,
-  /** Garder la main : fenêtre d'annonce, et « la main » du dernier pli. */
-  tempo: 0.22,
+  /**
+   * Valeur de la main quand elle ne sert à rien de précis. Volontairement
+   * faible : prendre la devanture sans raison oblige ensuite à entamer, ce
+   * qui livre de l'information et expose ses cartes. Ce qui fait vraiment
+   * valoir la main, ce sont les comptes — les siens comme ceux qu'on refuse
+   * à l'adversaire (voir myLeadGain / oppLeadGain).
+   */
+  tempoBase: 0.1,
+  /** Intérêt de se défausser d'une carte basse avant la phase finale. */
+  discardJunk: 0.5,
   /** Propension prêtée à l'adversaire à dépenser pour rafler une bonne. */
   wantBonneSameSuit: 0.95,
   wantBonneTrump: 0.8,
@@ -520,6 +537,209 @@ const TUNE = {
   wantPlainSameSuit: 0.5,
   wantPlainTrump: 0.12,
 };
+
+/* ---------- Ce que l'IA sait de la main adverse ---------- */
+
+/** Cartes encore cachées dans la main adverse (un compte posé est visible). */
+function oppHiddenCount(state: GameState): number {
+  const exposed = new Set(state.exposed[0]);
+  return state.hands[0].filter((c) => !exposed.has(c.id)).length;
+}
+
+/**
+ * Main adverse exacte, ou null tant qu'elle reste incertaine.
+ *
+ * Dès que la pioche est épuisée, les cartes que l'IA n'a jamais vues SONT
+ * exactement la main adverse — c'est ce que fait un joueur expérimenté qui a
+ * suivi les cartes sorties. Avant cela, l'incertitude ne porte que sur le
+ * partage entre cette main et le talon : quand il ne reste que deux cartes en
+ * pioche, l'essentiel de la main adverse est donc déjà déductible, ce que
+ * traduit la loi hypergéométrique de `chanceOpponentHolds`.
+ */
+function knownOppHand(state: GameState): Card[] | null {
+  if (state.stock.length > 0) return null;
+  const unseen = unseenCards(state);
+  const exposed = new Set(state.exposed[0]);
+  const shown = state.hands[0].filter((c) => exposed.has(c.id));
+  if (unseen.length !== state.hands[0].length - shown.length) return null; // comptage incohérent
+  return [...shown, ...unseen];
+}
+
+/** Vue de l'adversaire, calculée une fois par décision. */
+interface OppModel {
+  /** Main exacte dès que la pioche est vide, sinon null. */
+  known: Card[] | null;
+  /** Cartes jamais vues : main cachée adverse + talon. */
+  unseen: Card[];
+  /** Nombre de cartes cachées dans sa main. */
+  hidden: number;
+}
+
+function readOpponent(state: GameState): OppModel {
+  return {
+    known: knownOppHand(state),
+    unseen: unseenCards(state),
+    hidden: oppHiddenCount(state),
+  };
+}
+
+/**
+ * Probabilité que l'adversaire détienne une carte vérifiant `pred`. Devient
+ * une certitude (0 ou 1) dès que sa main est connue.
+ */
+function oppHas(m: OppModel, pred: (c: Card) => boolean): number {
+  if (m.known) return m.known.some(pred) ? 1 : 0;
+  return chanceOpponentHolds(m.unseen, m.hidden, pred);
+}
+
+/* ---------- Valeur de la main (« la devanture ») ---------- */
+
+/**
+ * À quel point la fenêtre d'annonce se referme.
+ *
+ * Le pli joué alors qu'il reste une ou deux cartes en pioche est le DERNIER
+ * dont le vainqueur pourra annoncer un compte (l'annonce précède la pioche).
+ * À cet instant, refuser la main à l'adversaire vaut tout son compte — l'IA
+ * peut même y sacrifier son As d'atout. Tant que la pioche est fournie, au
+ * contraire, chacun aura d'autres occasions : la main y vaut bien moins.
+ */
+function meldWindow(state: GameState): number {
+  const stock = state.stock.length;
+  if (stock === 0) return 0; // plus aucune annonce possible
+  if (stock <= 2) return 1; // dernier pli annonçable
+  return Math.max(0.3, 1 - (stock - 2) / 14);
+}
+
+/** Points de compte encaissés en remportant ce pli. */
+function meldPointsFor(state: GameState, p: PlayerIndex, hand: Card[]): number {
+  if (state.stock.length === 0) return 0;
+  const used = new Set(state.exposed[p]);
+  const done = state.melds[p];
+  let total = 0;
+  let bestFirst = 0;
+  for (const s of SUITS) {
+    const max = s === state.trump ? 2 : 1;
+    if (done.filter((m) => m.suit === s).length >= max) continue;
+    const has = (r: Rank) => hand.some((c) => c.suit === s && c.rank === r && !used.has(c.id));
+    if (!has("K") || !has("Q")) continue;
+    const type = has("J") ? "triple" : "simple";
+    // Le barème plein ne vaut qu'à l'atout ; si l'atout n'est pas encore fixé,
+    // c'est le compte annoncé qui le choisit — un seul en profite.
+    if (state.trump === null) {
+      total += meldPoints(type, false);
+      bestFirst = Math.max(bestFirst, meldPoints(type, true) - meldPoints(type, false));
+    } else {
+      total += meldPoints(type, s === state.trump);
+    }
+  }
+  return total + bestFirst;
+}
+
+/**
+ * Ce que vaut, pour l'IA, remporter ce pli — au-delà des cartes ramassées.
+ *
+ * Un joueur expérimenté ne prend pas la devanture n'importe comment : elle ne
+ * vaut que pour annoncer un compte, pour empêcher l'adversaire d'annoncer le
+ * sien, ou faute de mieux.
+ */
+function myLeadGain(state: GameState): number {
+  if (state.stock.length === 0) {
+    // Phase finale : seul le dernier pli rapporte encore (« la main »).
+    return state.hands[1].length <= 1 ? 1 : TUNE.tempoBase;
+  }
+  return TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+}
+
+/** Symétrique : ce que l'adversaire gagne s'il remporte ce pli. */
+function oppLeadGain(state: GameState, m: OppModel): number {
+  if (state.stock.length === 0) {
+    return state.hands[0].length <= 1 ? 1 : TUNE.tempoBase;
+  }
+  let threat: number;
+  if (m.known) {
+    threat = meldPointsFor(state, 0, m.known);
+  } else {
+    // Espérance de ses points de compte : il lui faut le Roi ET la Dame d'une
+    // même couleur encore libre.
+    threat = 0;
+    for (const s of SUITS) {
+      const max = s === state.trump ? 2 : 1;
+      if (state.melds[0].filter((x) => x.suit === s).length >= max) continue;
+      const p = (r: Rank) => oppHas(m, (c) => c.suit === s && c.rank === r);
+      const pair = p("K") * p("Q");
+      if (pair <= 0) continue;
+      const full = state.trump === null || s === state.trump;
+      threat += pair * (meldPoints("simple", full) + p("J"));
+    }
+  }
+  return TUNE.tempoBase + meldWindow(state) * threat;
+}
+
+/**
+ * Intérêt de se débarrasser MAINTENANT d'une carte qui deviendra un fardeau.
+ *
+ * En phase finale, le second joueur doit fournir la couleur et surpasser s'il
+ * le peut. Mener une carte basse le laisse donc ramasser et protéger ses
+ * bonnes ; mener une carte haute l'oblige au contraire à les lâcher. Une main
+ * finale de cartes hautes vaut bien mieux qu'une main encombrée de déchet :
+ * autant s'en séparer tant que la pioche autorise encore à jouer librement.
+ */
+function deadWeight(state: GameState, c: Card): number {
+  const stock = state.stock.length;
+  // Trop tôt, la carte peut encore servir et sera de toute façon remplacée à
+  // la pioche ; trop tard, la main vaut plus cher que le ménage — le pli joué
+  // à deux cartes de pioche est le dernier dont le vainqueur peut annoncer.
+  if (stock < 3 || stock > 12) return 0;
+  if (c.rank !== "7" && c.rank !== "8" && c.rank !== "9") return 0;
+  if (state.trump && c.suit === state.trump) return 0; // un atout n'est jamais du déchet
+  const weak = 1 - rankValue(c.rank) / rankValue("J");
+  return TUNE.discardJunk * weak * (1 - (stock - 3) / 10);
+}
+
+/**
+ * Issue EXACTE de l'entame `c` en phase finale, main adverse connue.
+ *
+ * Pioche vide, l'adversaire n'a plus le choix : le règlement lui impose de
+ * fournir la couleur et de surpasser s'il le peut, de couper à défaut de
+ * fournir, et sinon de livrer sa plus forte carte de la couleur — sa bonne
+ * comprise, à moins d'en détenir une inférieure pour la protéger. Sa réponse
+ * est donc calculable, et avec elle le résultat du pli.
+ *
+ * C'est là tout l'intérêt de connaître sa main dès la fin de la pioche : mener
+ * haut lui arrache ses bonnes, mener bas les lui laisse, et l'IA n'a plus à
+ * parier sur sa « propension » à prendre le pli.
+ */
+function endgameLead(
+  state: GameState,
+  c: Card,
+  m: OppModel,
+): { wins: boolean; captured: number } | null {
+  if (!m.known || state.stock.length > 0) return null;
+  const hand = m.known;
+  const same = hand.filter((x) => x.suit === c.suit);
+
+  if (same.length === 0) {
+    const trumps = state.trump ? hand.filter((x) => x.suit === state.trump) : [];
+    if (trumps.length) {
+      // Il doit couper : il le fera au meilleur marché, mais il remporte le pli.
+      return { wins: false, captured: 0 };
+    }
+    // Défausse libre : il se sépare de sa carte la moins utile, jamais d'une
+    // bonne s'il peut l'éviter.
+    const junk = hand.filter((x) => !isBonne(x));
+    return { wins: true, captured: junk.length ? 0 : 1 };
+  }
+
+  const winning = same.filter((x) => beats(x, c, state.trump));
+  if (winning.length) return { wins: false, captured: 0 };
+
+  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
+  const top = sorted[0]!;
+  // Protection d'une bonne : il peut lui substituer la carte immédiatement
+  // inférieure de la couleur.
+  const given = isBonne(top) && sorted.length > 1 ? sorted[1]! : top;
+  return { wins: true, captured: isBonne(given) ? 1 : 0 };
+}
 
 /* ---------- Valeur de conservation d'une carte ---------- */
 
@@ -551,7 +771,21 @@ function meldValue(state: GameState, c: Card): number {
   return 0.9 * scale; // espoir de retrouver le partenaire à la pioche
 }
 
-/** Valeur d'un atout gardé pour la phase finale (pioche épuisée). */
+/**
+ * Valeur d'un atout gardé en main.
+ *
+ * Un atout ne se jette pas n'importe comment : c'est la seule carte qui coupe,
+ * et elle peut servir à tout moment. Tant que la pioche dure, le dépenser pour
+ * un pli sans enjeu est donc du gaspillage, et cette valeur l'en dissuade.
+ *
+ * Elle retombe à l'approche de la fin de pioche, et c'est voulu à deux titres :
+ * c'est là qu'il devient payant de sacrifier un gros atout pour refuser la main
+ * à l'adversaire (voir oppLeadGain), et une fois en phase finale un atout gardé
+ * en main ne rapporte plus rien au décompte — seules les cartes ramassées
+ * comptent. Le règlement s'y charge d'ailleurs de l'essentiel : pioche vide, on
+ * doit fournir la couleur et couper à défaut, ce qui laisse peu d'occasions de
+ * gâcher un atout.
+ */
 function trumpKeepValue(state: GameState, c: Card): number {
   const trump = state.trump;
   if (!trump || c.suit !== trump) return 0;
@@ -563,14 +797,24 @@ function trumpKeepValue(state: GameState, c: Card): number {
 /**
  * Ce que l'IA perd en se séparant de cette carte. Sert d'arbitrage : gagner
  * un pli vaut la dépense si le gain immédiat dépasse cette valeur.
+ *
+ * Entre deux bonnes d'une même couleur, l'As vaut plus cher que le 10 : rien
+ * ne le prend dans sa couleur, alors que le 10 tombe devant un As — et le jeu
+ * en compte deux exemplaires. D'où la règle de phase finale : on surpasse avec
+ * le 10 et l'on garde l'As, car jouer l'As d'abord laisserait le 10 se faire
+ * manger par le second As de la couleur.
  */
 function keepValue(state: GameState, c: Card): number {
   let v = meldValue(state, c) + trumpKeepValue(state, c);
   if (isBonne(c)) {
     // Une bonne en main est un point à moitié acquis : encore faut-il
     // l'encaisser sur un pli gagné. Un As d'atout, lui, est imprenable.
-    const safe = c.rank === "A" && (state.trump === null || c.suit === state.trump);
-    v += safe ? TUNE.safeAceInHand : TUNE.bonneInHand;
+    if (c.rank === "A") {
+      const safe = state.trump === null || c.suit === state.trump;
+      v += safe ? TUNE.safeAceInHand : TUNE.aceInHand;
+    } else {
+      v += TUNE.tenInHand;
+    }
   }
   return v;
 }
@@ -587,10 +831,14 @@ function aiTacticalCard(state: GameState): Card {
   const legal = legalCards(state, 1);
   if (legal.length === 1) return legal[0]!;
   const trump = state.trump;
-  const unseen = unseenCards(state);
-  const oppSize = state.hands[0].length;
+  const opp = readOpponent(state);
   const myBonnes = state.gains[1].filter(isBonne).length;
   const oppBonnes = state.gains[0].filter(isBonne).length;
+  // Prendre la main ne vaut que par ce qu'elle permet — annoncer son compte,
+  // ou priver l'adversaire du sien. Les deux termes tirent dans le même sens :
+  // leur somme mesure ce que vaut la lutte pour ce pli.
+  const myLead = myLeadGain(state);
+  const oppLead = oppLeadGain(state, opp);
 
   /* --- Second joueur : le pli vaut-il la carte dépensée ? --- */
   if (state.trick.length === 1) {
@@ -606,11 +854,18 @@ function aiTacticalCard(state: GameState): Card {
       const mine = isBonne(c) ? 1 : 0;
       let score: number;
       if (wins) {
-        // Je ramasse les deux cartes : ma bonne rentre dans mon tas.
-        score = ledPts + mine + stealable + 0.2 - keepValue(state, c);
+        // Je ramasse les deux cartes : ma bonne rentre dans mon tas, et
+        // j'ouvre ma fenêtre d'annonce en refermant la sienne.
+        score = ledPts + mine + stealable + myLead - keepValue(state, c);
       } else {
-        // L'adversaire ramasse : je lui offre sa carte plus la mienne.
-        score = -ledPts - mine - trump10Exposure(state, c) - 0.2 * keepValue(state, c);
+        // L'adversaire ramasse : je lui offre sa carte, la mienne, et la main.
+        score =
+          -ledPts -
+          mine -
+          oppLead -
+          trump10Exposure(state, c) -
+          0.2 * keepValue(state, c) +
+          deadWeight(state, c);
       }
       if (score > bestScore) {
         bestScore = score;
@@ -624,26 +879,39 @@ function aiTacticalCard(state: GameState): Card {
   let best: Card | null = null;
   let bestScore = -Infinity;
   for (const c of legal) {
-    // Qui peut me battre ? Une carte de la même couleur plus forte, ou un atout.
-    const pHigher = chanceOpponentHolds(
-      unseen,
-      oppSize,
-      (x) => x.suit === c.suit && rankValue(x.rank) > rankValue(c.rank),
-    );
-    const pTrump =
-      trump && c.suit !== trump ? chanceOpponentHolds(unseen, oppSize, (x) => x.suit === trump) : 0;
     const bonne = isBonne(c);
-    // L'adversaire ne dépense que si le pli en vaut la peine : il prend
-    // volontiers une bonne, beaucoup moins volontiers du déchet.
-    const wantHigher = bonne ? TUNE.wantBonneSameSuit : TUNE.wantPlainSameSuit;
-    const wantTrump = bonne ? TUNE.wantBonneTrump : TUNE.wantPlainTrump;
-    const risk = pHigher * wantHigher + (1 - pHigher) * pTrump * wantTrump;
+    const mine = bonne ? 1 : 0;
+    // Phase finale à main adverse connue : le pli se calcule au lieu de
+    // s'estimer, sa réponse étant imposée par le règlement.
+    const exact = endgameLead(state, c, opp);
+    let risk: number;
+    let pts: number;
+    if (exact) {
+      risk = exact.wins ? 0 : 1;
+      pts = mine + exact.captured;
+    } else {
+      // Qui peut me battre ? Une carte de la même couleur plus forte, ou un atout.
+      const pHigher = oppHas(
+        opp,
+        (x) => x.suit === c.suit && rankValue(x.rank) > rankValue(c.rank),
+      );
+      const pTrump = trump && c.suit !== trump ? oppHas(opp, (x) => x.suit === trump) : 0;
+      // Sortir son 10 d'atout devant un As d'atout, c'est perdre tout son tas :
+      // l'adversaire prendra à coup sûr, il n'y a rien à espérer de sa clémence.
+      const feedsAtout10 = !!trump && c.rank === "10" && c.suit === trump && myBonnes > 0;
+      // Sinon, l'adversaire ne dépense que si le pli en vaut la peine : il prend
+      // volontiers une bonne, beaucoup moins volontiers du déchet.
+      const wantHigher = feedsAtout10 ? 1 : bonne ? TUNE.wantBonneSameSuit : TUNE.wantPlainSameSuit;
+      const wantTrump = bonne ? TUNE.wantBonneTrump : TUNE.wantPlainTrump;
+      risk = pHigher * wantHigher + (1 - pHigher) * pTrump * wantTrump;
+      pts = mine;
+    }
 
-    const pts = bonne ? 1 : 0;
-    // Gagner l'entame conserve la main : fenêtre d'annonce et « la main ».
-    const tempo = TUNE.tempo;
     const score =
-      (1 - risk) * (pts + tempo) - risk * (pts + trump10Exposure(state, c)) - keepValue(state, c);
+      (1 - risk) * (pts + myLead) -
+      risk * (pts + oppLead + trump10Exposure(state, c)) -
+      keepValue(state, c) +
+      deadWeight(state, c);
     if (score > bestScore) {
       bestScore = score;
       best = c;
@@ -1042,9 +1310,15 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // SONT exactement la main adverse. La position est donc à information
   // complète et se résout intégralement — ce n'est plus une estimation mais
   // le meilleur coup, protection des bonnes et 10 d'atout compris.
-  // Légende attaque cette résolution plus tôt : à quelques cartes de la fin,
-  // l'incertitude restante est faible et l'échantillonnage la couvre.
-  const from = level === "legende" ? 4 : 0;
+  //
+  // Légende attaque cette résolution deux cartes plus tôt : à ce stade, seules
+  // les deux dernières cartes de pioche restent inconnues, l'échantillonnage
+  // les couvre sans peine. Au-delà, le banc d'essai est net : élargir la
+  // fenêtre AFFAIBLIT le jeu (51 % à quatre cartes d'avance contre 57 % ici),
+  // car l'incertitude de la pioche rend les mondes tirés trompeurs — mieux vaut
+  // alors l'heuristique, qui raisonne sur les probabilités plutôt que sur un
+  // tirage particulier. Cette fenêtre étroite est aussi trois fois plus rapide.
+  const from = level === "legende" ? 2 : 0;
   if (state.stock.length <= from) {
     const samples = state.stock.length === 0 ? 1 : 8;
     const exact = pimcChoose(state, samples, 12);

@@ -29,14 +29,31 @@ Cinq niveaux, du plus faible au plus fort : **Facile**, **Normal**, **Expert**,
 **Maître**, **Légende**.
 
 - _Facile_ et _Normal_ jouent une heuristique simple, volontairement faillible.
-- _Expert_ applique une évaluation tactique complète : encaisser les As
-  imprenables à l'entame, ne jamais lâcher une bonne sur un pli perdu, protéger
-  les Rois et Dames qui valent un compte, et traquer le 10 d'atout adverse.
+- _Expert_ applique l'évaluation tactique complète décrite ci-dessous.
 - _Maître_ y ajoute la résolution exacte de la fin de partie : une fois la
   pioche vide, les cartes encore invisibles sont exactement la main adverse, et
   la position se calcule intégralement.
-- _Légende_ déclenche cette résolution plus tôt (dès quatre cartes restantes)
-  en échantillonnant les mains adverses possibles.
+- _Légende_ déclenche cette résolution deux cartes plus tôt, quand seules les
+  dernières cartes de pioche restent inconnues.
+
+**Ce que sait un adversaire de haut niveau**
+
+- _Il suit les cartes sorties._ Dès la pioche épuisée, il connaît exactement la
+  main adverse et cesse d'estimer : le résultat de chaque entame se calcule,
+  puisque le règlement impose alors la réponse de l'adversaire.
+- _Il ne prend pas la devanture n'importe comment._ La main ne vaut que pour
+  annoncer son compte ou pour priver l'adversaire du sien ; le reste du temps
+  elle oblige à entamer, ce qui expose. La valeur de ce pli monte donc à mesure
+  que la pioche s'épuise, et culmine au dernier pli annonçable — deux cartes
+  restantes — où il peut sacrifier jusqu'à son As d'atout pour refuser la main.
+- _Il ménage ses atouts_, seule couleur qui coupe, et ne sort pas son 10 d'atout
+  devant un As d'atout adverse : le perdre livrerait tout son tas de bonnes.
+- _Il distingue l'As du 10._ En phase finale, il surpasse avec le 10 et garde
+  l'As : jouer l'As d'abord laisserait le 10 se faire manger par le second As
+  de la couleur, le jeu en comptant deux exemplaires.
+- _Il mène haut pour arracher les bonnes adverses_ : pioche vide, l'adversaire
+  doit fournir sa plus forte carte de la couleur, sauf à protéger une bonne avec
+  une carte inférieure.
 
 Le banc d'essai `npm run bench` fait s'affronter deux niveaux sur des donnes
 identiques et mesure l'écart réel :

@@ -601,4 +601,78 @@ describe("tactiques de l'IA", () => {
     });
     expect(aiChooseCardAt(state, "legende").id).toBe(low.id);
   });
+  it("en phase finale, surpasse avec le 10 et garde l'As de la même couleur", () => {
+    // L'adversaire mène le Roi de pique ; l'IA tient le 10 et l'As de pique.
+    // Les deux battent le Roi, mais jouer l'As d'abord laisserait le 10 se
+    // faire manger plus tard par le second As de la couleur (le jeu en compte
+    // deux). On surpasse donc avec le 10 et l'on conserve l'As, imprenable.
+    const ten = card("10", "S");
+    const ace = card("A", "S");
+    const oppKing = card("K", "S");
+    const gains = fillGains([ten, ace, oppKing, card("7", "D")]);
+    const state = makeState({
+      trump: "H",
+      stock: [],
+      hands: [[card("7", "D")], [ten, ace]],
+      trick: [{ player: 0, card: oppKing }],
+      turn: 1,
+      gains,
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(ten.id);
+  });
+
+  it("sacrifie son As d'atout pour refuser le dernier pli annonçable", () => {
+    // Deux cartes en pioche : le vainqueur de CE pli est le dernier à pouvoir
+    // annoncer un compte. Toutes les autres cartes étant déjà sorties, l'IA
+    // sait que l'adversaire tient Roi + Dame de trèfle : le laisser ramasser,
+    // c'est lui offrir son compte. Elle prend donc le pli avec son As d'atout,
+    // qu'elle garderait précieusement en toute autre circonstance — et elle
+    // joue bien l'atout plutôt que de se défausser du 7.
+    const oppKing = card("K", "C");
+    const oppQueen = card("Q", "C");
+    const oppLead = card("9", "D");
+    const trumpAce = card("A", "H");
+    const junk = card("7", "S");
+    const stock = [card("7", "C"), card("8", "C")];
+    const gains = fillGains([oppKing, oppQueen, oppLead, trumpAce, junk, ...stock]);
+    const state = makeState({
+      trump: "H",
+      stock,
+      hands: [
+        [oppKing, oppQueen, oppLead],
+        [trumpAce, junk],
+      ],
+      trick: [{ player: 0, card: oppLead }],
+      turn: 1,
+      gains,
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(trumpAce.id);
+  });
+
+  it("laisse filer le même pli quand aucun compte n'est menacé", () => {
+    // Position identique, à ceci près que l'adversaire ne tient aucun compte :
+    // le pli ne vaut plus rien, et dépenser l'As d'atout pour lui serait du
+    // gaspillage. L'IA se défausse alors de son déchet. Ce couple de tests
+    // vérifie que c'est bien la menace de compte — et non le pli en soi — qui
+    // décide de prendre la main.
+    const oppLow = card("8", "S");
+    const oppOther = card("9", "S");
+    const oppLead = card("9", "D");
+    const trumpAce = card("A", "H");
+    const junk = card("7", "S");
+    const stock = [card("7", "C"), card("8", "C")];
+    const gains = fillGains([oppLow, oppOther, oppLead, trumpAce, junk, ...stock]);
+    const state = makeState({
+      trump: "H",
+      stock,
+      hands: [
+        [oppLow, oppOther, oppLead],
+        [trumpAce, junk],
+      ],
+      trick: [{ player: 0, card: oppLead }],
+      turn: 1,
+      gains,
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(junk.id);
+  });
 });
