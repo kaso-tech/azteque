@@ -297,3 +297,42 @@ export function StockPile({ count }: { count: number }) {
     </div>
   );
 }
+
+/** Barre de temps du tour : verte au départ, rouge à l'approche de la fin. */
+export function TurnBar({
+  left,
+  total,
+  active,
+  label,
+}: {
+  left: number;
+  total: number;
+  active: boolean;
+  label: string;
+}) {
+  const ratio = active ? Math.max(0, Math.min(1, left / total)) : 1;
+  const hue = Math.round(120 * ratio);
+
+  return (
+    <div className="flex w-full items-center gap-2">
+      <span
+        className={cn(
+          "w-24 shrink-0 text-[0.58rem] font-semibold uppercase tracking-wide",
+          active ? "text-gold" : "text-muted-foreground/60",
+        )}
+      >
+        {label}
+      </span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
+        <div
+          className="h-full rounded-full transition-[width,background-color] duration-500 ease-linear"
+          style={{
+            width: `${ratio * 100}%`,
+            backgroundColor: active ? `hsl(${hue} 78% 45%)` : "hsl(0 0% 40% / 0.35)",
+            boxShadow: active ? `0 0 8px hsl(${hue} 78% 45% / 0.6)` : "none",
+          }}
+        />
+      </div>
+    </div>
+  );
+}

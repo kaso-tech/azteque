@@ -32,6 +32,8 @@ import {
   HandRow,
   StockPile,
   TrickPosition,
+  TurnBar,
+
 } from "@/components/azteque/table";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { Button } from "@/components/ui/button";
@@ -478,6 +480,35 @@ function Azteque() {
     );
   }, [turnLeft, myTurnActive]);
 
+  // Barre de temps de l'IA (visuelle)
+  const oppTurnActive =
+    state.phase === "playing" &&
+    state.trick.length < 2 &&
+    state.turn === 1 &&
+    !meldDecisionPending &&
+    state.drawPending.length === 0;
+  const [oppLeft, setOppLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!oppTurnActive) {
+      setOppLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setOppLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setOppLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey, oppTurnActive]);
+
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const quitTable = useCallback(() => {
+    setConfirmQuit(false);
+    setStarted(false);
+  }, []);
+
+
   const nextRound = useCallback(() => {
     setState((s) => {
       const dealer: PlayerIndex = (s.lastTrickWinner ?? s.dealer) as PlayerIndex;
@@ -535,27 +566,27 @@ function Azteque() {
           Conquérez les plis, ramassez les bonnes, annoncez vos comptes et créez l'atout.
           Trois tours gagnés — ou treize bonnes — et le champ est à vous.
         </p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <button
-            onClick={() => setStarted(true)}
-            className="rounded-full bg-[image:var(--gradient-gold)] px-8 py-3 font-display text-sm font-semibold text-primary-foreground shadow-[var(--shadow-table)] transition-transform hover:scale-105"
-          >
-            Commencer une partie
-          </button>
-          <Link
-            to="/online"
-            className="rounded-full border border-gold/50 px-8 py-3 font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
-          >
-            Jouer en ligne
-          </Link>
-
+        <div className="mt-9 flex w-full max-w-xs flex-col items-center gap-4">
           <ProfileButton
             name={playerName}
             icon="player"
             align="center"
             onClick={() => setShowPlayerProfile(true)}
           />
+          <button
+            onClick={() => setStarted(true)}
+            className="w-full rounded-full bg-[image:var(--gradient-gold)] px-8 py-3 text-center font-display text-sm font-semibold text-primary-foreground shadow-[var(--shadow-table)] transition-transform hover:scale-105"
+          >
+            Commencer une partie
+          </button>
+          <Link
+            to="/online"
+            className="w-full rounded-full border border-gold/50 px-8 py-3 text-center font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
+          >
+            Jouer en ligne
+          </Link>
         </div>
+
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
         {showPlayerProfile && (
           <PlayerProfilePanel
@@ -610,7 +641,14 @@ function Azteque() {
               keepSlots={state.stock.length > 0}
             />
           </div>
+          <TurnBar
+            left={oppLeft}
+            total={TURN_LIMIT}
+            active={oppTurnActive}
+            label={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
+          />
         </div>
+
       </section>
 
       {/* Tapis */}
@@ -798,7 +836,14 @@ function Azteque() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
+        <TurnBar
+          left={turnLeft}
+          total={TURN_LIMIT}
+          active={myTurnActive}
+          label={playerName || "Vous"}
+        />
         <div ref={playerHandRef}>
+
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
@@ -831,18 +876,14 @@ function Azteque() {
           >
             Comptes · {myComptes}
           </button>
-          {myTurnActive && (
-            <span
-              className={cn(
-                "rounded-full border px-3 py-1 text-[0.68rem] font-semibold",
-                turnLeft <= 10
-                  ? "border-destructive/60 bg-destructive/15 text-destructive"
-                  : "border-border bg-felt-deep/60 text-muted-foreground",
-              )}
-            >
-              Votre tour · {turnLeft}s
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => setConfirmQuit(true)}
+            className="rounded-full border border-destructive/50 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-destructive transition-colors hover:bg-destructive/10"
+          >
+            Quitter la table
+          </button>
+
         </div>
 
 
@@ -933,9 +974,43 @@ function Azteque() {
                   ? "Rejouer le tour"
                   : "Tour suivant"}
             </button>
+            <button
+              onClick={quitTable}
+              className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
+            >
+              Quitter
+            </button>
           </div>
         </div>
       )}
+
+      {confirmQuit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Quitter la table ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              La partie en cours sera abandonnée.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmQuit(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Rester
+              </button>
+              <button
+                type="button"
+                onClick={quitTable}
+                className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
+              >
+                Quitter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
       {showPlayerProfile && (
