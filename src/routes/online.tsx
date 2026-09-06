@@ -5,6 +5,7 @@ import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/acc
 import {
   acceptInvite,
   claimLocalTokens,
+  clearStaleSession,
   currentUserId,
   getMyProfile,
   invitePlayer,
@@ -79,13 +80,32 @@ function OnlineLobby() {
   /* ---------- Session et profil ---------- */
 
   const load = useCallback(async () => {
-    const id = await currentUserId();
+    let id: string | null;
+    try {
+      id = await currentUserId();
+    } catch {
+      // Session illisible (jeton périmé, session anonyme héritée) : on
+      // l'efface et l'on propose la connexion, plutôt que de rester
+      // indéfiniment sur « Chargement… ».
+      await clearStaleSession();
+      setStage("signed-out");
+      setProfile(null);
+      return;
+    }
     if (!id) {
       setStage("signed-out");
       setProfile(null);
       return;
     }
-    const p = await getMyProfile();
+    let p: Profile | null;
+    try {
+      p = await getMyProfile();
+    } catch (e: unknown) {
+      setStage("signed-out");
+      setProfile(null);
+      setError(e instanceof Error ? e.message : "Profil illisible.");
+      return;
+    }
     if (!p) {
       setStage("no-profile");
       return;
@@ -105,9 +125,10 @@ function OnlineLobby() {
   }, []);
 
   useEffect(() => {
-    load().catch((e: unknown) =>
-      setError(e instanceof Error ? e.message : "Chargement impossible."),
-    );
+    load().catch((e: unknown) => {
+      setStage("signed-out");
+      setError(e instanceof Error ? e.message : "Chargement impossible.");
+    });
     return onAuthChange(() => {
       void load();
     });

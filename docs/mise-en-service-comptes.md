@@ -45,6 +45,30 @@ Dans la console Supabase du projet, **Authentication → Providers → Google** 
 L'application redirige vers `/online` après connexion ; sans ces URL dans la
 liste, Supabase refusera la redirection.
 
+## Vérifier que Google est bien activé sur LE BON projet
+
+L'erreur `{"code":400,"error_code":"validation_failed","msg":"Unsupported
+provider: provider is not enabled"}` vient du serveur d'authentification
+lui-même : le fournisseur n'est pas actif **sur le projet Supabase que
+l'application interroge**. Le cas le plus courant est d'avoir activé Google sur
+un autre projet que celui visé par l'application.
+
+Le projet visé est celui de `VITE_SUPABASE_URL` dans `.env`. Pour lever le
+doute sans rien installer, ouvrir dans un navigateur :
+
+```
+https://<référence-du-projet>.supabase.co/auth/v1/settings
+```
+
+La réponse JSON liste les fournisseurs actifs. Il doit s'y trouver :
+
+```json
+"external": { "google": true, ... }
+```
+
+Si `google` y vaut `false`, c'est bien ce projet-là qu'il faut configurer —
+quelle que soit la console où l'activation a déjà été faite.
+
 ## Ce qui change pour les joueurs
 
 - **Le jeu en ligne demande désormais un compte.** L'identité anonyme, propre à

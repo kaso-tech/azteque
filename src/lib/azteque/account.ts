@@ -53,9 +53,51 @@ export const USERNAME_RULE = /^[A-Za-z0-9_-]{3,20}$/;
 
 /* ---------- Session ---------- */
 
+/**
+ * Empêche un appel réseau resté sans réponse de figer l'écran. Sans ce
+ * garde-fou, une lecture de session qui n'aboutit pas laisse l'interface sur
+ * « Chargement… » sans fin ni message.
+ */
+async function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guard = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  try {
+    return await Promise.race([p, guard]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Identifiant du joueur connecté, ou null.
+ *
+ * Une session anonyme — héritée des versions précédentes, où le jeu en ligne
+ * n'exigeait pas de compte — ne vaut plus identité : elle ne porte ni pseudo,
+ * ni jetons, ni amis. On la traite comme une absence de session, de sorte que
+ * l'écran de connexion s'affiche au lieu de tenter d'y rattacher un profil.
+ */
 export async function currentUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user.id ?? null;
+  const { data } = await withTimeout(supabase.auth.getSession(), 3500, {
+    data: { session: null },
+  } as Awaited<ReturnType<typeof supabase.auth.getSession>>);
+  const user = data.session?.user;
+  if (!user) return null;
+  if (user.is_anonymous) return null;
+  return user.id;
+}
+
+/**
+ * Efface une session inutilisable (anonyme, ou dont le jeton ne peut plus être
+ * renouvelé) pour que le joueur puisse repartir de l'écran de connexion.
+ */
+export async function clearStaleSession(): Promise<void> {
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    /* rien à faire de plus : l'écran de connexion sera proposé de toute façon */
+  }
 }
 
 /**
@@ -69,7 +111,17 @@ export async function signInWithGoogle() {
       ? {}
       : { options: { redirectTo: `${window.location.origin}/online` } }),
   });
-  if (error) throw error;
+  if (error) {
+    // Réponse du serveur d'authentification lui-même : le fournisseur Google
+    // n'est pas actif sur le projet Supabase que vise l'application.
+    if (/provider is not enabled/i.test(error.message)) {
+      throw new Error(
+        "La connexion Google n'est pas activée sur ce projet Supabase. " +
+          "Voir docs/mise-en-service-comptes.md, étape 2.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function signOut() {
