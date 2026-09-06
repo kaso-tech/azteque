@@ -93,14 +93,6 @@ export async function joinMatch(code: string, guestName: string) {
   return match;
 }
 
-export async function pushMatchState(id: string, state: unknown, status: MatchStatus = "playing") {
-  const { error } = await supabase
-    .from("matches")
-    .update({ state: state as never, status })
-    .eq("id", id);
-  if (error) throw error;
-}
-
 /** Négociation de mise avant le début d'un tour. */
 export interface BetNegotiation {
   amount: number;
@@ -111,13 +103,11 @@ export interface BetNegotiation {
   round: number;
 }
 
-export async function pushMatchSettings(id: string, settings: Record<string, unknown>) {
-  const { error } = await supabase
-    .from("matches")
-    .update({ settings: settings as never })
-    .eq("id", id);
-  if (error) throw error;
-}
+// L'état de partie (`state`) et les paramètres (`settings`, dont la mise) ne
+// sont plus jamais écrits directement par le client : voir
+// src/lib/azteque/match-actions.ts, qui rejoue et valide chaque action côté
+// serveur avant d'écrire quoi que ce soit. La colonne est protégée en base
+// par un déclencheur (migration protect_match_mutable_columns).
 
 export function subscribeMatch(id: string, onChange: (row: MatchRow) => void) {
   const channel = supabase

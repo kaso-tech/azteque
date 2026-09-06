@@ -3,14 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SUIT_NAME,
   SUIT_SYMBOL,
-  announce,
   availableMelds,
-  drawNext,
   isBonne,
   legalCards,
-  newRound,
-  playCard,
-  resolveTrick,
   type Card,
   type GameState,
   type PlayerIndex,
@@ -30,13 +25,12 @@ import { BetPanel } from "@/components/azteque/BetPanel";
 import {
   ensureOnlineIdentity,
   getMatch,
-  pushMatchSettings,
-  pushMatchState,
   subscribeMatch,
   trackPresence,
   type BetNegotiation,
   type MatchRow,
 } from "@/lib/azteque/online";
+import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { BET_STEPS, addTokens, getTokens } from "@/lib/azteque/tokens";
 
 export const Route = createFileRoute("/match/$id")({
@@ -120,13 +114,20 @@ function OnlineTable() {
     };
   }, [id, applyRow, seat]);
 
-  // Publication d'un nouvel état (optimiste + synchronisation)
-  const publish = useCallback(
-    (next: GameState) => {
-      setState(next);
-      void pushMatchState(id, next, next.phase === "gameEnd" ? "finished" : "playing").catch((e) =>
-        setError(e instanceof Error ? e.message : "Synchronisation impossible."),
-      );
+  // Envoie une action au serveur, qui la rejoue et la valide avant de
+  // l'appliquer — le client ne calcule plus lui-même le résultat.
+  // `silent` couvre les actions déclenchées automatiquement (résolution de
+  // pli, pioche) où un rejet est une course normale, pas une erreur à
+  // afficher (l'autre joueur a déjà résolu l'action entre-temps).
+  const runAction = useCallback(
+    async (action: MatchAction, opts: { silent?: boolean } = {}) => {
+      try {
+        const result = await applyMatchAction({ data: { matchId: id, action } });
+        setState(result.state);
+        setRow((r) => (r ? { ...r, settings: result.settings } : r));
+      } catch (e) {
+        if (!opts.silent) setError(e instanceof Error ? e.message : "Action impossible.");
+      }
     },
     [id],
   );
@@ -141,20 +142,14 @@ function OnlineTable() {
 
   const proposeBet = useCallback(
     (amount: number) => {
-      if (!row || !verifiedSeat) return;
-      const next: BetNegotiation = { amount, by: verifiedSeat, status: "pending", round: roundNo };
-      setRow({ ...row, settings: { ...settings, bet: next } });
-      void pushMatchSettings(id, { ...settings, bet: next });
+      void runAction({ type: "propose_bet", amount });
     },
-    [id, row, settings, roundNo, verifiedSeat],
+    [runAction],
   );
 
   const acceptBet = useCallback(() => {
-    if (!row || !bet) return;
-    const next: BetNegotiation = { ...bet, status: "accepted", round: roundNo };
-    setRow({ ...row, settings: { ...settings, bet: next } });
-    void pushMatchSettings(id, { ...settings, bet: next });
-  }, [id, row, settings, bet, roundNo]);
+    void runAction({ type: "accept_bet" });
+  }, [runAction]);
 
   // Règlement des jetons en fin de champ
   const settled = useRef(false);
@@ -165,29 +160,33 @@ function OnlineTable() {
     setBalance(addTokens(state.champWinner === me ? bet.amount : -bet.amount));
   }, [state, bet, me]);
 
-  // L'hôte distribue la donne une fois la mise acceptée
+  // L'hôte distribue la donne une fois la mise acceptée (premier tour ou
+  // tour suivant) : le serveur vérifie lui-même toutes les conditions.
   useEffect(() => {
     if (!isHost || !row?.guest_name || !betReady) return;
     if (state && state.phase !== "roundEnd") return;
     if (state && state.roundsWon[0] + state.roundsWon[1] + 1 !== roundNo) return;
-    if (state) return;
-    publish(newRound(1));
-  }, [isHost, row?.guest_name, state, publish, betReady, roundNo]);
+    void runAction({ type: "new_round" }, { silent: true });
+  }, [isHost, row?.guest_name, state, betReady, roundNo, runAction]);
 
   // L'hôte arbitre : résolution du pli puis pioches.
   // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
+  // Les deux appels sont validés par le serveur : si l'un des deux arrive
+  // après coup (l'autre a déjà résolu), il est simplement rejeté (silencieux).
   useEffect(() => {
     if (!state || state.phase !== "playing" || state.trick.length < 2) return;
+    const hadBonne = state.trick.some((entry) => isBonne(entry.card));
     const t = setTimeout(
       () => {
-        publish(resolveTrick(state, { atout10: true }));
-        sfx.collect();
-        if (state.trick.some((entry) => isBonne(entry.card))) setTimeout(() => sfx.snicker(), 320);
+        void runAction({ type: "resolve_trick" }, { silent: true }).then(() => {
+          sfx.collect();
+          if (hadBonne) setTimeout(() => sfx.snicker(), 320);
+        });
       },
       isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
     );
     return () => clearTimeout(t);
-  }, [isHost, state, publish]);
+  }, [isHost, state, runAction]);
 
   useEffect(() => {
     if (!state || state.phase !== "playing") return;
@@ -197,13 +196,12 @@ function OnlineTable() {
     if (state.canAnnounce === player && availableMelds(state, player).length > 0) return;
     const t = setTimeout(
       () => {
-        publish(drawNext(state));
-        sfx.draw();
+        void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
       },
       isHost ? 700 : 4700,
     );
     return () => clearTimeout(t);
-  }, [isHost, state, publish]);
+  }, [isHost, state, runAction]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
@@ -229,17 +227,14 @@ function OnlineTable() {
   }, [oppMeldCount]);
 
   // --- Chronomètre du tour et surveillance de la connexion ---
+  // "quit" se déclare contre soi-même ; "timeout"/"disconnect" contre
+  // l'adversaire observé — le serveur en déduit le perdant et vérifie le
+  // délai avant d'accepter (voir match-actions.ts).
   const declareForfeit = useCallback(
-    (loser: PlayerIndex, reason: "timeout" | "disconnect" | "quit") => {
-      if (!state || state.phase === "gameEnd") return;
-      publish({
-        ...state,
-        phase: "gameEnd",
-        champWinner: (loser === 0 ? 1 : 0) as PlayerIndex,
-        forfeit: { loser, reason },
-      });
+    (reason: "timeout" | "disconnect" | "quit") => {
+      void runAction({ type: "forfeit", reason }, { silent: reason !== "quit" });
     },
-    [state, publish],
+    [runAction],
   );
 
   // Le compte à rebours redémarre à chaque changement de tour
@@ -292,7 +287,7 @@ function OnlineTable() {
   useEffect(() => {
     if (!state || state.phase !== "playing" || !oppMustAct) return;
     if (turnLeft > 0) return;
-    declareForfeit(opp, "timeout");
+    declareForfeit("timeout");
   }, [turnLeft, state, opp, oppMustAct, declareForfeit]);
 
   const [oppOnline, setOppOnline] = useState(true);
@@ -312,7 +307,7 @@ function OnlineTable() {
     const t = setInterval(() => {
       const left = Math.max(0, DISCONNECT_LIMIT - Math.round((Date.now() - start) / 1000));
       setOfflineLeft(left);
-      if (left === 0) declareForfeit(opp, "disconnect");
+      if (left === 0) declareForfeit("disconnect");
     }, 1000);
     return () => clearInterval(t);
   }, [oppOnline, state, opp, declareForfeit]);
@@ -340,20 +335,23 @@ function OnlineTable() {
   const playMyCard = (card: Card) => {
     if (!state || meldDecisionPending) return;
     sfx.place();
-    publish(playCard(state, me, card.id));
+    void runAction({ type: "play_card", cardId: card.id });
   };
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
     sfx.chuckle();
-    publish(announce(state, me, meldPick, trumpChoice));
+    void runAction({ type: "announce", suits: meldPick, trump: trumpChoice });
     setMeldPick([]);
   };
 
+  const skipAnnounce = () => {
+    setMeldPick([]);
+    void runAction({ type: "skip_announce" });
+  };
+
   const nextRound = () => {
-    if (!state) return;
-    const dealer: PlayerIndex = (state.lastTrickWinner ?? state.dealer) as PlayerIndex;
-    publish(newRound(dealer, state.pont ? state.roundsWon : state.roundsWon));
+    void runAction({ type: "new_round" });
   };
 
   if (error) {
@@ -513,10 +511,7 @@ function OnlineTable() {
                 );
               })}
               <button
-                onClick={() => {
-                  setMeldPick([]);
-                  publish({ ...state, canAnnounce: null });
-                }}
+                onClick={skipAnnounce}
                 className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
               >
                 Passer
@@ -672,7 +667,7 @@ function OnlineTable() {
                 type="button"
                 onClick={() => {
                   setConfirmQuit(false);
-                  declareForfeit(me, "quit");
+                  declareForfeit("quit");
                   navigate({ to: "/online" });
                 }}
                 className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
