@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
+import { RankBadge, RankProgressCard } from "@/components/azteque/rank";
 import {
   acceptInvite,
   describeError,
@@ -315,19 +316,26 @@ function OnlineLobby() {
   return shell(
     <>
       {profile && (
-        <div className="panel flex w-full items-center justify-between gap-3 px-5 py-3 text-left">
-          <div className="min-w-0">
-            <p className="truncate font-display text-lg text-gold">{profile.username}</p>
-            {record && (
-              <p className="text-xs text-muted-foreground">
-                {record.wins} victoire{record.wins > 1 ? "s" : ""} · {record.losses} défaite
-                {record.losses > 1 ? "s" : ""}
-              </p>
-            )}
+        <div className="panel w-full space-y-3 px-5 py-3 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate font-display text-lg text-gold">{profile.username}</p>
+              {record && (
+                <p className="text-xs text-muted-foreground">
+                  {record.wins} victoire{record.wins > 1 ? "s" : ""} · {record.losses} défaite
+                  {record.losses > 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 font-display text-lg font-semibold text-gold">
+              🪙 {profile.tokens}
+            </span>
           </div>
-          <span className="shrink-0 font-display text-lg font-semibold text-gold">
-            🪙 {profile.tokens}
-          </span>
+          <RankProgressCard
+            rating={profile.rating}
+            peak={profile.peak_rating}
+            ratedGames={profile.rated_games}
+          />
         </div>
       )}
 
@@ -339,7 +347,10 @@ function OnlineLobby() {
               key={i.id}
               className="flex items-center justify-between gap-2 rounded-md border border-gold/40 px-3 py-2"
             >
-              <span className="truncate text-sm">{i.from_username} vous invite</span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm">{i.from_username} vous invite</span>
+                {i.from_rating !== undefined && <RankBadge rating={i.from_rating} />}
+              </span>
               <span className="flex shrink-0 gap-1">
                 <Button size="sm" onClick={() => answer(i.id, true)}>
                   Jouer

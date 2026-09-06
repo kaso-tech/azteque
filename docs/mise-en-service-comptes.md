@@ -12,6 +12,7 @@ Fichiers, dans cet ordre :
 
 1. `supabase/migrations/20260906200000_accounts_friends_invites.sql`
 2. `supabase/migrations/20260906230000_sync_offline_tokens.sql`
+3. `supabase/migrations/20260906240000_player_ranks.sql`
 
 La seconde doit passer **après** `20260906224310_...`, la copie de la première
 appliquée par Lovable : celle-ci recrée l'ancienne fonction
@@ -34,7 +35,12 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > `supabase_realtime`. Applique ensuite, toujours telle quelle, la migration
 > `supabase/migrations/20260906230000_sync_offline_tokens.sql`, qui ajoute la
 > colonne `local_tokens_total` à `profiles` et remplace la fonction
-> `claim_local_tokens`. Enfin, régénère le fichier de types TypeScript
+> `claim_local_tokens`. Applique enfin
+> `supabase/migrations/20260906240000_player_ranks.sql`, qui ajoute les
+> colonnes `rating`, `peak_rating` et `rated_games` à `profiles`, les colonnes
+> `rating_delta_host` et `rating_delta_guest` à `matches`, crée les fonctions
+> `elo_k`, `rating_floor` et `apply_match_rating`, et remplace `settle_match`.
+> Ensuite, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
 
 ## 2. Activer la connexion Google
@@ -42,12 +48,12 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 Dans la console Supabase du projet, **Authentication → Providers → Google** :
 
 1. Activer le fournisseur.
-2. Renseigner le *Client ID* et le *Client Secret* d'un identifiant OAuth
+2. Renseigner le _Client ID_ et le _Client Secret_ d'un identifiant OAuth
    Google (console Google Cloud → API et services → Identifiants → ID client
    OAuth, type « Application Web »).
 3. Côté Google Cloud, autoriser l'URI de redirection que Supabase affiche sur
    cette même page (de la forme `https://<projet>.supabase.co/auth/v1/callback`).
-4. Dans **Authentication → URL Configuration**, ajouter aux *Redirect URLs* :
+4. Dans **Authentication → URL Configuration**, ajouter aux _Redirect URLs_ :
    - `https://azteque.lovable.app/online`
    - `http://localhost:3000/online` (pour le développement local)
 
@@ -98,6 +104,48 @@ La réponse JSON liste les fournisseurs actifs. Il doit s'y trouver :
 Si `google` y vaut `false`, c'est bien ce projet-là qu'il faut configurer —
 quelle que soit la console où l'activation a déjà été faite.
 
+## Le classement
+
+Chaque joueur porte une **cote** (un nombre) dont se déduit son **grade** (un
+nom parmi dix). La cote vit en base, le barème des grades dans
+`src/lib/azteque/rank.ts` — un seul endroit, pour qu'il n'y ait pas deux
+barèmes à tenir en accord.
+
+La cote suit la formule d'Elo, celle des échecs : l'écart de cote donne la
+probabilité de gagner, et l'on ne gagne ou ne perd que l'écart entre le
+résultat et cette attente. D'où le comportement demandé, sans règle
+supplémentaire — voici ce qu'un Expert établi (1600 points) gagne ou perd
+selon l'adversaire :
+
+| Adversaire          | S'il gagne | S'il perd |
+| ------------------- | ---------- | --------- |
+| Novice (1150)       | +2         | **−22**   |
+| Stratège (1300)     | +4         | −20       |
+| Vétéran (1450)      | +7         | −17       |
+| Expert (1600)       | +12        | −12       |
+| Maître (1750)       | +17        | −7        |
+| Grand Maître (1900) | +20        | −4        |
+| Légende (2050)      | **+22**    | −2        |
+
+Battre plus faible que soi ne rapporte presque rien ; perdre contre lui coûte
+le maximum. Cinq défaites d'affilée contre un Novice font passer un Expert de
+1720 à 1607 points, soit un grade perdu.
+
+Trois réglages complètent le barème :
+
+- **Rodage.** Les dix premières parties classées comptent presque double
+  (K = 40 au lieu de 24), le temps que la cote rejoigne le niveau réel.
+- **Sommet.** Au-dessus de 2000 points, l'amplitude se resserre (K = 16) : une
+  cote de Grand Maître se mérite sur la durée.
+- **Plancher.** La cote ne descend pas sous 800. La variation affichée tient
+  compte du plancher : elle dit ce qui a réellement été retiré.
+
+Seules les **parties en ligne entre deux comptes** sont classées, et le calcul
+se fait dans `settle_match`, la fonction qui lit elle-même le vainqueur dans
+l'état de la partie. Une victoire contre l'IA est annoncée par le client, qui
+pourrait l'inventer : la faire compter viderait le classement de son sens.
+Elle continue de rapporter des jetons, pas de la cote.
+
 ## Ce qui change pour les joueurs
 
 - **Le jeu en ligne demande désormais un compte.** L'identité anonyme, propre à
@@ -114,6 +162,9 @@ quelle que soit la console où l'activation a déjà été faite.
   Le serveur n'a aucun moyen de vérifier une partie jouée hors connexion : il
   ne peut que borner ce qu'il accepte, à 10 000 jetons par report et 50 000 sur
   la durée de vie d'un compte (colonne `local_tokens_total`).
+- **Chaque joueur porte un grade, visible de tous.** Il apparaît à côté du
+  pseudo dans la recherche, la liste d'amis, les invitations et à la table,
+  de sorte que chacun sache contre qui il engage une partie.
 - **Les jetons ne sont plus crédités par le navigateur.** La récompense d'une
   victoire contre l'IA et le règlement d'une mise entre joueurs passent par des
   fonctions serveur qui relisent elles-mêmes le résultat de la partie. Le
@@ -135,3 +186,6 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
 6. Se déconnecter, gagner une partie contre l'IA, se reconnecter : les jetons
    gagnés doivent s'ajouter au solde du compte, et une seconde connexion ne
    doit rien ajouter de plus.
+7. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
+   affichée sous le score — puis le grade mis à jour dans le salon et sur le
+   profil. L'adversaire doit voir la variation opposée.

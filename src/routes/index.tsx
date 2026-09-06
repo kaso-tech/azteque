@@ -33,7 +33,7 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
-import { awardAiWin, claimLocalTokens, getMyProfile } from "@/lib/azteque/account";
+import { awardAiWin, claimLocalTokens, getMyProfile, type Profile } from "@/lib/azteque/account";
 import { getTokens as getLocalTokens } from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
@@ -86,7 +86,8 @@ function Azteque() {
   // Un joueur connecté tient son pseudo et son solde de son compte : ils le
   // suivent d'un appareil à l'autre, et c'est le serveur qui les met à jour.
   // Hors connexion, le navigateur continue de faire foi.
-  const [accountBound, setAccountBound] = useState(false);
+  const [account, setAccount] = useState<Profile | null>(null);
+  const accountBound = account !== null;
   const [choosingTrump, setChoosingTrump] = useState(false);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
@@ -183,7 +184,7 @@ function Azteque() {
     getMyProfile()
       .then(async (p) => {
         if (!alive || !p) return;
-        setAccountBound(true);
+        setAccount(p);
         setPlayerName(p.username);
         if (askedForName.current) {
           askedForName.current = false;
@@ -626,6 +627,14 @@ function Azteque() {
             playerName={playerName}
             tokens={tokens}
             onNameChange={setPlayerName}
+            nameLocked={accountBound}
+            rank={
+              account && {
+                rating: account.rating,
+                peak: account.peak_rating,
+                games: account.rated_games,
+              }
+            }
             settings={settings}
             onChange={setSettings}
             onRules={() => {
@@ -998,6 +1007,13 @@ function Azteque() {
           tokens={tokens}
           onNameChange={setPlayerName}
           nameLocked={accountBound}
+          rank={
+            account && {
+              rating: account.rating,
+              peak: account.peak_rating,
+              games: account.rated_games,
+            }
+          }
           settings={settings}
           onChange={setSettings}
           onRules={() => {

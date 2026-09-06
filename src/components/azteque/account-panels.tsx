@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RankBadge } from "@/components/azteque/rank";
 import {
   USERNAME_RULE,
   describeError,
@@ -14,6 +15,7 @@ import {
   signOut,
   type Friend,
   type Profile,
+  type PublicProfile,
 } from "@/lib/azteque/account";
 
 /* ---------- Connexion ---------- */
@@ -110,7 +112,7 @@ export function FriendsPanel({
 }) {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Profile[]>([]);
+  const [results, setResults] = useState<PublicProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => {
@@ -169,7 +171,10 @@ export function FriendsPanel({
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <OnlineDot on={online.has(p.id)} />
-                    <span className="truncate text-sm">{p.username}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{p.username}</span>
+                      <RankBadge rating={p.rating} />
+                    </span>
                   </span>
                   <span className="flex shrink-0 gap-1">
                     {!link && (
@@ -204,7 +209,10 @@ export function FriendsPanel({
                 key={f.id}
                 className="flex items-center justify-between gap-2 rounded-md border border-gold/40 px-3 py-2"
               >
-                <span className="truncate text-sm">{f.username}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm">{f.username}</span>
+                  <RankBadge rating={f.rating} />
+                </span>
                 <span className="flex shrink-0 gap-1">
                   <Button size="sm" onClick={() => act(acceptFriend(f.id))}>
                     Accepter
@@ -241,7 +249,10 @@ export function FriendsPanel({
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <OnlineDot on={online.has(f.id)} />
-                    <span className="truncate text-sm">{f.username}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{f.username}</span>
+                      <RankBadge rating={f.rating} />
+                    </span>
                   </span>
                   <span className="flex shrink-0 gap-1">
                     <Button

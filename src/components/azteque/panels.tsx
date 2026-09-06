@@ -2,6 +2,7 @@ import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DIFFICULTY_LABEL, type Difficulty, type PlayerIndex } from "@/lib/azteque/engine";
+import { RankLadder, RankProgressCard } from "@/components/azteque/rank";
 
 export interface Settings {
   trickDelay: number; // ms
@@ -63,6 +64,7 @@ export function PlayerProfilePanel({
   tokens,
   onNameChange,
   nameLocked = false,
+  rank = null,
   settings,
   onChange,
   onRules,
@@ -73,6 +75,8 @@ export function PlayerProfilePanel({
   onNameChange: (name: string) => void;
   /** Vrai quand le pseudo vient d'un compte : il ne se change pas d'ici. */
   nameLocked?: boolean;
+  /** Classement du joueur, absent tant qu'aucun compte n'est ouvert. */
+  rank?: { rating: number; peak: number; games: number } | null;
   settings: Settings;
   onChange: (s: Settings) => void;
   onRules: () => void;
@@ -106,6 +110,33 @@ export function PlayerProfilePanel({
           <span className="text-sm text-foreground">Solde de jetons</span>
           <span className="font-display text-lg font-semibold text-gold">🪙 {tokens}</span>
         </div>
+
+        <p className="mt-6 text-sm text-foreground">Classement</p>
+        {rank ? (
+          <>
+            <RankProgressCard
+              className="mt-2"
+              rating={rank.rating}
+              peak={rank.peak}
+              ratedGames={rank.games}
+            />
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-muted-foreground">
+                Voir les dix grades
+              </summary>
+              <RankLadder rating={rank.rating} />
+              <p className="mt-2 text-[0.7rem] text-muted-foreground">
+                Seuls les champs joués en ligne comptent. Battre plus fort que soi rapporte
+                beaucoup, battre plus faible presque rien ; perdre contre plus faible que soi coûte
+                le maximum et peut faire retomber au grade inférieur.
+              </p>
+            </details>
+          </>
+        ) : (
+          <p className="mt-2 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-xs text-muted-foreground">
+            Connectez-vous pour être classé : votre grade se gagne sur les parties en ligne.
+          </p>
+        )}
 
         <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
           Nom d'utilisateur

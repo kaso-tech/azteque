@@ -37,7 +37,8 @@ import {
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
-import { headToHead, type HeadToHead } from "@/lib/azteque/account";
+import { getMyProfile, getPublicProfile, headToHead, type HeadToHead } from "@/lib/azteque/account";
+import { RankBadge, RankOutcome } from "@/components/azteque/rank";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -229,6 +230,35 @@ function OnlineTable() {
     }, 900);
     return () => clearTimeout(t);
   }, [state, oppUserId]);
+
+  // Grades des deux joueurs. Celui de l'adversaire s'affiche dès l'entrée à la
+  // table : c'est ce qui permet de savoir contre qui l'on mise. Les deux sont
+  // relus en fin de champ, une fois le classement appliqué par le serveur.
+  const [myRank, setMyRank] = useState<number | null>(null);
+  const [oppRank, setOppRank] = useState<number | null>(null);
+  const ended = state?.phase === "gameEnd";
+  useEffect(() => {
+    let alive = true;
+    const read = () => {
+      getMyProfile()
+        .then((p) => alive && setMyRank(p?.rating ?? null))
+        .catch(() => {});
+      if (oppUserId) {
+        getPublicProfile(oppUserId)
+          .then((p) => alive && setOppRank(p?.rating ?? null))
+          .catch(() => {});
+      }
+    };
+    // En fin de champ, le temps que le règlement ait déplacé les cotes.
+    const t = setTimeout(read, ended ? 1000 : 0);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [oppUserId, ended]);
+
+  // Ce que ce champ a rapporté ou coûté, tel que le serveur l'a inscrit.
+  const myDelta = row ? ((isHost ? row.rating_delta_host : row.rating_delta_guest) ?? null) : null;
 
   // Accord d'enchaînement du tour suivant, remis à zéro à chaque donne.
   const nextReady = ((row?.settings as Record<string, unknown> | undefined)?.["nextRound"] ??
@@ -606,7 +636,12 @@ function OnlineTable() {
             </p>
           )}
         </div>
-        <p className="truncate text-right text-xs font-semibold text-foreground">{oppName}</p>
+        <div className="min-w-0 text-right">
+          <p className="truncate text-xs font-semibold text-foreground">{oppName}</p>
+          {oppRank !== null && (
+            <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
+          )}
+        </div>
       </header>
 
       {/* Main adverse */}
@@ -822,6 +857,9 @@ function OnlineTable() {
                 Face à {oppName} : {record.wins} victoire{record.wins > 1 ? "s" : ""} ·{" "}
                 {record.losses} défaite{record.losses > 1 ? "s" : ""}
               </p>
+            )}
+            {state.phase === "gameEnd" && myRank !== null && myDelta !== null && (
+              <RankOutcome rating={myRank} delta={myDelta} />
             )}
             {bet?.status === "accepted" && (
               <p className="mt-1 text-xs text-gold">

@@ -14,6 +14,9 @@ export interface MatchRow {
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  /** Cote gagnée ou perdue sur ce champ, renseignée par le règlement. */
+  rating_delta_host?: number | null;
+  rating_delta_guest?: number | null;
 }
 
 /**

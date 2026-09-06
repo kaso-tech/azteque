@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { setTokens } from "@/lib/azteque/tokens";
+import { START_RATING } from "@/lib/azteque/rank";
 
 /**
  * Comptes joueurs : connexion Google, pseudo unique, amis, invitations à
@@ -23,16 +24,30 @@ const rpc = (name: string, args: Record<string, unknown>) =>
     }
   ).rpc(name, args);
 
-export interface Profile {
+/**
+ * Ce qu'un joueur voit d'un autre : de quoi le reconnaître et le situer. La
+ * cote est publique par nature — un classement que l'adversaire ne peut pas
+ * lire ne sert à rien.
+ */
+export interface PublicProfile {
   id: string;
   username: string;
+  rating: number;
+}
+
+export interface Profile extends PublicProfile {
   tokens: number;
   claimed_local_tokens: boolean;
+  /** Meilleure cote jamais atteinte : un grade perdu reste un grade obtenu. */
+  peak_rating: number;
+  /** Nombre de champs classés joués, qui détermine l'amplitude des résultats. */
+  rated_games: number;
 }
 
 export interface Friend {
   id: string;
   username: string;
+  rating: number;
   /** `pending` : demande en attente ; `accepted` : ami confirmé. */
   status: "pending" | "accepted";
   /** Vrai si c'est l'autre joueur qui a envoyé la demande. */
@@ -46,8 +61,9 @@ export interface GameInvite {
   match_id: string;
   status: "pending" | "accepted" | "declined" | "cancelled";
   created_at: string;
-  /** Renseigné à la lecture, à partir des profils. */
+  /** Renseignés à la lecture, à partir des profils. */
   from_username?: string;
+  from_rating?: number;
 }
 
 export const USERNAME_RULE = /^[A-Za-z0-9_-]{3,20}$/;
@@ -353,16 +369,26 @@ export async function settleMatch(matchId: string): Promise<void> {
 
 /* ---------- Recherche et amis ---------- */
 
-export async function searchPlayers(query: string, limit = 10): Promise<Profile[]> {
+export async function searchPlayers(query: string, limit = 10): Promise<PublicProfile[]> {
   const q = query.trim();
   if (q.length < 2) return [];
   const me = await currentUserId();
   const { data, error } = await anyTable("profiles")
-    .select("id, username, tokens")
+    .select("id, username, rating")
     .ilike("username", `%${q}%`)
     .limit(limit + 1);
   if (error) throw error;
-  return ((data as unknown as Profile[]) ?? []).filter((p) => p.id !== me).slice(0, limit);
+  return ((data as unknown as PublicProfile[]) ?? []).filter((p) => p.id !== me).slice(0, limit);
+}
+
+/** Profil public d'un joueur, pour afficher son grade à côté de son nom. */
+export async function getPublicProfile(id: string): Promise<PublicProfile | null> {
+  const { data, error } = await anyTable("profiles")
+    .select("id, username, rating")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as PublicProfile | null) ?? null;
 }
 
 interface FriendshipRow {
@@ -384,18 +410,20 @@ export async function listFriends(): Promise<Friend[]> {
 
   const others = rows.map((r) => (r.requester_id === me ? r.addressee_id : r.requester_id));
   const { data: profiles, error: pErr } = await anyTable("profiles")
-    .select("id, username")
+    .select("id, username, rating")
     .in("id", others);
   if (pErr) throw pErr;
-  const names = new Map(
-    ((profiles as unknown as Profile[]) ?? []).map((p) => [p.id, p.username] as const),
+  const known = new Map(
+    ((profiles as unknown as PublicProfile[]) ?? []).map((p) => [p.id, p] as const),
   );
 
   return rows.map((r) => {
     const otherId = r.requester_id === me ? r.addressee_id : r.requester_id;
+    const other = known.get(otherId);
     return {
       id: otherId,
-      username: names.get(otherId) ?? "Joueur",
+      username: other?.username ?? "Joueur",
+      rating: other?.rating ?? START_RATING,
       status: r.status,
       incoming: r.addressee_id === me && r.status === "pending",
     };
@@ -474,12 +502,16 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
   if (invites.length === 0) return [];
 
   const { data: profiles } = await anyTable("profiles")
-    .select("id, username")
+    .select("id, username, rating")
     .in("id", [...new Set(invites.map((i) => i.from_id))]);
-  const names = new Map(
-    ((profiles as unknown as Profile[]) ?? []).map((p) => [p.id, p.username] as const),
+  const known = new Map(
+    ((profiles as unknown as PublicProfile[]) ?? []).map((p) => [p.id, p] as const),
   );
-  return invites.map((i) => ({ ...i, from_username: names.get(i.from_id) ?? "Joueur" }));
+  return invites.map((i) => ({
+    ...i,
+    from_username: known.get(i.from_id)?.username ?? "Joueur",
+    from_rating: known.get(i.from_id)?.rating ?? START_RATING,
+  }));
 }
 
 /** Accepte l'invitation et rejoint la partie d'un seul geste (côté serveur). */
