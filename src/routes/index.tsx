@@ -65,14 +65,12 @@ interface Settings {
   trickDelay: number; // ms
   difficulty: Difficulty;
   sound: boolean;
-  atout10: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   trickDelay: 1000,
   difficulty: "normal",
   sound: true,
-  atout10: true,
 };
 
 
@@ -274,7 +272,7 @@ function Azteque() {
 
     timers.push(
       setTimeout(() => {
-        const next = resolveTrick(state, { atout10: settings.atout10 });
+        const next = resolveTrick(state, { atout10: true });
         const winner = next.lastTrickWinner;
         const first = state.trick[0]!;
         const second = state.trick[1]!;
@@ -300,7 +298,7 @@ function Azteque() {
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
         const sweeps =
-          winner !== null && trickCapturesPile(state, { atout10: settings.atout10 })
+          winner !== null && trickCapturesPile(state, { atout10: true })
             ? state.gains[winner === 0 ? 1 : 0].length
             : 0;
         const loserPile =
@@ -347,7 +345,7 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.trickDelay, settings.atout10]);
+  }, [state, settings.trickDelay]);
 
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
@@ -1147,23 +1145,6 @@ function PlayerProfilePanel({
           ))}
         </div>
 
-        <p className="mt-6 text-sm text-foreground">Règle « Atout 10 »</p>
-        <div className="mt-2 flex gap-2">
-          {[true, false].map((on) => (
-            <Button
-              key={`atout10-${String(on)}`}
-              type="button"
-              size="sm"
-              variant={settings.atout10 === on ? "default" : "outline"}
-              onClick={() => onChange({ ...settings, atout10: on })}
-            >
-              {on ? "Activée" : "Désactivée"}
-            </Button>
-          ))}
-        </div>
-        <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          Prendre un 10 de la couleur d'atout rafle tout le tas de l'adversaire.
-        </p>
 
 
         <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
