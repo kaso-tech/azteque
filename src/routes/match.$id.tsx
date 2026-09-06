@@ -78,6 +78,7 @@ function OnlineTable() {
   const [meldPick, setMeldPick] = useState<Suit[]>([]);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
   const applyRow = useCallback((next: MatchRow) => {
     setRow(next);
@@ -524,10 +525,14 @@ function OnlineTable() {
                 {state.forfeit.loser === me
                   ? state.forfeit.reason === "timeout"
                     ? "Temps écoulé : vous avez tardé à jouer."
-                    : "Connexion perdue trop longtemps de votre côté."
+                    : state.forfeit.reason === "quit"
+                      ? "Vous avez quitté la table."
+                      : "Connexion perdue trop longtemps de votre côté."
                   : state.forfeit.reason === "timeout"
                     ? `${oppName} a dépassé le temps de jeu.`
-                    : `${oppName} a perdu la connexion.`}
+                    : state.forfeit.reason === "quit"
+                      ? `${oppName} a quitté la table.`
+                      : `${oppName} a perdu la connexion.`}
               </p>
             )}
             <p className="mt-4 text-xs text-muted-foreground">
