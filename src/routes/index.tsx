@@ -297,6 +297,9 @@ function Azteque() {
         );
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+        // Petit ricanement dès qu'une bonne tombe dans un tas
+        if ([first.card, second.card].some(isBonne))
+          timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
         const sweeps =
