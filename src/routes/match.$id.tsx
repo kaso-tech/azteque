@@ -22,12 +22,14 @@ import {
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
+import { Recap } from "@/components/azteque/panels";
 import {
   ensureOnlineIdentity,
   getMatch,
   subscribeMatch,
   trackPresence,
   type MatchRow,
+  type NextRoundReady,
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
@@ -133,21 +135,26 @@ function OnlineTable() {
   );
 
   /* ---------- Mise de jetons ---------- */
-  const { roundNo, bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
+  const { bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
     row,
     state,
     me,
     runAction,
   });
 
-  // L'hôte distribue la donne une fois la mise acceptée (premier tour ou
-  // tour suivant) : le serveur vérifie lui-même toutes les conditions.
+  // L'hôte distribue la PREMIÈRE donne dès que la mise du champ est acceptée :
+  // cet accord vaut lancement de la partie. Les tours suivants ne s'enchaînent
+  // qu'une fois que les deux joueurs ont demandé à rejouer (`ready_next_round`).
   useEffect(() => {
-    if (!isHost || !row?.guest_name || !betReady) return;
-    if (state && state.phase !== "roundEnd") return;
-    if (state && state.roundsWon[0] + state.roundsWon[1] + 1 !== roundNo) return;
+    if (!isHost || !row?.guest_name || !betReady || state) return;
     void runAction({ type: "new_round" }, { silent: true });
-  }, [isHost, row?.guest_name, state, betReady, roundNo, runAction]);
+  }, [isHost, row?.guest_name, state, betReady, runAction]);
+
+  // Accord d'enchaînement du tour suivant, remis à zéro à chaque donne.
+  const nextReady = ((row?.settings as Record<string, unknown> | undefined)?.["nextRound"] ??
+    null) as NextRoundReady | null;
+  const iAmReady = !!nextReady?.[isHost ? "host" : "guest"];
+  const oppIsReady = !!nextReady?.[isHost ? "guest" : "host"];
 
   // L'hôte arbitre : résolution du pli puis pioches.
   // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
@@ -305,8 +312,8 @@ function OnlineTable() {
     void runAction({ type: "skip_announce" });
   };
 
-  const nextRound = () => {
-    void runAction({ type: "new_round" });
+  const readyNextRound = () => {
+    void runAction({ type: "ready_next_round" });
   };
 
   if (error) {
@@ -340,7 +347,6 @@ function OnlineTable() {
             mySeat={verifiedSeat}
             oppName={me === 0 ? (row.guest_name ?? "Invité") : row.host_name}
             balance={balance}
-            roundNo={roundNo}
             onPropose={proposeBet}
             onAccept={acceptBet}
             onQuit={() => navigate({ to: "/online" })}
@@ -568,23 +574,51 @@ function OnlineTable() {
                       : `${oppName} a perdu la connexion.`}
               </p>
             )}
+            {state.pont && state.phase === "roundEnd" && (
+              <p className="mt-1 text-xs text-accent">
+                Égalité parfaite : aucun tour marqué, on rejoue le tour.
+              </p>
+            )}
+            {state.roundScore && (
+              <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
+                <Recap title={myName} s={state.roundScore[me]} />
+                <Recap title={oppName} s={state.roundScore[opp]} />
+              </div>
+            )}
             <p className="mt-4 text-xs text-muted-foreground">
               Tours gagnés — {myName} {state.roundsWon[me]} · {oppName} {state.roundsWon[opp]}
             </p>
+            {bet?.status === "accepted" && (
+              <p className="mt-1 text-xs text-gold">
+                {state.phase === "gameEnd"
+                  ? state.champWinner === me
+                    ? `🪙 +${bet.amount} jetons remportés`
+                    : `🪙 −${bet.amount} jetons perdus`
+                  : `Mise du champ : 🪙 ${bet.amount} jetons — réglée à la fin de la partie.`}
+              </p>
+            )}
             {state.phase === "roundEnd" ? (
-              !betReady ? (
-                <p className="mt-5 text-xs text-gold">Accordez-vous sur la mise du tour suivant…</p>
-              ) : isHost ? (
-                <button
-                  onClick={nextRound}
-                  className="mt-5 rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
-                >
-                  {state.pont ? "Rejouer le tour" : "Tour suivant"}
-                </button>
-              ) : (
+              iAmReady ? (
                 <p className="mt-5 text-xs text-muted-foreground">
-                  En attente de l'hôte pour le tour suivant…
+                  En attente de {oppName} pour {state.pont ? "rejouer le tour" : "le tour suivant"}…
                 </p>
+              ) : (
+                <>
+                  {oppIsReady && (
+                    <p className="mt-5 text-xs text-gold">
+                      {oppName} est prêt à {state.pont ? "rejouer le tour" : "enchaîner"}.
+                    </p>
+                  )}
+                  <button
+                    onClick={readyNextRound}
+                    className={
+                      "rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground " +
+                      (oppIsReady ? "mt-3" : "mt-5")
+                    }
+                  >
+                    {state.pont ? "Rejouer le tour" : "Jouer le tour suivant"}
+                  </button>
+                </>
               )
             ) : (
               <Link
@@ -594,12 +628,25 @@ function OnlineTable() {
                 Retour au salon
               </Link>
             )}
-            <Link
-              to="/online"
-              className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive"
-            >
-              Quitter
-            </Link>
+            {/* En fin de tour le champ n'est pas joué : partir revient à
+                abandonner, on passe donc par la confirmation qui déclare le
+                forfait. En fin de champ il n'y a plus rien à abandonner. */}
+            {state.phase === "roundEnd" ? (
+              <button
+                type="button"
+                onClick={() => setConfirmQuit(true)}
+                className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive"
+              >
+                Quitter
+              </button>
+            ) : (
+              <Link
+                to="/online"
+                className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive"
+              >
+                Quitter
+              </Link>
+            )}
           </div>
         </div>
       )}
@@ -642,19 +689,6 @@ function OnlineTable() {
           title="Vos bonnes"
           subtitle={`${myBonnes} bonnes remportées — treize bonnes gagnent le tour`}
           onClose={() => setShowMyBonnes(false)}
-        />
-      )}
-
-      {state.phase === "roundEnd" && !betReady && (
-        <BetPanel
-          bet={bet}
-          mySeat={verifiedSeat}
-          oppName={oppName}
-          balance={balance}
-          roundNo={roundNo}
-          onPropose={proposeBet}
-          onAccept={acceptBet}
-          onQuit={() => setConfirmQuit(true)}
         />
       )}
 

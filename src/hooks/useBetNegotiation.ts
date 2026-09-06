@@ -12,16 +12,21 @@ interface UseBetNegotiationOptions {
 }
 
 /**
- * Négociation de la mise en jetons avant chaque tour d'une partie en ligne,
- * et son règlement (crédit/débit du solde local) une fois le champ terminé.
- * La validation de la mise elle-même (montant autorisé, pas d'auto-acceptation)
- * a lieu côté serveur — voir match-actions.ts.
+ * Négociation de la mise en jetons d'une partie en ligne, et son règlement
+ * (crédit/débit du solde local) une fois le champ terminé.
+ *
+ * La mise porte sur le CHAMP entier, pas sur un tour : elle se négocie une
+ * seule fois, avant la première donne, puis les tours s'enchaînent sans y
+ * revenir. Les jetons ne changent de main qu'à la fin du champ.
+ *
+ * La validation de la mise elle-même (montant autorisé, pas d'auto-acceptation,
+ * pas de renégociation après acceptation) a lieu côté serveur — voir
+ * match-actions.ts.
  */
 export function useBetNegotiation({ row, state, me, runAction }: UseBetNegotiationOptions) {
-  const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
   const settings = useMemo(() => (row?.settings ?? {}) as Record<string, unknown>, [row?.settings]);
   const bet = (settings["bet"] as BetNegotiation | undefined) ?? null;
-  const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
+  const betReady = !!bet && bet.status === "accepted";
 
   const [balance, setBalance] = useState(0);
   useEffect(() => setBalance(getTokens()), []);
@@ -46,5 +51,5 @@ export function useBetNegotiation({ row, state, me, runAction }: UseBetNegotiati
     setBalance(addTokens(state.champWinner === me ? bet.amount : -bet.amount));
   }, [state, bet, me]);
 
-  return { roundNo, bet, betReady, balance, proposeBet, acceptBet };
+  return { bet, betReady, balance, proposeBet, acceptBet };
 }

@@ -11,7 +11,7 @@ import {
   type PlayerIndex,
 } from "./engine";
 import { BET_STEPS } from "./tokens";
-import type { BetNegotiation, MatchStatus } from "./online";
+import type { BetNegotiation, MatchStatus, NextRoundReady } from "./online";
 
 /**
  * Arbitre serveur des parties en ligne.
@@ -40,6 +40,7 @@ const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("skip_announce") }),
   z.object({ type: z.literal("new_round") }),
+  z.object({ type: z.literal("ready_next_round") }),
   z.object({ type: z.literal("propose_bet"), amount: z.number().int().positive() }),
   z.object({ type: z.literal("accept_bet") }),
   z.object({
@@ -83,7 +84,6 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
 
     const state = (row.state as GameState | null) ?? null;
     const settings = (row.settings ?? {}) as Record<string, unknown>;
-    const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
 
     const writeState = async (next: GameState, status: MatchStatus) => {
       const { error } = await supabaseAdmin
@@ -99,38 +99,115 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
         .eq("id", matchId);
       if (error) throw error;
     };
+    const betAccepted = () =>
+      (settings["bet"] as BetNegotiation | undefined)?.status === "accepted";
 
+    // La mise est celle du CHAMP entier : elle se négocie avant la première
+    // donne et se règle à la fin du champ. Une fois acceptée elle est figée —
+    // sans quoi un joueur en mauvaise posture pourrait la revoir à la baisse
+    // entre deux tours.
     if (data.type === "propose_bet" || data.type === "accept_bet") {
+      if (state) throw new Error("La mise se fixe avant le début du champ.");
       const bet = settings["bet"] as BetNegotiation | undefined;
+      if (bet?.status === "accepted") throw new Error("La mise du champ est déjà fixée.");
       let nextBet: BetNegotiation;
       if (data.type === "propose_bet") {
         if (!BET_STEPS.includes(data.amount as (typeof BET_STEPS)[number]))
           throw new Error("Mise invalide.");
-        nextBet = { amount: data.amount, by: seat, status: "pending", round: roundNo };
+        nextBet = { amount: data.amount, by: seat, status: "pending" };
       } else {
-        if (!bet || bet.round !== roundNo) throw new Error("Aucune mise à accepter.");
+        if (!bet) throw new Error("Aucune mise à accepter.");
         if (bet.by === seat) throw new Error("Vous ne pouvez pas accepter votre propre mise.");
-        nextBet = { ...bet, status: "accepted", round: roundNo };
+        nextBet = { ...bet, status: "accepted" };
       }
       const nextSettings = { ...settings, bet: nextBet };
       await writeSettings(nextSettings);
       return { state, settings: nextSettings };
     }
 
+    // Première donne du champ : l'hôte la déclenche dès que la mise est
+    // acceptée — cet accord vaut lancement de la partie.
     if (data.type === "new_round") {
       if (me !== 0) throw new Error("Seul l'hôte distribue la donne.");
       if (!row.guest_name) throw new Error("En attente du second joueur.");
-      const bet = settings["bet"] as BetNegotiation | undefined;
-      const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
-      if (!betReady) throw new Error("La mise n'est pas encore validée.");
-      if (state && state.phase !== "roundEnd") throw new Error("Le tour est encore en cours.");
-      const dealer: PlayerIndex = state
-        ? ((state.lastTrickWinner ?? state.dealer) as PlayerIndex)
-        : 1;
-      const roundsWon = state ? state.roundsWon : ([0, 0] as [number, number]);
-      const next = newRound(dealer, roundsWon);
+      if (state) throw new Error("Le champ a déjà commencé.");
+      if (!betAccepted()) throw new Error("La mise n'est pas encore validée.");
+      const next = newRound(1, [0, 0]);
       await writeState(next, "playing");
       return { state: next, settings };
+    }
+
+    // Donnes suivantes : les DEUX joueurs doivent accepter d'enchaîner. Le
+    // récapitulatif du tour reste donc affiché tant que l'un des deux n'a pas
+    // répondu, et aucune mise n'est renégociée au passage.
+    //
+    // En fin de tour les deux joueurs cliquent souvent en même temps. Un simple
+    // lire-modifier-écrire perdrait alors la marque du plus lent — le second
+    // écrasant l'objet `nextRound` entier — et la table resterait bloquée, les
+    // deux joueurs s'attendant mutuellement. On écrit donc en concurrence
+    // optimiste : la mise à jour n'est appliquée que si `updated_at` n'a pas
+    // bougé depuis la lecture (le déclencheur `matches_touch_updated_at` le
+    // rafraîchit à chaque écriture), et on rejoue la décision sur la ligne
+    // relue en cas d'échec.
+    if (data.type === "ready_next_round") {
+      let current = row;
+      for (let attempt = 0; ; attempt++) {
+        const curState = (current.state as GameState | null) ?? null;
+        const curSettings = (current.settings ?? {}) as Record<string, unknown>;
+
+        if (!curState || curState.phase !== "roundEnd") {
+          // Au premier essai, c'est une demande invalide. Après un conflit,
+          // c'est que l'adversaire a fait aboutir la donne entre-temps : la
+          // demande a bien produit son effet, on renvoie l'état à jour.
+          if (attempt === 0)
+            throw new Error(curState ? "Le tour est encore en cours." : "Aucune partie en cours.");
+          return { state: curState, settings: curSettings };
+        }
+
+        const previous = (curSettings["nextRound"] as NextRoundReady | undefined) ?? {
+          host: false,
+          guest: false,
+        };
+        const ready: NextRoundReady = { ...previous, [seat]: true };
+        const bothReady = ready.host && ready.guest;
+
+        // La marque d'accord est remise à zéro avec la donne : elle ne vaut
+        // que pour le tour qui vient de s'achever.
+        const nextSettings = {
+          ...curSettings,
+          nextRound: bothReady ? { host: false, guest: false } : ready,
+        };
+        const patch: Record<string, unknown> = { settings: nextSettings };
+        if (bothReady) {
+          const dealer = (curState.lastTrickWinner ?? curState.dealer) as PlayerIndex;
+          patch["state"] = newRound(dealer, curState.roundsWon);
+          patch["status"] = "playing" satisfies MatchStatus;
+        }
+
+        const { data: written, error: writeError } = await supabaseAdmin
+          .from("matches")
+          .update(patch as never)
+          .eq("id", matchId)
+          .eq("updated_at", current.updated_at)
+          .select()
+          .maybeSingle();
+        if (writeError) throw writeError;
+        if (written)
+          return {
+            state: (written.state as GameState | null) ?? null,
+            settings: (written.settings ?? {}) as Record<string, unknown>,
+          };
+
+        if (attempt >= 3) throw new Error("Table occupée, réessayez.");
+        const { data: again, error: reloadError } = await supabaseAdmin
+          .from("matches")
+          .select("*")
+          .eq("id", matchId)
+          .maybeSingle();
+        if (reloadError) throw reloadError;
+        if (!again) throw new Error("Cette partie n'existe plus.");
+        current = again;
+      }
     }
 
     if (data.type === "forfeit") {

@@ -94,13 +94,26 @@ export async function joinMatch(code: string, guestName: string) {
 }
 
 /** Négociation de mise avant le début d'un tour. */
+/**
+ * Mise en jetons du champ. Elle se négocie UNE SEULE FOIS, avant la première
+ * donne, et vaut pour tout le champ : les tours s'enchaînent ensuite sans
+ * renégociation, et les jetons ne changent de main qu'à la fin du champ
+ * (voir useBetNegotiation.ts).
+ */
 export interface BetNegotiation {
   amount: number;
   /** Siège ayant fait la dernière proposition. */
   by: "host" | "guest";
   status: "pending" | "accepted";
-  /** Numéro du tour concerné (1 = premier tour). */
-  round: number;
+}
+
+/**
+ * Accord des deux joueurs pour enchaîner le tour suivant. Remis à zéro à
+ * chaque donne : la marque ne vaut que pour le tour qui vient de s'achever.
+ */
+export interface NextRoundReady {
+  host: boolean;
+  guest: boolean;
 }
 
 // L'état de partie (`state`) et les paramètres (`settings`, dont la mise) ne

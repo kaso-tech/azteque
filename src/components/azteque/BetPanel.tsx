@@ -7,7 +7,6 @@ export function BetPanel({
   mySeat,
   oppName,
   balance,
-  roundNo,
   onPropose,
   onAccept,
   onQuit,
@@ -16,12 +15,11 @@ export function BetPanel({
   mySeat: "host" | "guest";
   oppName: string;
   balance: number;
-  roundNo: number;
   onPropose: (amount: number) => void;
   onAccept: () => void;
   onQuit: () => void;
 }) {
-  const live = bet && bet.round === roundNo ? bet : null;
+  const live = bet;
   const mine = live?.by === mySeat;
   const [counter, setCounter] = useState(false);
   const choosing = !live || mine || counter;
@@ -29,7 +27,7 @@ export function BetPanel({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-5">
       <div className="panel w-full max-w-sm p-5 text-center">
-        <h2 className="gold-text text-2xl">Mise du tour {roundNo}</h2>
+        <h2 className="gold-text text-2xl">Mise de la partie</h2>
         <p className="mt-1 text-[0.7rem] text-muted-foreground">
           Votre solde : 🪙 {balance} jetons
         </p>
@@ -43,8 +41,8 @@ export function BetPanel({
         )}
         {!live && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Proposez une mise. L'adversaire doit l'accepter ou contre-proposer avant le début du
-            tour.
+            Proposez une mise pour toute la partie. L'adversaire doit l'accepter ou contre-proposer
+            avant la première donne. Les jetons ne changent de main qu'à la fin du champ.
           </p>
         )}
 
