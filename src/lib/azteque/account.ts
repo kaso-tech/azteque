@@ -101,28 +101,16 @@ export async function clearStaleSession(): Promise<void> {
 }
 
 /**
- * Ouvre la connexion Google. La page est quittée puis rechargée à l'adresse
- * courante, session établie.
+ * Ouvre la connexion Google via le courtier Lovable (fonctionne aussi dans
+ * l'aperçu en iframe). La session est établie au retour.
  */
 export async function signInWithGoogle() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    ...(typeof window === "undefined"
-      ? {}
-      : { options: { redirectTo: `${window.location.origin}/online` } }),
+  const { lovable } = await import("@/integrations/lovable");
+  await lovable.auth.signInWithOAuth("google", {
+    redirect_uri: window.location.origin,
   });
-  if (error) {
-    // Réponse du serveur d'authentification lui-même : le fournisseur Google
-    // n'est pas actif sur le projet Supabase que vise l'application.
-    if (/provider is not enabled/i.test(error.message)) {
-      throw new Error(
-        "La connexion Google n'est pas activée sur ce projet Supabase. " +
-          "Voir docs/mise-en-service-comptes.md, étape 2.",
-      );
-    }
-    throw error;
-  }
 }
+
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
