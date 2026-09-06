@@ -145,6 +145,24 @@ export const sfx = {
     tone(0.22, 494, 0.36, 0.05, "sine", 740);
     tone(0.42, 740, 0.4, 0.045, "triangle", 988);
   },
+  /** Petit ricanement bref : une bonne vient d'être ramassée. */
+  snicker() {
+    const base = 300;
+    for (let i = 0; i < 3; i += 1) {
+      const at = i * 0.1;
+      voiceBlip(at, base * Math.pow(0.88, i), 0.07, 0.06);
+      noise(at, 0.04, 0.022, 1600, 620, "bandpass");
+    }
+  },
+  /** Rire plus clair et chantant : un compte vient d'être annoncé. */
+  chuckle() {
+    const base = 420;
+    for (let i = 0; i < 4; i += 1) {
+      const at = i * 0.085;
+      voiceBlip(at, base * Math.pow(1.05, i), 0.06, 0.055);
+    }
+    tone(0.02, 660, 0.24, 0.04, "triangle", 990);
+  },
   /** Rire moqueur : suite de « ha » descendants. */
   taunt() {
     const base = 250;
