@@ -379,6 +379,25 @@ function OnlineTable() {
           <TrickPosition trick={state.trick} player={me} me={me} />
         </div>
 
+        {state.phase === "playing" && (
+          <span
+            className={
+              "absolute left-1/2 top-2 -translate-x-1/2 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold " +
+              (turnLeft <= 10
+                ? "border-destructive/60 bg-felt-deep/90 text-destructive"
+                : "border-gold/40 bg-felt-deep/90 text-gold")
+            }
+          >
+            {state.turn === me ? "Votre tour" : "Tour adverse"} · {turnLeft}s
+          </span>
+        )}
+
+        {offlineLeft !== null && (
+          <span className="absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-destructive/60 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-destructive">
+            {oppName} est hors ligne · {offlineLeft}s
+          </span>
+        )}
+
         {state.trump && (
           <span className="absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
             Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
@@ -494,6 +513,17 @@ function OnlineTable() {
                     ? "Tour gagné"
                     : "Tour perdu"}
             </h2>
+            {state.forfeit && (
+              <p className="mt-2 text-xs text-gold">
+                {state.forfeit.loser === me
+                  ? state.forfeit.reason === "timeout"
+                    ? "Temps écoulé : vous avez tardé à jouer."
+                    : "Connexion perdue trop longtemps de votre côté."
+                  : state.forfeit.reason === "timeout"
+                    ? `${oppName} a dépassé le temps de jeu.`
+                    : `${oppName} a perdu la connexion.`}
+              </p>
+            )}
             <p className="mt-4 text-xs text-muted-foreground">
               Tours gagnés — {myName} {state.roundsWon[me]} · {oppName} {state.roundsWon[opp]}
             </p>
