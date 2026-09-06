@@ -101,6 +101,67 @@ export async function clearStaleSession(): Promise<void> {
 }
 
 /**
+ * Termine le retour de Google.
+ *
+ * Le flux PKCE ramène le navigateur sur `/online?code=…&state=…` : ce code
+ * doit être échangé contre une session. Le client Supabase sait le faire seul
+ * (`detectSessionInUrl`), mais seulement s'il est construit tant que l'URL
+ * porte encore ces paramètres — or il est créé paresseusement, à la première
+ * utilisation, et le routeur a pu réécrire l'URL entre-temps. On procède donc
+ * à l'échange explicitement, ce qui ne dépend d'aucun ordre d'exécution.
+ *
+ * Renvoie vrai si un retour d'authentification a été traité.
+ */
+export async function completeOAuthRedirect(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const url = new URL(window.location.href);
+  const denied = url.searchParams.get("error_description") ?? url.searchParams.get("error");
+  const code = url.searchParams.get("code");
+  if (!denied && !code) return false;
+
+  const clean = () => {
+    for (const k of ["code", "state", "error", "error_description", "error_code"]) {
+      url.searchParams.delete(k);
+    }
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  };
+
+  if (denied) {
+    clean();
+    throw new Error(denied);
+  }
+
+  try {
+    // Même garde-fou qu'ailleurs : un échange sans réponse ne doit pas figer
+    // l'écran. L'appel peut aussi bien renvoyer une erreur que rejeter (perte
+    // de réseau) : les deux mènent au même contrôle.
+    let failure: unknown = null;
+    try {
+      const { error } = await withTimeout(supabase.auth.exchangeCodeForSession(code!), 8000, {
+        error: new Error("délai dépassé"),
+      } as Awaited<ReturnType<typeof supabase.auth.exchangeCodeForSession>>);
+      failure = error;
+    } catch (e: unknown) {
+      failure = e;
+    }
+    if (failure) {
+      // Le client Supabase a pu échanger ce code de lui-même : un code n'étant
+      // utilisable qu'une fois, l'échec n'en est vraiment un que si aucune
+      // session n'en est ressortie.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        throw new Error(
+          "La connexion n'a pas pu être finalisée. Vérifiez votre réseau et réessayez.",
+        );
+      }
+    }
+    return true;
+  } finally {
+    clean();
+  }
+}
+
+/**
  * Ouvre la connexion Google. La page est quittée puis rechargée à l'adresse
  * courante, session établie.
  */

@@ -6,6 +6,7 @@ import {
   acceptInvite,
   claimLocalTokens,
   clearStaleSession,
+  completeOAuthRedirect,
   currentUserId,
   getMyProfile,
   invitePlayer,
@@ -28,8 +29,23 @@ import {
 import { getTokens } from "@/lib/azteque/tokens";
 
 export const Route = createFileRoute("/online")({
-  validateSearch: (search: Record<string, unknown>): { code?: string } =>
-    typeof search["code"] === "string" ? { code: search["code"] as string } : {},
+  // `partie` porte le code d'une table à rejoindre. `code` et `state` sont
+  // ceux du retour de Google : ils ne servent pas au routeur, mais doivent
+  // être déclarés, faute de quoi il les retire de l'URL avant que
+  // `completeOAuthRedirect` ait pu les lire.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { partie?: string; code?: string; state?: string } => {
+    const str = (k: string) => (typeof search[k] === "string" ? (search[k] as string) : undefined);
+    const out: { partie?: string; code?: string; state?: string } = {};
+    const partie = str("partie");
+    const code = str("code");
+    const state = str("state");
+    if (partie !== undefined) out.partie = partie;
+    if (code !== undefined) out.code = code;
+    if (state !== undefined) out.state = state;
+    return out;
+  },
 
   head: () => ({
     meta: [
@@ -54,7 +70,7 @@ export const Route = createFileRoute("/online")({
 type Stage = "loading" | "signed-out" | "no-profile" | "ready";
 
 function OnlineLobby() {
-  const { code: codeParam } = Route.useSearch();
+  const { partie: codeParam } = Route.useSearch();
   const navigate = useNavigate();
 
   const [stage, setStage] = useState<Stage>("loading");
@@ -80,6 +96,15 @@ function OnlineLobby() {
   /* ---------- Session et profil ---------- */
 
   const load = useCallback(async () => {
+    // Retour de Google : transformer le code en session avant toute chose.
+    try {
+      await completeOAuthRedirect();
+    } catch (e: unknown) {
+      setStage("signed-out");
+      setProfile(null);
+      setError(e instanceof Error ? e.message : "Connexion refusée.");
+      return;
+    }
     let id: string | null;
     try {
       id = await currentUserId();
