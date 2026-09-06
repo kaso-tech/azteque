@@ -23,11 +23,38 @@ npm i
 npm run dev
 ```
 
+### Les adversaires IA
+
+Cinq niveaux, du plus faible au plus fort : **Facile**, **Normal**, **Expert**,
+**Maître**, **Légende**.
+
+- _Facile_ et _Normal_ jouent une heuristique simple, volontairement faillible.
+- _Expert_ applique une évaluation tactique complète : encaisser les As
+  imprenables à l'entame, ne jamais lâcher une bonne sur un pli perdu, protéger
+  les Rois et Dames qui valent un compte, et traquer le 10 d'atout adverse.
+- _Maître_ y ajoute la résolution exacte de la fin de partie : une fois la
+  pioche vide, les cartes encore invisibles sont exactement la main adverse, et
+  la position se calcule intégralement.
+- _Légende_ déclenche cette résolution plus tôt (dès quatre cartes restantes)
+  en échantillonnant les mains adverses possibles.
+
+Le banc d'essai `npm run bench` fait s'affronter deux niveaux sur des donnes
+identiques et mesure l'écart réel :
+
+```sh
+npm run bench                          # matrice de tous les niveaux
+npm run bench legende expert 300       # un duel précis, sur 300 tours
+```
+
+`scripts/legacy-ai.ts` fige l'IA d'avant la refonte de septembre 2026 : un
+niveau préfixé `old:` la rejoue, ce qui permet de vérifier qu'une modification
+fait bien progresser le jeu (`npm run bench legende old:legende 300`).
+
 ---
 
 # Règlement officiel — Version 1.0
 
-*Crée une application profetionnelle de jeux et de carte avec les règles suivantes :*
+_Crée une application profetionnelle de jeux et de carte avec les règles suivantes :_
 
 ## 1. Présentation
 
@@ -179,10 +206,10 @@ Une carte d'atout domine toute carte d'une autre couleur.
 
 Valeur des comptes :
 
-| | Compte simple | Compte triple |
-| --- | --- | --- |
-| Premier compte (créant l'atout) | 4 points | 5 points |
-| Comptes suivants (autre couleur) | 2 points | 3 points |
+|                                  | Compte simple | Compte triple |
+| -------------------------------- | ------------- | ------------- |
+| Premier compte (créant l'atout)  | 4 points      | 5 points      |
+| Comptes suivants (autre couleur) | 2 points      | 3 points      |
 
 **Second compte à l'atout**
 
@@ -265,10 +292,10 @@ ou
 
 ## 20. Résumé des points
 
-| Élément | Valeur |
-| --- | --- |
-| Bonne (10 ou As) | 1 point |
-| Main | 1 point |
+| Élément               | Valeur   |
+| --------------------- | -------- |
+| Bonne (10 ou As)      | 1 point  |
+| Main                  | 1 point  |
 | Premier compte simple | 4 points |
 | Premier compte triple | 5 points |
 | Compte simple suivant | 2 points |
@@ -287,4 +314,4 @@ ou
 - Le 10 d'atout permet de récupérer toutes les bonnes déjà gagnées par l'adversaire.
 - Lors de la phase finale, les joueurs doivent fournir la couleur, battre si possible et appliquer la règle de protection des bonnes.
 
-*Fin du règlement officiel – Version 1.0*
+_Fin du règlement officiel – Version 1.0_

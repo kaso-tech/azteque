@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  RANKS,
+  SUITS,
   aiChooseCardAt,
   announce,
   availableMelds,
@@ -494,5 +496,109 @@ describe("aiChooseCardAt (non-régression)", () => {
     });
     const choice = aiChooseCardAt(state, "legende");
     expect({ rank: choice.rank, suit: choice.suit }).toMatchSnapshot();
+  });
+});
+
+/**
+ * Ces tests fixent les tactiques que l'IA doit tenir. Contrairement aux
+ * instantanés ci-dessus, ils énoncent le coup attendu et pourquoi : ils
+ * échouent si une régression fait reperdre la tactique.
+ */
+describe("tactiques de l'IA", () => {
+  /** Complète la donne pour que le décompte des cartes vues soit cohérent. */
+  const fillGains = (visible: Card[]): [Card[], Card[]] => {
+    const rest: Card[] = [];
+    const need = new Map<string, number>();
+    for (const s of SUITS) for (const r of RANKS) need.set(`${r}${s}`, 2);
+    for (const c of visible) {
+      const k = `${c.rank}${c.suit}`;
+      need.set(k, (need.get(k) ?? 0) - 1);
+    }
+    for (const [k, n] of need) {
+      for (let i = 0; i < n; i += 1) {
+        const rank = k.slice(0, -1) as Rank;
+        const suit = k.slice(-1) as Suit;
+        rest.push(card(rank, suit));
+      }
+    }
+    const half = Math.floor(rest.length / 2);
+    return [rest.slice(0, half), rest.slice(half)];
+  };
+
+  it("mène un As imprenable plutôt que du déchet : c'est un point gratuit", () => {
+    // Sans atout, un As entamé ne peut être battu (la première carte domine
+    // à couleur différente) : le ramasser vaut +1 sans risque.
+    const ace = card("A", "H");
+    const state = makeState({
+      trump: null,
+      stock: [card("7", "C"), card("8", "C")],
+      hands: [
+        [card("K", "D"), card("9", "S")],
+        [ace, card("7", "S"), card("8", "D")],
+      ],
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(ace.id);
+  });
+
+  it("ne sacrifie pas un Roi de compte pour un pli sans enjeu", () => {
+    // Le Valet mené n'est pas une bonne : gagner ce pli ne rapporte rien,
+    // alors que le Roi d'atout vaut un compte à 4 ou 5 points.
+    const king = card("K", "H");
+    const state = makeState({
+      trump: "H",
+      stock: [card("7", "C"), card("8", "C")],
+      hands: [[card("Q", "D")], [king, card("Q", "H"), card("9", "S")]],
+      trick: [{ player: 0, card: card("J", "H") }],
+    });
+    expect(aiChooseCardAt(state, "expert").id).not.toBe(king.id);
+  });
+
+  it("capture le 10 d'atout adverse, qui rafle tout le tas", () => {
+    // Le perdant qui laisse le 10 d'atout abandonne toutes ses bonnes :
+    // c'est le plus gros coup du jeu, il justifie n'importe quelle dépense.
+    const trumpAce = card("A", "H");
+    const state = makeState({
+      trump: "H",
+      stock: [card("7", "C"), card("8", "C")],
+      gains: [[card("A", "S"), card("10", "S"), card("A", "D")], []],
+      hands: [[card("9", "D")], [trumpAce, card("7", "S")]],
+      trick: [{ player: 0, card: card("10", "H") }],
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(trumpAce.id);
+  });
+
+  it("ne se défausse jamais d'une bonne sur un pli perdu", () => {
+    // Une bonne lâchée sur un pli perdu part chez l'adversaire : autant
+    // écarter la carte sans valeur.
+    const junk = card("7", "S");
+    const state = makeState({
+      trump: "H",
+      stock: [card("7", "C"), card("8", "C")],
+      hands: [[card("9", "D")], [card("A", "D"), junk]],
+      // Un atout mené que l'IA ne peut pas battre.
+      trick: [{ player: 0, card: card("A", "H") }],
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(junk.id);
+  });
+
+  it("en fin de partie, sacrifie un pli pour remporter le dernier (la main)", () => {
+    // Mener l'As gagne tout de suite mais laisse le dernier pli — et « la
+    // main » — à l'adversaire. Mener le 7 d'abord garde l'As pour le pli
+    // final : une bonne ET la main. Seule la résolution exacte le voit.
+    const ace = card("A", "S");
+    const low = card("7", "D");
+    const oppKing = card("K", "S");
+    const oppHigh = card("8", "D");
+    const gains = fillGains([ace, low, oppKing, oppHigh]);
+    const state = makeState({
+      trump: "H",
+      stock: [],
+      hands: [
+        [oppKing, oppHigh],
+        [ace, low],
+      ],
+      gains,
+    });
+    expect(aiChooseCardAt(state, "legende").id).toBe(low.id);
   });
 });

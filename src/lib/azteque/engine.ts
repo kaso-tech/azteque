@@ -413,73 +413,22 @@ export function endRound(s: GameState): GameState {
   return s;
 }
 
-/* ---------- IA ---------- */
-
-export function aiAnnounce(state: GameState): { suits: Suit[]; trump: Suit | null } | null {
-  const opts = availableMelds(state, 1);
-  if (!opts.length) return null;
-  const suits = opts.map((o) => o.suit);
-  // choisit comme atout la couleur où elle a le plus de cartes
-  const best = [...opts].sort((a, b) => {
-    const cnt = (s: Suit) => state.hands[1].filter((c) => c.suit === s).length;
-    return b.cards.length - a.cards.length || cnt(b.suit) - cnt(a.suit);
-  })[0]!;
-  return { suits, trump: state.trump === null ? best.suit : null };
-}
-
-/**
- * Annonce réfléchie : aux niveaux élevés, l'IA diffère la première annonce
- * tant qu'elle garde des bonnes (10 / As) dans d'autres couleurs, car fixer
- * l'atout rendrait ces bonnes vulnérables. Elle attend d'avoir libéré ces
- * bonnes, sauf si la pioche s'épuise (dernière occasion d'annoncer).
- */
-export function aiAnnounceAt(
-  state: GameState,
-  level: Difficulty,
-): { suits: Suit[]; trump: Suit | null } | null {
-  const base = aiAnnounce(state);
-  if (!base) return null;
-  if (level !== "maitre" && level !== "legende") return base;
-
-  // L'atout est déjà fixé : plus rien à optimiser, on encaisse les points.
-  if (state.trump !== null || !base.trump) return base;
-
-  const loose = state.hands[1].filter((c) => isBonne(c) && c.suit !== base.trump);
-  if (loose.length === 0) return base;
-
-  // Nombre approximatif de plis restants avant l'épuisement de la pioche.
-  const tricksLeft = Math.floor(state.stock.length / 2);
-  // Assez de temps pour écouler ces bonnes en toute sécurité : on patiente.
-  if (tricksLeft > loose.length + 1) return null;
-  return base;
-}
-
-export function aiChooseCard(state: GameState): Card {
-  const legal = legalCards(state, 1);
-  const trump = state.trump;
-  const val = (c: Card) => rankValue(c.rank) + (trump && c.suit === trump ? 10 : 0);
-
-  if (state.trick.length === 0) {
-    // Mène : privilégie une bonne d'atout ou une carte forte hors atout
-    const nonBonne = legal.filter((c) => !isBonne(c));
-    const pool = nonBonne.length ? nonBonne : legal;
-    return [...pool].sort((a, b) => val(b) - val(a))[0]!;
-  }
-  const led = state.trick[0]!.card;
-  const winning = legal.filter((c) => beats(c, led, trump));
-  if (winning.length) {
-    const worthIt = isBonne(led) || (trump && led.suit === trump && led.rank === "10");
-    if (worthIt || winning.some((c) => !isBonne(c))) {
-      const cheap = winning.filter((c) => !isBonne(c));
-      const pool = cheap.length ? cheap : winning;
-      return [...pool].sort((a, b) => val(a) - val(b))[0]!;
-    }
-    return [...winning].sort((a, b) => val(a) - val(b))[0]!;
-  }
-  const safe = legal.filter((c) => !isBonne(c));
-  const pool = safe.length ? safe : legal;
-  return [...pool].sort((a, b) => val(a) - val(b))[0]!;
-}
+/* ==================================================================
+ * IA
+ *
+ * Rappel des ressorts du jeu, qui guident toute l'évaluation ci-dessous :
+ *
+ * 1. Le vainqueur d'un pli ramasse LES DEUX cartes. Une bonne (10 / As)
+ *    jouée sur un pli gagné vaut donc +1 pour soi, et sur un pli perdu
+ *    +1 pour l'adversaire : chaque bonne est un écart de 2 points.
+ * 2. Tant que la pioche n'est pas vide, le second joueur n'est obligé à
+ *    rien, et la première carte reste dominante à couleur différente :
+ *    un As entamé est imprenable (sauf coupe), c'est un point gratuit.
+ * 3. Un compte vaut 4 ou 5 points, soit bien plus qu'une bonne : jeter
+ *    un Roi ou une Dame qui complète un compte coûte très cher.
+ * 4. Perdre le 10 d'atout transfère TOUT son tas de bonnes à
+ *    l'adversaire : c'est le plus gros coup possible, dans les deux sens.
+ * ================================================================== */
 
 /* ---------- Main blanche ---------- */
 
@@ -499,7 +448,7 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   legende: "Légende",
 };
 
-/* --- Mémoire des cartes : ce que l'IA a déjà vu passer --- */
+/* ---------- Mémoire des cartes : ce que l'IA a déjà vu passer ---------- */
 
 /** Cartes encore invisibles pour l'IA (main adverse + pioche). */
 export function unseenCards(state: GameState): Card[] {
@@ -527,105 +476,469 @@ export function unseenCards(state: GameState): Card[] {
   return out;
 }
 
-/** Probabilité approximative que l'adversaire puisse battre `c` s'il est second. */
-
-function beatRisk(state: GameState, c: Card): number {
-  const pool = unseenCards(state);
-  if (!pool.length) return 0;
-  const oppSize = state.hands[0].length;
-  const inHandRatio = Math.min(1, oppSize / pool.length);
-  const beaters = pool.filter((x) => beats(x, c, state.trump)).length;
-  const pPerCard = beaters / pool.length;
-  return 1 - Math.pow(1 - pPerCard, Math.max(1, Math.round(inHandRatio * oppSize)));
-}
-
-/* --- Fin de tour : résolution exacte quand la pioche est vide --- */
-
-interface EndNode {
-  ai: Card[];
-  hu: Card[];
-  lead: PlayerIndex;
-  led: Card | null;
-}
-
-function endgameValue(node: EndNode, trump: Suit | null, depth: number): number {
-  if (node.ai.length === 0 && node.hu.length === 0) return 0;
-  const mover: PlayerIndex = node.led === null ? node.lead : node.lead === 0 ? 1 : 0;
-  const hand = mover === 1 ? node.ai : node.hu;
-  const options = endgameLegal(hand, node.led, trump);
-  let best = mover === 1 ? -Infinity : Infinity;
-  for (const c of options) {
-    const rest = hand.filter((x) => x !== c);
-    let v: number;
-    if (node.led === null) {
-      v = endgameValue(
-        {
-          ai: mover === 1 ? rest : node.ai,
-          hu: mover === 1 ? node.hu : rest,
-          lead: node.lead,
-          led: c,
-        },
-        trump,
-        depth + 1,
-      );
-    } else {
-      const winner: PlayerIndex = beats(c, node.led, trump) ? mover : node.lead;
-      const pts = [node.led, c].filter(isBonne).length * (winner === 1 ? 1 : -1);
-      v =
-        pts +
-        endgameValue(
-          {
-            ai: mover === 1 ? rest : node.ai,
-            hu: mover === 1 ? node.hu : rest,
-            lead: winner,
-            led: null,
-          },
-          trump,
-          depth + 1,
-        );
-    }
-    if (mover === 1) best = Math.max(best, v);
-    else best = Math.min(best, v);
+/**
+ * Probabilité que l'adversaire détienne au moins une carte du sous-ensemble
+ * `matches` parmi les `unseen` cartes encore invisibles (loi hypergéométrique).
+ */
+function chanceOpponentHolds(unseen: Card[], handSize: number, matches: (c: Card) => boolean) {
+  const n = unseen.length;
+  if (n === 0 || handSize <= 0) return 0;
+  const hits = unseen.filter(matches).length;
+  if (hits === 0) return 0;
+  // P(aucune) = produit des (misses - i) / (n - i)
+  let pNone = 1;
+  const misses = n - hits;
+  for (let i = 0; i < handSize; i += 1) {
+    if (misses - i <= 0) return 1;
+    pNone *= (misses - i) / (n - i);
   }
-  return best === -Infinity || best === Infinity ? 0 : best;
+  return 1 - pNone;
 }
 
-function endgameLegal(hand: Card[], led: Card | null, trump: Suit | null): Card[] {
-  if (!led) return hand;
+/* ---------- Constantes d'évaluation ----------
+ * Calibrées au banc d'essai (`bun scripts/ai-bench.ts`) : chaque valeur a été
+ * confrontée à l'IA figée dans scripts/legacy-ai.ts sur des donnes identiques.
+ */
+const TUNE = {
+  /** Valeur d'une bonne encore en main (un point à moitié acquis). */
+  bonneInHand: 0.55,
+  /** Un As imprenable (hors atout adverse) est un point quasi certain. */
+  safeAceInHand: 0.95,
+  /**
+   * Fraction d'un compte encore en main portée au crédit dans la recherche.
+   * Sans effet mesurable au banc d'essai : la recherche ne s'active qu'en fin
+   * de partie, où plus aucune annonce n'est possible. Conservé pour rester
+   * juste si la recherche était un jour étendue au milieu de partie.
+   */
+  meldPotential: 0.6,
+  /** Garder la main : fenêtre d'annonce, et « la main » du dernier pli. */
+  tempo: 0.22,
+  /** Propension prêtée à l'adversaire à dépenser pour rafler une bonne. */
+  wantBonneSameSuit: 0.95,
+  wantBonneTrump: 0.8,
+  /** ... et pour rafler un pli sans enjeu : bien plus faible. */
+  wantPlainSameSuit: 0.5,
+  wantPlainTrump: 0.12,
+};
+
+/* ---------- Valeur de conservation d'une carte ---------- */
+
+/** Points encore espérés d'un compte que cette carte permettrait. */
+function meldValue(state: GameState, c: Card): number {
+  if (state.stock.length === 0) return 0; // plus d'annonce possible en phase finale
+  if (c.rank !== "K" && c.rank !== "Q" && c.rank !== "J") return 0;
+  // Une carte déjà posée dans un compte est acquise : la garder ne rapporte plus.
+  const exposed = new Set(state.exposed[1]);
+  if (exposed.has(c.id)) return 0;
+  // Le compte de cette couleur est-il encore ouvert ? (une seule annonce par
+  // couleur, sauf à l'atout où le second jeu autorise un deuxième compte)
+  const already = state.melds[1].filter((m) => m.suit === c.suit).length;
+  const maxMelds = c.suit === state.trump ? 2 : 1;
+  if (already >= maxMelds) return 0;
+
+  const hand = state.hands[1];
+  const free = (r: Rank) =>
+    hand.some((x) => x.suit === c.suit && x.rank === r && x.id !== c.id && !exposed.has(x.id));
+  // Un compte à l'atout vaut le barème plein (4/5), les autres 2/3.
+  const scale = c.suit === state.trump || state.trump === null ? 1 : 0.6;
+
+  if (c.rank === "J") {
+    // Le valet ne compte que s'il complète un Roi + Dame de la même couleur.
+    return free("K") && free("Q") ? 2.6 * scale : 0.4 * scale;
+  }
+  const partner: Rank = c.rank === "K" ? "Q" : "K";
+  if (free(partner)) return (free("J") ? 3.6 : 3.0) * scale;
+  return 0.9 * scale; // espoir de retrouver le partenaire à la pioche
+}
+
+/** Valeur d'un atout gardé pour la phase finale (pioche épuisée). */
+function trumpKeepValue(state: GameState, c: Card): number {
+  const trump = state.trump;
+  if (!trump || c.suit !== trump) return 0;
+  const strength = rankValue(c.rank) / (RANKS.length - 1); // 0 → 1
+  const urgency = Math.min(1, state.stock.length / 12);
+  return (0.5 + strength * 1.4) * urgency;
+}
+
+/**
+ * Ce que l'IA perd en se séparant de cette carte. Sert d'arbitrage : gagner
+ * un pli vaut la dépense si le gain immédiat dépasse cette valeur.
+ */
+function keepValue(state: GameState, c: Card): number {
+  let v = meldValue(state, c) + trumpKeepValue(state, c);
+  if (isBonne(c)) {
+    // Une bonne en main est un point à moitié acquis : encore faut-il
+    // l'encaisser sur un pli gagné. Un As d'atout, lui, est imprenable.
+    const safe = c.rank === "A" && (state.trump === null || c.suit === state.trump);
+    v += safe ? TUNE.safeAceInHand : TUNE.bonneInHand;
+  }
+  return v;
+}
+
+/** Le 10 d'atout que l'on détient met tout son tas en jeu. */
+function trump10Exposure(state: GameState, c: Card): number {
+  if (!state.trump || c.rank !== "10" || c.suit !== state.trump) return 0;
+  return state.gains[1].filter(isBonne).length;
+}
+
+/* ---------- Heuristique tactique (expert et repli des niveaux hauts) ---------- */
+
+function aiTacticalCard(state: GameState): Card {
+  const legal = legalCards(state, 1);
+  if (legal.length === 1) return legal[0]!;
+  const trump = state.trump;
+  const unseen = unseenCards(state);
+  const oppSize = state.hands[0].length;
+  const myBonnes = state.gains[1].filter(isBonne).length;
+  const oppBonnes = state.gains[0].filter(isBonne).length;
+
+  /* --- Second joueur : le pli vaut-il la carte dépensée ? --- */
+  if (state.trick.length === 1) {
+    const led = state.trick[0]!.card;
+    const ledPts = isBonne(led) ? 1 : 0;
+    // Capturer le 10 d'atout adverse rafle tout son tas : gain énorme.
+    const stealable = trump && led.rank === "10" && led.suit === trump ? oppBonnes : 0;
+
+    let best: Card | null = null;
+    let bestScore = -Infinity;
+    for (const c of legal) {
+      const wins = beats(c, led, trump);
+      const mine = isBonne(c) ? 1 : 0;
+      let score: number;
+      if (wins) {
+        // Je ramasse les deux cartes : ma bonne rentre dans mon tas.
+        score = ledPts + mine + stealable + 0.2 - keepValue(state, c);
+      } else {
+        // L'adversaire ramasse : je lui offre sa carte plus la mienne.
+        score = -ledPts - mine - trump10Exposure(state, c) - 0.2 * keepValue(state, c);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return best!;
+  }
+
+  /* --- Entame : encaisser les bonnes imprenables, sinon écarter du déchet --- */
+  let best: Card | null = null;
+  let bestScore = -Infinity;
+  for (const c of legal) {
+    // Qui peut me battre ? Une carte de la même couleur plus forte, ou un atout.
+    const pHigher = chanceOpponentHolds(
+      unseen,
+      oppSize,
+      (x) => x.suit === c.suit && rankValue(x.rank) > rankValue(c.rank),
+    );
+    const pTrump =
+      trump && c.suit !== trump ? chanceOpponentHolds(unseen, oppSize, (x) => x.suit === trump) : 0;
+    const bonne = isBonne(c);
+    // L'adversaire ne dépense que si le pli en vaut la peine : il prend
+    // volontiers une bonne, beaucoup moins volontiers du déchet.
+    const wantHigher = bonne ? TUNE.wantBonneSameSuit : TUNE.wantPlainSameSuit;
+    const wantTrump = bonne ? TUNE.wantBonneTrump : TUNE.wantPlainTrump;
+    const risk = pHigher * wantHigher + (1 - pHigher) * pTrump * wantTrump;
+
+    const pts = bonne ? 1 : 0;
+    // Gagner l'entame conserve la main : fenêtre d'annonce et « la main ».
+    const tempo = TUNE.tempo;
+    const score =
+      (1 - risk) * (pts + tempo) - risk * (pts + trump10Exposure(state, c)) - keepValue(state, c);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best!;
+}
+
+/* ==================================================================
+ * Recherche PIMC (Perfect Information Monte Carlo)
+ *
+ * On échantillonne des mains adverses compatibles avec ce que l'IA a vu
+ * passer, on résout chaque monde à information complète par un minimax
+ * alpha-bêta sur quelques plis, et on retient la carte qui marque le
+ * mieux en moyenne. Le simulateur ci-dessous est une version allégée du
+ * moteur (seules les bonnes comptent au score) : il évite le clonage
+ * profond de `GameState`, bien trop coûteux dans une recherche.
+ * ================================================================== */
+
+/** Nombre de comptes encore annonçables par couleur. */
+type MeldRoom = Record<Suit, number>;
+
+interface SimState {
+  hands: [Card[], Card[]];
+  stock: Card[];
+  /** Bonnes déjà encaissées. */
+  bonnes: [number, number];
+  trump: Suit | null;
+  lead: { player: PlayerIndex; card: Card } | null;
+  turn: PlayerIndex;
+  /** Constantes de la recherche : comptes restants et cartes déjà posées. */
+  room: [MeldRoom, MeldRoom];
+  used: [Set<string>, Set<string>];
+}
+
+/**
+ * Points de compte encore atteignables avec cette main. Un compte vaut 4 ou 5
+ * points — davantage que la plupart des plis — donc l'IA doit tenir ses Rois
+ * et Dames plutôt que de les dépenser pour un pli sans bonne.
+ */
+function handMeldPotential(
+  hand: Card[],
+  trump: Suit | null,
+  room: MeldRoom,
+  used: Set<string>,
+  stockLeft: number,
+): number {
+  if (stockLeft === 0) return 0; // plus d'annonce possible
+  let total = 0;
+  for (const s of SUITS) {
+    if (room[s] <= 0) continue;
+    let k = false;
+    let q = false;
+    let j = false;
+    for (const c of hand) {
+      if (c.suit !== s || used.has(c.id)) continue;
+      if (c.rank === "K") k = true;
+      else if (c.rank === "Q") q = true;
+      else if (c.rank === "J") j = true;
+    }
+    if (!k || !q) continue;
+    const full = s === trump || trump === null;
+    total += full ? (j ? 5 : 4) : j ? 3 : 2;
+  }
+  // Il reste à gagner un pli au bon moment pour l'annoncer : on n'en compte
+  // qu'une fraction, sans quoi l'IA surprotégerait ces cartes.
+  return total * TUNE.meldPotential;
+}
+
+/** Mêmes contraintes que `legalCards`, sur l'état allégé. */
+function simLegal(s: SimState, p: PlayerIndex): Card[] {
+  const hand = s.hands[p];
+  if (!s.lead || s.stock.length > 0) return hand;
+  const led = s.lead.card;
   const same = hand.filter((c) => c.suit === led.suit);
   if (same.length === 0) {
-    const trumps = trump ? hand.filter((c) => c.suit === trump) : [];
+    const trumps = s.trump ? hand.filter((c) => c.suit === s.trump) : [];
     return trumps.length ? trumps : hand;
   }
-  const winning = same.filter((c) => beats(c, led, trump));
+  const winning = same.filter((c) => beats(c, led, s.trump));
   if (winning.length) return winning;
   const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
   const top = sorted[0]!;
-  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!];
+  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!]; // protection d'une bonne
   return [top];
 }
 
-function endgameBest(state: GameState): Card | null {
-  if (state.stock.length > 0) return null;
-  const hu = unseenCards(state).slice(0, state.hands[0].length);
-  if (hu.length !== state.hands[0].length) return null;
-  const ai = state.hands[1];
-  if (ai.length > 6) return null;
-  const led = state.trick.length ? state.trick[0]!.card : null;
-  const lead: PlayerIndex = state.trick.length ? state.trick[0]!.player : 1;
-  const options = endgameLegal(ai, led, state.trump);
+/** Deux exemplaires d'une même carte sont interchangeables : on n'en teste qu'un. */
+function dedupe(cards: Card[]): Card[] {
+  const seen = new Set<string>();
+  const out: Card[] = [];
+  for (const c of cards) {
+    const k = `${c.rank}${c.suit}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(c);
+  }
+  return out;
+}
+
+function simPlay(s: SimState, c: Card): SimState {
+  const p = s.turn;
+  const rest = s.hands[p].filter((x) => x !== c);
+  const handsAfter: [Card[], Card[]] = p === 0 ? [rest, s.hands[1]] : [s.hands[0], rest];
+
+  if (!s.lead) {
+    return {
+      ...s,
+      hands: handsAfter,
+      lead: { player: p, card: c },
+      turn: (1 - p) as PlayerIndex,
+    };
+  }
+
+  const led = s.lead;
+  const winner: PlayerIndex = beats(c, led.card, s.trump) ? p : led.player;
+  const loser: PlayerIndex = (1 - winner) as PlayerIndex;
+  const bonnes: [number, number] = [s.bonnes[0], s.bonnes[1]];
+  bonnes[winner] += (isBonne(led.card) ? 1 : 0) + (isBonne(c) ? 1 : 0);
+  // Règle « Atout 10 » : le perdant du pli qui y laisse le 10 d'atout
+  // abandonne tout son tas.
+  const loserCard = loser === p ? c : led.card;
+  if (s.trump && loserCard.rank === "10" && loserCard.suit === s.trump) {
+    bonnes[winner] += bonnes[loser];
+    bonnes[loser] = 0;
+  }
+
+  let stock = s.stock;
+  const hands: [Card[], Card[]] = [handsAfter[0], handsAfter[1]];
+  if (stock.length > 0) {
+    hands[winner] = [...hands[winner], stock[0]!];
+    stock = stock.slice(1);
+    if (stock.length > 0) {
+      hands[loser] = [...hands[loser], stock[0]!];
+      stock = stock.slice(1);
+    }
+  }
+  return { ...s, hands, stock, bonnes, lead: null, turn: winner };
+}
+
+/** Évaluation d'une position, du point de vue de l'IA (joueur 1). */
+function simEval(s: SimState): number {
+  let v = s.bonnes[1] - s.bonnes[0];
+  const over = s.hands[0].length === 0 && s.hands[1].length === 0;
+  const inHand = (p: PlayerIndex) => s.hands[p].filter(isBonne).length;
+  // Une bonne encore en main n'est qu'à moitié acquise.
+  v += 0.4 * (inHand(1) - inHand(0));
+  // Comptes encore réalisables de part et d'autre.
+  v +=
+    handMeldPotential(s.hands[1], s.trump, s.room[1], s.used[1], s.stock.length) -
+    handMeldPotential(s.hands[0], s.trump, s.room[0], s.used[0], s.stock.length);
+  if (s.trump) {
+    const trumps = (p: PlayerIndex) => s.hands[p].filter((c) => c.suit === s.trump).length;
+    v += 0.1 * (trumps(1) - trumps(0));
+    const hasTen = (p: PlayerIndex) =>
+      s.hands[p].some((c) => c.rank === "10" && c.suit === s.trump);
+    // Détenir le 10 d'atout met son propre tas en jeu.
+    if (hasTen(1)) v -= 0.1 * s.bonnes[1];
+    if (hasTen(0)) v += 0.1 * s.bonnes[0];
+  }
+  // « La main » : le dernier pli vaut 1 point.
+  if (over) v += s.turn === 1 ? 1 : -1;
+  else v += s.turn === 1 ? 0.15 : -0.15;
+  return v;
+}
+
+/** Ordonne les coups pour que l'élagage alpha-bêta coupe tôt. */
+function simOrder(s: SimState, moves: Card[]): Card[] {
+  if (!s.lead) return [...moves].sort((a, b) => rankValue(b.rank) - rankValue(a.rank));
+  const led = s.lead.card;
+  return [...moves].sort((a, b) => {
+    const wa = beats(a, led, s.trump) ? 1 : 0;
+    const wb = beats(b, led, s.trump) ? 1 : 0;
+    if (wa !== wb) return wb - wa; // gagner d'abord
+    return rankValue(a.rank) - rankValue(b.rank); // au meilleur marché
+  });
+}
+
+/**
+ * Plafond de nœuds explorés par décision. Calibré au banc d'essai : au-delà,
+ * le gain de force devient marginal alors que le pire temps de décision
+ * grimpe (650 ms à 400 000 nœuds, contre 234 ms ici) et ferait tressauter
+ * l'interface, qui laisse 750 ms à l'IA avant de poser sa carte.
+ */
+const SEARCH_NODE_BUDGET = 120000;
+
+function simSearch(
+  s: SimState,
+  tricks: number,
+  alpha: number,
+  beta: number,
+  budget: { n: number },
+): number {
+  if (s.hands[0].length === 0 && s.hands[1].length === 0) return simEval(s);
+  if (!s.lead && (tricks <= 0 || budget.n <= 0)) return simEval(s);
+  budget.n -= 1;
+
+  const p = s.turn;
+  const moves = simOrder(s, dedupe(simLegal(s, p)));
+  let best = p === 1 ? -Infinity : Infinity;
+  for (const c of moves) {
+    const ns = simPlay(s, c);
+    const nt = ns.lead === null ? tricks - 1 : tricks;
+    const v = simSearch(ns, nt, alpha, beta, budget);
+    if (p === 1) {
+      if (v > best) best = v;
+      if (best > alpha) alpha = best;
+    } else {
+      if (v < best) best = v;
+      if (best < beta) beta = best;
+    }
+    if (alpha >= beta) break;
+  }
+  return best === Infinity || best === -Infinity ? simEval(s) : best;
+}
+
+/** Tire une main adverse et une pioche compatibles avec les cartes vues. */
+function determinize(state: GameState, unseen: Card[]): SimState {
+  const pool = [...unseen];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  // Les cartes de compte posées par l'adversaire sont connues.
+  const exposedIds = new Set(state.exposed[0]);
+  const known = state.hands[0].filter((c) => exposedIds.has(c.id));
+  const need = Math.max(0, state.hands[0].length - known.length);
+  const oppHand = [...known, ...pool.slice(0, need)];
+  const lead = state.trick.length === 1 ? state.trick[0]! : null;
+
+  // Comptes restants par couleur : un seul par couleur, deux à l'atout
+  // (le second jeu de cartes fournit le deuxième Roi + Dame).
+  const roomOf = (p: PlayerIndex): MeldRoom => {
+    const room = {} as MeldRoom;
+    for (const s of SUITS) {
+      const max = s === state.trump ? 2 : 1;
+      const done = state.melds[p].filter((m) => m.suit === s).length;
+      room[s] = Math.max(0, max - done);
+    }
+    return room;
+  };
+
+  return {
+    hands: [oppHand, [...state.hands[1]]],
+    stock: pool.slice(need),
+    bonnes: [state.gains[0].filter(isBonne).length, state.gains[1].filter(isBonne).length],
+    trump: state.trump,
+    lead: lead ? { player: lead.player, card: lead.card } : null,
+    turn: 1,
+    room: [roomOf(0), roomOf(1)],
+    used: [exposedIds, new Set(state.exposed[1])],
+  };
+}
+
+/**
+ * Choisit une carte en moyennant la valeur minimax sur plusieurs mains
+ * adverses possibles. Renvoie null si la recherche n'est pas applicable.
+ */
+function pimcChoose(
+  state: GameState,
+  samples: number,
+  tricks: number,
+  nodeBudget = SEARCH_NODE_BUDGET,
+): Card | null {
+  const legal = legalCards(state, 1);
+  if (legal.length <= 1) return legal[0] ?? null;
+  const candidates = dedupe(legal);
+  if (candidates.length === 1) return candidates[0]!;
+
+  const unseen = unseenCards(state);
+  // Pioche vide : les cartes invisibles SONT la main adverse, le monde est
+  // entièrement déterminé — un seul tirage suffit et la solution est exacte.
+  const exposedCount = state.hands[0].filter((c) => state.exposed[0].includes(c.id)).length;
+  const hidden = state.hands[0].length - exposedCount;
+  if (unseen.length !== hidden + state.stock.length) return null; // comptage incohérent
+  const rounds = state.stock.length === 0 ? 1 : samples;
+
+  // Budget réparti équitablement entre tous les mondes et toutes les cartes
+  // candidates : la recherche doit rester imperceptible en jeu, et le banc
+  // d'essai doit pouvoir enchaîner des milliers de tours.
+  const slice = Math.max(200, Math.floor(nodeBudget / (rounds * candidates.length)));
+  const totals = new Map<Card, number>();
+  for (let i = 0; i < rounds; i += 1) {
+    const base = determinize(state, unseen);
+    for (const c of candidates) {
+      const ns = simPlay(base, c);
+      const nt = ns.lead === null ? tricks - 1 : tricks;
+      const v = simSearch(ns, nt, -Infinity, Infinity, { n: slice });
+      totals.set(c, (totals.get(c) ?? 0) + v);
+    }
+  }
+
   let best: Card | null = null;
   let bestV = -Infinity;
-  for (const c of options) {
-    const rest = ai.filter((x) => x !== c);
-    let v: number;
-    if (!led) {
-      v = endgameValue({ ai: rest, hu, lead: 1, led: c }, state.trump, 0);
-    } else {
-      const winner: PlayerIndex = beats(c, led, state.trump) ? 1 : lead;
-      const pts = [led, c].filter(isBonne).length * (winner === 1 ? 1 : -1);
-      v = pts + endgameValue({ ai: rest, hu, lead: winner, led: null }, state.trump, 0);
-    }
+  for (const [c, v] of totals) {
     if (v > bestV) {
       bestV = v;
       best = c;
@@ -634,95 +947,86 @@ function endgameBest(state: GameState): Card | null {
   return best;
 }
 
-/* --- IA avancée (maître / légende) --- */
+/* ---------- Annonces ---------- */
 
-/** Valeur de conservation d'une carte pour un compte encore possible. */
-function meldValue(state: GameState, c: Card): number {
-  if (state.stock.length === 0) return 0; // plus d'annonce possible en phase finale
-  if (c.rank !== "K" && c.rank !== "Q" && c.rank !== "J") return 0;
-  if (state.melds[1].some((m) => m.suit === c.suit && m.type === "triple")) return 0;
+export function aiAnnounce(state: GameState): { suits: Suit[]; trump: Suit | null } | null {
+  const opts = availableMelds(state, 1);
+  if (!opts.length) return null;
+  const suits = opts.map((o) => o.suit);
+  // choisit comme atout la couleur où elle a le plus de cartes
+  const best = [...opts].sort((a, b) => {
+    const cnt = (s: Suit) => state.hands[1].filter((c) => c.suit === s).length;
+    return b.cards.length - a.cards.length || cnt(b.suit) - cnt(a.suit);
+  })[0]!;
+  return { suits, trump: state.trump === null ? best.suit : null };
+}
+
+/**
+ * Annonce réfléchie. Un compte vaut 4 ou 5 points, davantage que la plupart
+ * des plis : on annonce dès que possible. Le seul vrai choix est la couleur
+ * d'atout, qui protège ses propres bonnes de cette couleur mais expose les
+ * autres à la coupe.
+ */
+export function aiAnnounceAt(
+  state: GameState,
+  level: Difficulty,
+): { suits: Suit[]; trump: Suit | null } | null {
+  const opts = availableMelds(state, 1);
+  if (!opts.length) return null;
+  const suits = opts.map((o) => o.suit);
+  if (level === "facile" || level === "normal") return aiAnnounce(state);
+
+  // L'atout est déjà fixé : on encaisse simplement les points.
+  if (state.trump !== null) return { suits, trump: null };
+
   const hand = state.hands[1];
-  const has = (r: Rank) => hand.some((x) => x.suit === c.suit && x.rank === r && x.id !== c.id);
-  const announced = state.melds[1].some((m) => m.suit === c.suit);
-  if (c.rank === "J") {
-    // Le valet ne vaut que s'il complète un compte simple annoncé ou en main
-    if (announced) return 2.2;
-    return has("K") && has("Q") ? 2.6 : 0.4;
-  }
-  const partner: Rank = c.rank === "K" ? "Q" : "K";
-  if (announced) return 0; // K/Q déjà posés : ils ne rapportent plus rien de neuf
-  if (has(partner)) return has("J") ? 3.4 : 2.8;
-  return 0.9; // espoir de retrouver le partenaire à la pioche
+  const score = (s: Suit) => {
+    const length = hand.filter((c) => c.suit === s).length;
+    const bonnesIn = hand.filter((c) => c.suit === s && isBonne(c)).length;
+    const bonnesOut = hand.filter((c) => c.suit !== s && isBonne(c)).length;
+    const triple = opts.find((o) => o.suit === s)?.type === "triple" ? 1 : 0;
+    // Longueur et bonnes de la couleur deviennent imprenables ; les bonnes
+    // des autres couleurs, elles, deviennent coupables par l'adversaire.
+    return 1.0 * length + 0.9 * bonnesIn - 0.55 * bonnesOut + 0.3 * triple;
+  };
+  const trump = [...suits].sort((a, b) => score(b) - score(a))[0]!;
+  return { suits, trump };
 }
 
-/** Valeur d'un atout gardé pour la phase finale (pioche épuisée). */
-function trumpKeepValue(state: GameState, c: Card): number {
-  const trump = state.trump;
-  if (!trump || c.suit !== trump) return 0;
-  const stock = state.stock.length;
-  if (stock === 0) return 0; // la phase finale est là : les atouts servent
-  const strength = rankValue(c.rank) / (RANKS.length - 1); // 0 → 1
-  const urgency = Math.min(1, stock / 10);
-  return (0.8 + strength * 2.2) * urgency;
-}
+/* ---------- Choix de carte ---------- */
 
-function aiSmartCard(state: GameState, deep: boolean): Card {
+/** Heuristique simple, volontairement faillible (niveaux bas). */
+export function aiChooseCard(state: GameState): Card {
   const legal = legalCards(state, 1);
-  if (legal.length === 1) return legal[0]!;
   const trump = state.trump;
-
-  if (deep) {
-    const exact = endgameBest(state);
-    if (exact) return exact;
-  }
-
   const val = (c: Card) => rankValue(c.rank) + (trump && c.suit === trump ? 10 : 0);
-  // Coût total de la carte si on s'en sépare
-  const keep = (c: Card) => meldValue(state, c) + trumpKeepValue(state, c) + (isBonne(c) ? 3 : 0);
-  const cheapest = (pool: Card[]) =>
-    [...pool].sort((a, b) => keep(a) - keep(b) || val(a) - val(b))[0]!;
 
-  // En second : décider si le pli vaut la dépense
-  if (state.trick.length === 1) {
-    const led = state.trick[0]!.card;
-    const winning = legal.filter((c) => beats(c, led, trump));
-    const stake = isBonne(led) ? 1 : 0;
-    const tenTrump = trump && led.rank === "10" && led.suit === trump;
-    if (winning.length) {
-      const cheapWin = cheapest(winning);
-      const cost = keep(cheapWin);
-      // Gain espéré : bonne adverse capturée, 10 d'atout, ou pli gratuit
-      const gain = (stake ? 3 : 0) + (tenTrump ? 4 : 0) + (cost < 0.8 ? 1 : 0);
-      if (gain >= cost) return cheapWin;
-      const dump = legal.filter((c) => keep(c) < cost);
-      if (dump.length) return cheapest(dump);
-      return cheapWin;
-    }
-    return cheapest(legal);
+  if (state.trick.length === 0) {
+    // Mène : privilégie une bonne d'atout ou une carte forte hors atout
+    const nonBonne = legal.filter((c) => !isBonne(c));
+    const pool = nonBonne.length ? nonBonne : legal;
+    return [...pool].sort((a, b) => val(b) - val(a))[0]!;
   }
-
-  // À l'entame : jouer la carte la plus sûre / la plus gênante
-  const scored = legal.map((c) => {
-    const risk = beatRisk(state, c);
-    const isB = isBonne(c);
-    // On veut : peu de risque de perdre une bonne, et forcer l'adversaire à se défausser
-    let score = (1 - risk) * (isB ? 2.2 : 1);
-    if (isB && risk > 0.35) score -= 2.5; // ne pas exposer une bonne
-    score -= trumpKeepValue(state, c) * 0.9; // garder les atouts pour la phase finale
-    score -= meldValue(state, c) * 1.1; // garder les cartes utiles à un compte
-    if (!isB && risk > 0.6) score += 0.35; // écarter les cartes faibles utiles à rien
-    // Sortir tôt les bonnes hors atout tant que l'atout n'est pas fixé
-    if (isB && !trump && risk < 0.3) score += 0.8;
-    if (isB && trump && c.suit !== trump && state.stock.length > 4 && risk < 0.25) score += 0.5;
-    score -= rankValue(c.rank) * 0.02;
-    return { c, score };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]!.c;
+  const led = state.trick[0]!.card;
+  const winning = legal.filter((c) => beats(c, led, trump));
+  if (winning.length) {
+    const worthIt = isBonne(led) || (trump && led.suit === trump && led.rank === "10");
+    if (worthIt || winning.some((c) => !isBonne(c))) {
+      const cheap = winning.filter((c) => !isBonne(c));
+      const pool = cheap.length ? cheap : winning;
+      return [...pool].sort((a, b) => val(a) - val(b))[0]!;
+    }
+    return [...winning].sort((a, b) => val(a) - val(b))[0]!;
+  }
+  const safe = legal.filter((c) => !isBonne(c));
+  const pool = safe.length ? safe : legal;
+  return [...pool].sort((a, b) => val(a) - val(b))[0]!;
 }
 
 export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   const legal = legalCards(state, 1);
+  if (legal.length === 1) return legal[0]!;
+
   if (level === "facile") {
     // Joue presque au hasard, protège rarement ses bonnes
     if (Math.random() < 0.7) return legal[Math.floor(Math.random() * legal.length)]!;
@@ -732,16 +1036,21 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
     if (Math.random() < 0.25) return legal[Math.floor(Math.random() * legal.length)]!;
     return aiChooseCard(state);
   }
-  if (level === "maitre") return aiSmartCard(state, false);
-  if (level === "legende") return aiSmartCard(state, true);
-  // Expert : heuristique complète + conservation des atouts forts en début de tour
-  const trump = state.trump;
-  if (state.trick.length === 0 && trump && state.stock.length > 2) {
-    const offTrump = legal.filter((c) => c.suit !== trump && !isBonne(c));
-    if (offTrump.length)
-      return [...offTrump].sort((a, b) => rankValue(b.rank) - rankValue(a.rank))[0]!;
+  if (level === "expert") return aiTacticalCard(state);
+
+  // Maître et Légende : une fois la pioche vide, les cartes encore invisibles
+  // SONT exactement la main adverse. La position est donc à information
+  // complète et se résout intégralement — ce n'est plus une estimation mais
+  // le meilleur coup, protection des bonnes et 10 d'atout compris.
+  // Légende attaque cette résolution plus tôt : à quelques cartes de la fin,
+  // l'incertitude restante est faible et l'échantillonnage la couvre.
+  const from = level === "legende" ? 4 : 0;
+  if (state.stock.length <= from) {
+    const samples = state.stock.length === 0 ? 1 : 8;
+    const exact = pimcChoose(state, samples, 12);
+    if (exact) return exact;
   }
-  return aiChooseCard(state);
+  return aiTacticalCard(state);
 }
 
 export function aiWantsRedeal(state: GameState, level: Difficulty): boolean {

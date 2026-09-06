@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "bun scripts/ai-bench.ts"
   },
   "overrides": {
     "rolldown": "1.2.1",

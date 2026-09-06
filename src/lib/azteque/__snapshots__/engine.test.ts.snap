@@ -2,8 +2,8 @@
 
 exports[`aiChooseCardAt (non-régression) > niveau expert : décision stable sur une main de référence 1`] = `
 {
-  "rank": "K",
-  "suit": "H",
+  "rank": "9",
+  "suit": "S",
 }
 `;
 
