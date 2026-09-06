@@ -6,9 +6,12 @@ mais **il ne fonctionnera pas tant que les deux étapes ci-dessous n'auront pas
 été faites sur le projet Supabase**. Elles demandent un accès à la console du
 projet, que l'agent n'a pas.
 
-## 1. Appliquer la migration
+## 1. Appliquer les migrations
 
-Fichier : `supabase/migrations/20260906200000_accounts_friends_invites.sql`
+Fichiers, dans cet ordre :
+
+1. `supabase/migrations/20260906200000_accounts_friends_invites.sql`
+2. `supabase/migrations/20260906210000_sync_offline_tokens.sql`
 
 Il crée les tables `profiles`, `friendships`, `game_invites`, ajoute trois
 colonnes de résultat à `matches` (`winner_id`, `finished_at`, `settled_at`) et
@@ -23,9 +26,11 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > `profiles`, `friendships` et `game_invites`, ajoute les colonnes
 > `winner_id`, `finished_at` et `settled_at` à la table `matches`, et crée les
 > fonctions `accept_game_invite`, `claim_local_tokens`, `settle_match` et
-> `award_ai_win`. Elle active aussi l'extension `citext` et ajoute
-> `game_invites` à la publication temps réel `supabase_realtime`.
-> Ensuite, régénère le fichier de types TypeScript
+> `award_ai_win`. Elle ajoute aussi `game_invites` à la publication temps réel
+> `supabase_realtime`. Applique ensuite, toujours telle quelle, la migration
+> `supabase/migrations/20260906210000_sync_offline_tokens.sql`, qui ajoute la
+> colonne `local_tokens_total` à `profiles` et remplace la fonction
+> `claim_local_tokens`. Enfin, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
 
 ## 2. Activer la connexion Google
@@ -95,8 +100,16 @@ quelle que soit la console où l'activation a déjà été faite.
   un navigateur et perdue avec lui, ne permettait ni de conserver des jetons ni
   de retrouver un adversaire. Le jeu contre l'IA, lui, reste accessible sans
   compte.
-- **Le solde de jetons du navigateur est reporté une seule fois** sur le
-  premier compte créé depuis ce navigateur, puis le compte fait foi.
+- **Le pseudo du compte remplace celui du navigateur.** Une fois connecté, le
+  joueur porte partout le nom sous lequel les autres le trouvent ; le champ du
+  panneau de profil devient une simple lecture.
+- **Les jetons gagnés hors connexion rejoignent le compte** à la connexion
+  suivante, y compris sur un compte ancien. Le solde du navigateur est remis à
+  zéro dans le même mouvement, ce qui interdit de le reporter deux fois ; une
+  fois connecté, les gains ne passent plus par le navigateur.
+  Le serveur n'a aucun moyen de vérifier une partie jouée hors connexion : il
+  ne peut que borner ce qu'il accepte, à 10 000 jetons par report et 50 000 sur
+  la durée de vie d'un compte (colonne `local_tokens_total`).
 - **Les jetons ne sont plus crédités par le navigateur.** La récompense d'une
   victoire contre l'IA et le règlement d'une mise entre joueurs passent par des
   fonctions serveur qui relisent elles-mêmes le résultat de la partie. Le
@@ -115,3 +128,6 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
 4. Inviter, accepter, jouer un champ complet et vérifier que la mise est bien
    déplacée entre les deux soldes — et une seule fois.
 5. Vérifier que le bilan « Face à X » apparaît en fin de champ.
+6. Se déconnecter, gagner une partie contre l'IA, se reconnecter : les jetons
+   gagnés doivent s'ajouter au solde du compte, et une seconde connexion ne
+   doit rien ajouter de plus.

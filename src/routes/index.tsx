@@ -33,7 +33,8 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
-import { awardAiWin, getMyProfile } from "@/lib/azteque/account";
+import { awardAiWin, claimLocalTokens, getMyProfile } from "@/lib/azteque/account";
+import { getTokens as getLocalTokens } from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
 import {
@@ -82,6 +83,10 @@ function Azteque() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
+  // Un joueur connecté tient son pseudo et son solde de son compte : ils le
+  // suivent d'un appareil à l'autre, et c'est le serveur qui les met à jour.
+  // Hors connexion, le navigateur continue de faire foi.
+  const [accountBound, setAccountBound] = useState(false);
   const [choosingTrump, setChoosingTrump] = useState(false);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
@@ -127,6 +132,7 @@ function Azteque() {
     useRef<HTMLDivElement | null>(null),
   ] as const;
   const aiRedealChecked = useRef(-1);
+  const askedForName = useRef(false);
 
   // Réglages persistants
   useEffect(() => {
@@ -135,7 +141,12 @@ function Azteque() {
       if (raw) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
       const savedName = localStorage.getItem("azteque-player-name")?.trim();
       if (savedName) setPlayerName(savedName);
-      else setShowPlayerProfile(true);
+      else {
+        // Aucun nom dans ce navigateur : on le demande. Si un compte répond
+        // ensuite, son pseudo fait foi et la demande n'a plus lieu d'être.
+        askedForName.current = true;
+        setShowPlayerProfile(true);
+      }
       setTokens(Math.max(0, Number(localStorage.getItem("azteque-tokens")) || 0));
     } catch {
       /* ignore */
@@ -152,33 +163,38 @@ function Azteque() {
   }, [settings]);
 
   useEffect(() => {
-    if (!profileReady) return;
+    if (!profileReady || accountBound) return;
     try {
       localStorage.setItem("azteque-player-name", playerName.trim() || "Joueur");
     } catch {
       /* ignore */
     }
-  }, [playerName, profileReady]);
+  }, [playerName, profileReady, accountBound]);
 
   useEffect(() => {
     setSoundEnabled(settings.sound);
   }, [settings.sound]);
 
-  // Jetons : solde persistant + récompense en fin de partie
-  // Le solde d'un joueur connecté vit sur son compte : il le retrouve d'un
-  // appareil à l'autre, et c'est le serveur qui le crédite. Hors connexion, le
-  // solde local du navigateur continue de servir.
-  const [accountBound, setAccountBound] = useState(false);
+  // Synchronisation avec le compte : le pseudo choisi à l'inscription remplace
+  // celui de ce navigateur, et les jetons gagnés hors connexion viennent
+  // s'ajouter au solde du compte avant que celui-ci ne prenne le relais.
   useEffect(() => {
     let alive = true;
     getMyProfile()
-      .then((p) => {
+      .then(async (p) => {
         if (!alive || !p) return;
         setAccountBound(true);
-        setTokens(p.tokens);
+        setPlayerName(p.username);
+        if (askedForName.current) {
+          askedForName.current = false;
+          setShowPlayerProfile(false);
+        }
+        const carried = await claimLocalTokens(getLocalTokens()).catch(() => null);
+        if (!alive) return;
+        setTokens(carried ?? p.tokens);
       })
       .catch(() => {
-        /* hors ligne ou non connecté : on reste sur le solde du navigateur */
+        /* hors ligne ou non connecté : on reste sur le profil du navigateur */
       });
     return () => {
       alive = false;
@@ -981,6 +997,7 @@ function Azteque() {
           playerName={playerName}
           tokens={tokens}
           onNameChange={setPlayerName}
+          nameLocked={accountBound}
           settings={settings}
           onChange={setSettings}
           onRules={() => {

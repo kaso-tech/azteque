@@ -138,7 +138,8 @@ function OnlineLobby() {
     }
     setProfile(p);
     setStage("ready");
-    // Report unique du solde accumulé avant l'ouverture du compte.
+    // Les jetons gagnés hors connexion rejoignent le solde du compte, qu'il
+    // vienne d'être créé ou qu'il existe depuis longtemps.
     try {
       const updated = await claimLocalTokens(getTokens());
       if (updated !== null) setProfile((cur) => (cur ? { ...cur, tokens: updated } : cur));

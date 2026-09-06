@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { setTokens } from "@/lib/azteque/tokens";
 
 /**
  * Comptes joueurs : connexion Google, pseudo unique, amis, invitations à
@@ -290,30 +291,46 @@ export async function createProfile(username: string): Promise<Profile> {
 
 /* ---------- Jetons ---------- */
 
-const LOCAL_CLAIM_KEY = "azteque-tokens-claimed";
+/**
+ * Marqueur de l'ancien report à usage unique. Il n'ouvre plus aucun droit :
+ * il sert seulement à reconnaître un navigateur qui a déjà cédé son solde
+ * sous l'ancienne règle, laquelle ne le remettait pas à zéro. Sans cela, ce
+ * solde-là serait reporté une seconde fois.
+ */
+const LEGACY_CLAIM_KEY = "azteque-tokens-claimed";
 
 /**
- * Reporte une seule fois le solde accumulé dans ce navigateur avant
- * l'ouverture d'un compte.
+ * Reporte sur le compte connecté les jetons gagnés dans ce navigateur.
  *
- * Deux verrous, l'un côté compte et l'autre côté navigateur : le compte ne
- * peut être crédité qu'une fois (`claimed_local_tokens` en base), et ce
- * navigateur ne peut créditer qu'un seul compte (le marqueur local).
+ * Le report vaut aussi bien à la création d'un compte que pour un compte
+ * ancien qui retrouve les gains accumulés hors connexion. Le solde local est
+ * remis à zéro dès que le serveur a répondu : c'est ce qui empêche de le
+ * reporter deux fois, puisqu'une fois connecté les gains ne passent plus par
+ * le navigateur mais par `award_ai_win`. Le serveur, lui, borne le montant —
+ * il n'a aucun moyen de vérifier une partie jouée hors connexion.
+ *
+ * Renvoie le nouveau solde du compte, ou `null` s'il n'y avait rien à
+ * reporter.
  */
 export async function claimLocalTokens(localBalance: number): Promise<number | null> {
   if (typeof window === "undefined") return null;
+  const amount = Math.max(0, Math.round(localBalance));
+
+  // Solde hérité de l'ancienne règle : déjà crédité, jamais remis à zéro.
   try {
-    if (localStorage.getItem(LOCAL_CLAIM_KEY)) return null;
+    if (localStorage.getItem(LEGACY_CLAIM_KEY)) {
+      setTokens(0);
+      localStorage.removeItem(LEGACY_CLAIM_KEY);
+      return null;
+    }
   } catch {
-    return null;
+    /* stockage indisponible : le plafond en base fait office de garde-fou */
   }
-  const { data, error } = await rpc("claim_local_tokens", { _amount: Math.max(0, localBalance) });
+
+  if (amount <= 0) return null;
+  const { data, error } = await rpc("claim_local_tokens", { _amount: amount });
   if (error) throw error;
-  try {
-    localStorage.setItem(LOCAL_CLAIM_KEY, "1");
-  } catch {
-    /* stockage indisponible : le verrou en base suffit */
-  }
+  setTokens(0);
   return (data as unknown as number | null) ?? null;
 }
 

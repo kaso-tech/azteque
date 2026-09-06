@@ -62,6 +62,7 @@ export function PlayerProfilePanel({
   playerName,
   tokens,
   onNameChange,
+  nameLocked = false,
   settings,
   onChange,
   onRules,
@@ -70,6 +71,8 @@ export function PlayerProfilePanel({
   playerName: string;
   tokens: number;
   onNameChange: (name: string) => void;
+  /** Vrai quand le pseudo vient d'un compte : il ne se change pas d'ici. */
+  nameLocked?: boolean;
   settings: Settings;
   onChange: (s: Settings) => void;
   onRules: () => void;
@@ -111,14 +114,24 @@ export function PlayerProfilePanel({
           id="player-name"
           value={playerName}
           maxLength={20}
-          autoFocus
+          autoFocus={!nameLocked}
+          readOnly={nameLocked}
           onChange={(event) => onNameChange(event.target.value)}
           onBlur={() => {
-            if (!playerName.trim()) onNameChange("Joueur");
+            if (!nameLocked && !playerName.trim()) onNameChange("Joueur");
           }}
-          className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+          className={cn(
+            "mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring",
+            nameLocked && "cursor-not-allowed text-muted-foreground",
+          )}
           placeholder="Votre nom"
         />
+        {nameLocked && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            C'est le pseudo de votre compte : il vous suit d'un appareil à l'autre et sert à vous
+            trouver en ligne.
+          </p>
+        )}
 
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>
         <div className="mt-2 flex gap-2">
