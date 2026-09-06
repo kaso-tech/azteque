@@ -1122,23 +1122,22 @@ function DrawCard({
   delay: number;
   player: PlayerIndex;
 }) {
-  const [departed, setDeparted] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDeparted(true), delay + 20);
-    return () => clearTimeout(timer);
-  }, [delay]);
+  const departed = useDeparture(delay);
 
   return (
     <div
       className="pointer-events-none fixed z-50 w-10"
       aria-hidden="true"
       style={{
-        left: departed ? to.x : from.x,
-        top: departed ? to.y : from.y,
-        transform: `translate(-50%, -50%) scale(${departed ? 0.82 : 1}) rotate(${player === 0 ? 5 : -5}deg)`,
-        opacity: departed ? 0 : 1,
-        transition: `left 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, top 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, opacity 0.16s ease ${delay + 380}ms, transform 0.48s ease ${delay}ms`,
+        ...flightStyle(from, to, departed, {
+          scale: 0.86,
+          rotate: player === 0 ? 5 : -5,
+          duration: 480,
+          ease: "cubic-bezier(.24,.82,.28,1)",
+        }),
+        opacity: departed ? 0.05 : 1,
+        transitionDelay: "0ms, 320ms",
+        filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))",
       }}
     >
       <PlayingCard faceDown size="sm" />
