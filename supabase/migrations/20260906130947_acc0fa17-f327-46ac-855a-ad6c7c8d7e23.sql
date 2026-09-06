@@ -27,6 +27,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
+-- Ce déclencheur existe en double dans l'historique des migrations (le même
+-- correctif a été rejoué lors de son application via Lovable). Le DROP rend
+-- la création rejouable : sans lui, la seconde migration échouerait sur une
+-- base neuve avec « trigger already exists ».
+DROP TRIGGER IF EXISTS matches_protect_mutable_columns ON public.matches;
+
 CREATE TRIGGER matches_protect_mutable_columns
 BEFORE UPDATE ON public.matches
 FOR EACH ROW EXECUTE FUNCTION public.protect_match_mutable_columns();

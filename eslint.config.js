@@ -6,7 +6,18 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      // Code généré par Lovable : régénéré à chaque synchronisation, donc
+      // toute correction y est écrasée au commit suivant. Le laisser dans le
+      // périmètre du lint rendrait la CI durablement rouge sans qu'on puisse
+      // agir — c'est à Lovable de faire évoluer ces gabarits.
+      "src/integrations/supabase/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
