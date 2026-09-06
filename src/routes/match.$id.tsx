@@ -27,11 +27,11 @@ import {
   getMatch,
   subscribeMatch,
   trackPresence,
-  type BetNegotiation,
   type MatchRow,
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
-import { BET_STEPS, addTokens, getTokens } from "@/lib/azteque/tokens";
+import { useTurnCountdown } from "@/hooks/useTurnTimer";
+import { useBetNegotiation } from "@/hooks/useBetNegotiation";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -133,32 +133,12 @@ function OnlineTable() {
   );
 
   /* ---------- Mise de jetons ---------- */
-  const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
-  const settings = useMemo(() => (row?.settings ?? {}) as Record<string, unknown>, [row?.settings]);
-  const bet = (settings["bet"] as BetNegotiation | undefined) ?? null;
-  const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
-  const [balance, setBalance] = useState(0);
-  useEffect(() => setBalance(getTokens()), []);
-
-  const proposeBet = useCallback(
-    (amount: number) => {
-      void runAction({ type: "propose_bet", amount });
-    },
-    [runAction],
-  );
-
-  const acceptBet = useCallback(() => {
-    void runAction({ type: "accept_bet" });
-  }, [runAction]);
-
-  // Règlement des jetons en fin de champ
-  const settled = useRef(false);
-  useEffect(() => {
-    if (!state || state.phase !== "gameEnd" || !bet || bet.status !== "accepted") return;
-    if (settled.current) return;
-    settled.current = true;
-    setBalance(addTokens(state.champWinner === me ? bet.amount : -bet.amount));
-  }, [state, bet, me]);
+  const { roundNo, bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
+    row,
+    state,
+    me,
+    runAction,
+  });
 
   // L'hôte distribue la donne une fois la mise acceptée (premier tour ou
   // tour suivant) : le serveur vérifie lui-même toutes les conditions.
@@ -247,20 +227,7 @@ function OnlineTable() {
   const turnKey = state
     ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}-${String(oppMustAct)}`
     : "";
-  const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
-  useEffect(() => {
-    if (!state || state.phase !== "playing" || !oppMustAct) {
-      setTurnLeft(TURN_LIMIT);
-      return;
-    }
-    const start = Date.now();
-    setTurnLeft(TURN_LIMIT);
-    const t = setInterval(() => {
-      setTurnLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
-    }, 500);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turnKey]);
+  const turnLeft = useTurnCountdown(oppMustAct, turnKey, TURN_LIMIT);
 
   // Barre de temps du joueur local
   const myMustAct =
@@ -269,19 +236,7 @@ function OnlineTable() {
     state.turn === me &&
     state.trick.length < 2 &&
     state.drawPending.length === 0;
-  const [myLeft, setMyLeft] = useState(TURN_LIMIT);
-  useEffect(() => {
-    if (!myMustAct) {
-      setMyLeft(TURN_LIMIT);
-      return;
-    }
-    const start = Date.now();
-    setMyLeft(TURN_LIMIT);
-    const t = setInterval(() => {
-      setMyLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
-    }, 500);
-    return () => clearInterval(t);
-  }, [turnKey, myMustAct]);
+  const myLeft = useTurnCountdown(myMustAct, turnKey, TURN_LIMIT);
 
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
