@@ -38,7 +38,12 @@ export function PlayingCard({
         )}
         aria-label="Carte face cachée"
       >
-        <img className="h-full w-full object-cover" src={CARD_BACK_ASSET} alt="" draggable={false} />
+        <img
+          className="h-full w-full object-cover"
+          src={CARD_BACK_ASSET}
+          alt=""
+          draggable={false}
+        />
       </div>
     );
   }

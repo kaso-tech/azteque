@@ -13,8 +13,7 @@ function audio(): AudioContext | null {
     if (!ctx) {
       const Ctor =
         window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext })
-          .webkitAudioContext;
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return null;
       ctx = new Ctor();
     }
@@ -116,7 +115,6 @@ function voiceBlip(at: number, freq: number, duration: number, gainValue: number
 }
 
 export const sfx = {
-
   /** La carte quitte la main et se pose sur la table. */
   place() {
     noise(0, 0.13, 0.16, 2600, 700);
@@ -183,5 +181,3 @@ export const sfx = {
     tone(0.3, 659, 0.6, 0.04, "sine", 988);
   },
 };
-
-

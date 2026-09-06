@@ -92,10 +92,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function newRound(
-  dealer: PlayerIndex,
-  roundsWon: [number, number] = [0, 0],
-): GameState {
+export function newRound(dealer: PlayerIndex, roundsWon: [number, number] = [0, 0]): GameState {
   const deck = shuffle(buildDeck());
   const hands: [Card[], Card[]] = [deck.splice(0, 6), deck.splice(0, 6)];
   const leader: PlayerIndex = dealer === 0 ? 1 : 0; // celui qui ne distribue pas mène
@@ -133,11 +130,7 @@ export interface MeldOption {
   cards: Card[];
 }
 
-export function availableMelds(
-  state: GameState,
-  p: PlayerIndex,
-  anytime = false,
-): MeldOption[] {
+export function availableMelds(state: GameState, p: PlayerIndex, anytime = false): MeldOption[] {
   if (state.stock.length === 0) return [];
   if (!anytime && state.canAnnounce !== p) return [];
   const hand = state.hands[p];
@@ -195,9 +188,7 @@ export function announce(
     s.melds[p].push({ suit: o.suit, type: o.type, points: pts, first });
     s.exposed[p].push(...o.cards.map((c) => c.id));
     if (o.type === "simple") simpleAnnounced = o.suit;
-    s.log.unshift(
-      `${name(p)} annonce un compte ${o.type} à ${SUIT_NAME[o.suit]} (${pts} pts).`,
-    );
+    s.log.unshift(`${name(p)} annonce un compte ${o.type} à ${SUIT_NAME[o.suit]} (${pts} pts).`);
   });
 
   if (trumpSuit) {
@@ -300,9 +291,7 @@ export function resolveTrick(state: GameState, opts: TrickOptions = {}): GameSta
   const loser: PlayerIndex = winner === 0 ? 1 : 0;
   const cards = s.trick.map((t) => t.card);
   s.gains[winner].push(...cards);
-  s.log.unshift(
-    `${name(winner)} remporte le pli (${label(first.card)} / ${label(second.card)}).`,
-  );
+  s.log.unshift(`${name(winner)} remporte le pli (${label(first.card)} / ${label(second.card)}).`);
 
   // Règle optionnelle « Atout 10 » : capturer le 10 d'atout rafle tout le tas adverse
   const loserCard = s.trick.find((t) => t.player === loser)?.card;
@@ -322,7 +311,6 @@ export function resolveTrick(state: GameState, opts: TrickOptions = {}): GameSta
       );
     }
   }
-
 
   s.trick = [];
   s.lastTrickWinner = winner;
@@ -530,7 +518,6 @@ export function unseenCards(state: GameState): Card[] {
 }
 
 /** Probabilité approximative que l'adversaire puisse battre `c` s'il est second. */
-
 
 function beatRisk(state: GameState, c: Card): number {
   const pool = unseenCards(state);
@@ -751,4 +738,3 @@ export function aiWantsRedeal(state: GameState, level: Difficulty): boolean {
   if (!hasMainBlanche(state, 1)) return false;
   return level === "facile" ? Math.random() < 0.5 : true;
 }
-

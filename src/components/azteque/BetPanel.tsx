@@ -41,8 +41,8 @@ export function BetPanel({
         )}
         {!live && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Proposez une mise. L'adversaire doit l'accepter ou contre-proposer avant
-            le début du tour.
+            Proposez une mise. L'adversaire doit l'accepter ou contre-proposer avant le début du
+            tour.
           </p>
         )}
 

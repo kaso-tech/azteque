@@ -38,7 +38,10 @@ export function makeCode(len = 5) {
 }
 
 export function normalizeCode(raw: string) {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 5);
 }
 
 export async function createMatch(hostName: string, settings: Record<string, unknown> = {}) {
@@ -75,7 +78,7 @@ export async function findMatch(code: string) {
     _guest_name: "Invité",
   });
   if (error) throw error;
-  return ((data?.[0] as unknown as MatchRow | undefined) ?? null);
+  return (data?.[0] as unknown as MatchRow | undefined) ?? null;
 }
 
 export async function joinMatch(code: string, guestName: string) {
@@ -91,7 +94,10 @@ export async function joinMatch(code: string, guestName: string) {
 }
 
 export async function pushMatchState(id: string, state: unknown, status: MatchStatus = "playing") {
-  const { error } = await supabase.from("matches").update({ state: state as never, status }).eq("id", id);
+  const { error } = await supabase
+    .from("matches")
+    .update({ state: state as never, status })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -150,7 +156,6 @@ export function openChat(matchId: string, onMessage: (msg: ChatMessage) => void)
     },
   };
 }
-
 
 /** Présence temps réel : signale la connexion des deux joueurs. */
 export function trackPresence(

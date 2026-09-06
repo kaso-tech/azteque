@@ -17,7 +17,6 @@ import {
   playCard,
   resolveTrick,
   trickCapturesPile,
-
   scoreOf,
   type Card,
   type Difficulty,
@@ -33,7 +32,6 @@ import {
   StockPile,
   TrickPosition,
   TurnBar,
-
 } from "@/components/azteque/table";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { Button } from "@/components/ui/button";
@@ -53,8 +51,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Aztèque — Jeu de cartes traditionnel" },
       {
         property: "og:description",
-        content:
-          "Conquérez les plis, annoncez vos comptes, créez l'atout et remportez le champ.",
+        content: "Conquérez les plis, annoncez vos comptes, créez l'atout et remportez le champ.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -76,7 +73,6 @@ const DEFAULT_SETTINGS: Settings = {
   difficulty: "normal",
   sound: true,
 };
-
 
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
@@ -100,14 +96,24 @@ function Azteque() {
   const [showHistory, setShowHistory] = useState(false);
   const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
 
-  const [flying, setFlying] = useState<
-    { card: Card; from: { x: number; y: number } } | null
-  >(null);
+  const [flying, setFlying] = useState<{ card: Card; from: { x: number; y: number } } | null>(null);
   const [collect, setCollect] = useState<
-    { id: number; card: Card; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+    {
+      id: number;
+      card: Card;
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      delay: number;
+    }[]
   >([]);
   const [drawFlights, setDrawFlights] = useState<
-    { id: number; player: PlayerIndex; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
+    {
+      id: number;
+      player: PlayerIndex;
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      delay: number;
+    }[]
   >([]);
   const [sweepFlights, setSweepFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
@@ -126,7 +132,6 @@ function Azteque() {
     useRef<HTMLDivElement | null>(null),
   ] as const;
   const aiRedealChecked = useRef(-1);
-
 
   // Réglages persistants
   useEffect(() => {
@@ -206,7 +211,6 @@ function Azteque() {
       return added.length > 0 ? [...prev, ...added] : prev;
     });
   }, [state.melds, roundKey]);
-
 
   const myMelds = useMemo(() => availableMelds(state, 0), [state]);
   const legal = useMemo(
@@ -290,13 +294,17 @@ function Azteque() {
         if (fromFirst && winnerPile)
           flights.push({ id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 });
         if (fromSecond && winnerPile)
-          flights.push({ id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay });
+          flights.push({
+            id: 2,
+            card: second.card,
+            from: fromSecond,
+            to: winnerPile,
+            delay: lastDelay,
+          });
 
         if (winner === second.player) sfx.beat();
         else sfx.collect();
-        setPhaseMsg(
-          winner === 0 ? "Vous ramassez le pli" : "L'adversaire ramasse le pli",
-        );
+        setPhaseMsg(winner === 0 ? "Vous ramassez le pli" : "L'adversaire ramasse le pli");
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
         // Petit ricanement dès qu'une bonne tombe dans un tas
@@ -308,8 +316,7 @@ function Azteque() {
           winner !== null && trickCapturesPile(state, { atout10: true })
             ? state.gains[winner === 0 ? 1 : 0].length
             : 0;
-        const loserPile =
-          winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
+        const loserPile = winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
 
         timers.push(
           setTimeout(() => {
@@ -346,14 +353,12 @@ function Azteque() {
             timers.push(setTimeout(() => setPhaseMsg(null), 600));
           }, lastDelay + 560),
         );
-
       }, settings.trickDelay),
     );
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.trickDelay]);
-
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
   // La carte n'apparaît dans la main qu'à l'arrivée de l'animation.
@@ -414,7 +419,6 @@ function Azteque() {
     timers.push(t);
 
     return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.difficulty]);
 
   // Tour de l'ordinateur
@@ -437,10 +441,8 @@ function Azteque() {
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
   useEffect(() => {
     if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
-    const won =
-      state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
-    const lost =
-      state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
+    const won = state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
+    const lost = state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
     const t = setTimeout(() => {
       if (won) sfx.cheer();
       else if (lost) sfx.taunt();
@@ -468,7 +470,6 @@ function Azteque() {
       setTurnLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
     }, 500);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnKey, myTurnActive]);
 
   useEffect(() => {
@@ -499,7 +500,6 @@ function Azteque() {
       setOppLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
     }, 500);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnKey, oppTurnActive]);
 
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -507,7 +507,6 @@ function Azteque() {
     setConfirmQuit(false);
     setStarted(false);
   }, []);
-
 
   const nextRound = useCallback(() => {
     setState((s) => {
@@ -525,7 +524,6 @@ function Azteque() {
     tokenAwarded.current = false;
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
-
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
@@ -550,9 +548,7 @@ function Azteque() {
   };
 
   const myBonnes = state.gains[0].filter(isBonne).length;
-  const myComptes = meldHistory
-    .filter((e) => e.player === 0)
-    .reduce((sum, e) => sum + e.points, 0);
+  const myComptes = meldHistory.filter((e) => e.player === 0).reduce((sum, e) => sum + e.points, 0);
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
   if (!started) {
@@ -563,8 +559,8 @@ function Azteque() {
         </p>
         <h1 className="gold-text text-6xl sm:text-7xl">Aztèque</h1>
         <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Conquérez les plis, ramassez les bonnes, annoncez vos comptes et créez l'atout.
-          Trois tours gagnés — ou treize bonnes — et le champ est à vous.
+          Conquérez les plis, ramassez les bonnes, annoncez vos comptes et créez l'atout. Trois
+          tours gagnés — ou treize bonnes — et le champ est à vous.
         </p>
         <div className="mt-9 flex w-full max-w-xs flex-col items-center gap-4">
           <ProfileButton
@@ -610,11 +606,17 @@ function Azteque() {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       {/* Tableau des profils */}
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
-        <ProfileButton name={playerName} icon="player" align="left" onClick={() => setShowPlayerProfile(true)} />
+        <ProfileButton
+          name={playerName}
+          icon="player"
+          align="left"
+          onClick={() => setShowPlayerProfile(true)}
+        />
         <div className="min-w-16 text-center">
           <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
-            {state.roundsWon[0]} <span className="text-muted-foreground">—</span> {state.roundsWon[1]}
+            {state.roundsWon[0]} <span className="text-muted-foreground">—</span>{" "}
+            {state.roundsWon[1]}
           </p>
           <p className="mt-0.5 whitespace-nowrap text-[0.62rem] font-semibold text-gold">
             🪙 {TOKEN_REWARDS[settings.difficulty]} jetons à gagner
@@ -631,7 +633,6 @@ function Azteque() {
       {/* Adversaire */}
       <section className="flex items-start justify-between gap-3">
         <div className="flex w-full flex-col gap-2">
-
           <div ref={opponentHandRef}>
             <HandRow
               cards={state.hands[1]}
@@ -648,7 +649,6 @@ function Azteque() {
             label={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
           />
         </div>
-
       </section>
 
       {/* Tapis */}
@@ -661,11 +661,7 @@ function Azteque() {
         </div>
 
         <div className="absolute bottom-3 right-3" ref={pileRefs[0]}>
-          <CapturedPile
-            cards={state.gains[0]}
-            owner="player"
-            onOpen={() => setShowMyGains(true)}
-          />
+          <CapturedPile cards={state.gains[0]} owner="player" onOpen={() => setShowMyGains(true)} />
         </div>
 
         {state.trick.length === 0 && (
@@ -683,11 +679,12 @@ function Azteque() {
             <TrickPosition trick={state.trick} player={1} hidden={collect.length > 0} />
           </div>
 
-
           <div
             ref={stockRef}
             className="flex min-h-20 flex-col items-center justify-center gap-1"
-            aria-label={state.stock.length > 0 ? `Pioche, ${state.stock.length} cartes` : "Pioche vide"}
+            aria-label={
+              state.stock.length > 0 ? `Pioche, ${state.stock.length} cartes` : "Pioche vide"
+            }
           >
             {state.stock.length > 0 ? (
               <>
@@ -726,7 +723,6 @@ function Azteque() {
           </div>
         )}
 
-
         {/* Main blanche */}
         {canRedeal && (
           <div className="w-full max-w-lg rounded-lg border border-accent/50 bg-secondary/60 p-3 text-center">
@@ -763,9 +759,7 @@ function Azteque() {
                   <button
                     key={m.suit}
                     onClick={() =>
-                      setMeldPick((p) =>
-                        on ? p.filter((s) => s !== m.suit) : [...p, m.suit],
-                      )
+                      setMeldPick((p) => (on ? p.filter((s) => s !== m.suit) : [...p, m.suit]))
                     }
                     className={cn(
                       "rounded border px-2 py-1 text-[0.6rem] leading-none transition-colors",
@@ -782,9 +776,7 @@ function Azteque() {
                 onClick={() => {
                   setMeldPick([]);
                   // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
-                  setState((s) =>
-                    s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s,
-                  );
+                  setState((s) => (s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s));
                 }}
                 className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
               >
@@ -795,9 +787,7 @@ function Azteque() {
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {state.trump === null ? (
                   <>
-                    <span className="text-[0.58rem] text-muted-foreground">
-                      Atout :
-                    </span>
+                    <span className="text-[0.58rem] text-muted-foreground">Atout :</span>
                     {meldPick.map((s) => (
                       <button
                         key={s}
@@ -843,7 +833,6 @@ function Azteque() {
           label={playerName || "Vous"}
         />
         <div ref={playerHandRef}>
-
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
@@ -883,12 +872,8 @@ function Azteque() {
           >
             Quitter la table
           </button>
-
         </div>
-
-
       </section>
-
 
       {/* Carte en vol vers le tapis */}
       {flying && (
@@ -897,9 +882,7 @@ function Azteque() {
           from={flying.from}
           to={(() => {
             const r = tableRef.current?.getBoundingClientRect();
-            return r
-              ? { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-              : flying.from;
+            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : flying.from;
           })()}
         />
       )}
@@ -919,70 +902,67 @@ function Azteque() {
         <SweepCard key={flight.id} {...flight} />
       ))}
 
-
-
-
       {(state.phase === "roundEnd" || state.phase === "gameEnd") &&
         (state.roundScore || state.forfeit) && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
-          <div className="panel w-full max-w-md p-6 text-center">
-            <h2 className="gold-text text-3xl">
-              {state.phase === "gameEnd"
-                ? state.champWinner === 0
-                  ? "Champ remporté !"
-                  : "Champ perdu"
-                : state.roundWinner === null
-                  ? "Pont !"
-                  : state.roundWinner === 0
-                    ? "Tour gagné"
-                    : "Tour perdu"}
-            </h2>
-            {state.instantWin && (
-              <p className="mt-1 text-xs text-accent">Treize bonnes ou plus en un tour.</p>
-            )}
-            {state.phase === "gameEnd" && state.champWinner === 0 && (
-              <p className="mt-2 text-sm font-semibold text-gold">
-                🪙 +{TOKEN_REWARDS[settings.difficulty]} jetons remportés !
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
+            <div className="panel w-full max-w-md p-6 text-center">
+              <h2 className="gold-text text-3xl">
+                {state.phase === "gameEnd"
+                  ? state.champWinner === 0
+                    ? "Champ remporté !"
+                    : "Champ perdu"
+                  : state.roundWinner === null
+                    ? "Pont !"
+                    : state.roundWinner === 0
+                      ? "Tour gagné"
+                      : "Tour perdu"}
+              </h2>
+              {state.instantWin && (
+                <p className="mt-1 text-xs text-accent">Treize bonnes ou plus en un tour.</p>
+              )}
+              {state.phase === "gameEnd" && state.champWinner === 0 && (
+                <p className="mt-2 text-sm font-semibold text-gold">
+                  🪙 +{TOKEN_REWARDS[settings.difficulty]} jetons remportés !
+                </p>
+              )}
+              {state.pont && state.phase === "roundEnd" && (
+                <p className="mt-1 text-xs text-accent">
+                  Égalité parfaite : aucun tour marqué, on rejoue le tour.
+                </p>
+              )}
+              {state.forfeit?.reason === "timeout" && (
+                <p className="mt-2 text-xs text-destructive">
+                  Temps écoulé : vous n'avez pas joué dans le délai imparti.
+                </p>
+              )}
+              {state.roundScore && (
+                <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
+                  <Recap title="Vous" s={state.roundScore[0]} />
+                  <Recap title="Adversaire" s={state.roundScore[1]} />
+                </div>
+              )}
+              <p className="mt-4 text-xs text-muted-foreground">
+                Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]}
               </p>
-            )}
-            {state.pont && state.phase === "roundEnd" && (
-              <p className="mt-1 text-xs text-accent">
-                Égalité parfaite : aucun tour marqué, on rejoue le tour.
-              </p>
-            )}
-            {state.forfeit?.reason === "timeout" && (
-              <p className="mt-2 text-xs text-destructive">
-                Temps écoulé : vous n'avez pas joué dans le délai imparti.
-              </p>
-            )}
-            {state.roundScore && (
-              <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
-                <Recap title="Vous" s={state.roundScore[0]} />
-                <Recap title="Adversaire" s={state.roundScore[1]} />
-              </div>
-            )}
-            <p className="mt-4 text-xs text-muted-foreground">
-              Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]}
-            </p>
-            <button
-              onClick={state.phase === "gameEnd" ? restart : nextRound}
-              className="mt-5 rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
-            >
-              {state.phase === "gameEnd"
-                ? "Nouvelle partie"
-                : state.pont
-                  ? "Rejouer le tour"
-                  : "Tour suivant"}
-            </button>
-            <button
-              onClick={quitTable}
-              className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
-            >
-              Quitter
-            </button>
+              <button
+                onClick={state.phase === "gameEnd" ? restart : nextRound}
+                className="mt-5 rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
+              >
+                {state.phase === "gameEnd"
+                  ? "Nouvelle partie"
+                  : state.pont
+                    ? "Rejouer le tour"
+                    : "Tour suivant"}
+              </button>
+              <button
+                onClick={quitTable}
+                className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
+              >
+                Quitter
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {confirmQuit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
@@ -1011,7 +991,6 @@ function Azteque() {
         </div>
       )}
 
-
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
       {showPlayerProfile && (
         <PlayerProfilePanel
@@ -1034,9 +1013,7 @@ function Azteque() {
           onClose={() => setShowAiProfile(false)}
         />
       )}
-      {showMyGains && (
-        <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />
-      )}
+      {showMyGains && <GainsPanel cards={state.gains[0]} onClose={() => setShowMyGains(false)} />}
       {showMyBonnes && (
         <GainsPanel
           cards={state.gains[0].filter(isBonne)}
@@ -1048,20 +1025,21 @@ function Azteque() {
       {showHistory && (
         <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
       )}
-
     </main>
   );
 }
-
 
 /** Déclenche la transition à la frame suivante (mouvement toujours joué). */
 function useDeparture(delay: number) {
   const [departed, setDeparted] = useState(false);
   useEffect(() => {
     let raf = 0;
-    const timer = setTimeout(() => {
-      raf = requestAnimationFrame(() => setDeparted(true));
-    }, Math.max(0, delay));
+    const timer = setTimeout(
+      () => {
+        raf = requestAnimationFrame(() => setDeparted(true));
+      },
+      Math.max(0, delay),
+    );
     return () => {
       clearTimeout(timer);
       cancelAnimationFrame(raf);
@@ -1154,8 +1132,6 @@ function CollectCard({
     </div>
   );
 }
-
-
 
 function FlyingCard({
   card,
@@ -1281,8 +1257,14 @@ function PlayerProfilePanel({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
-      <div className="panel max-h-[90dvh] w-full max-w-md overflow-y-auto p-6 text-left" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-h-[90dvh] w-full max-w-md overflow-y-auto p-6 text-left"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
@@ -1293,7 +1275,9 @@ function PlayerProfilePanel({
               <p className="text-xs text-muted-foreground">Nom et préférences de jeu</p>
             </div>
           </div>
-          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">×</Button>
+          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Fermer">
+            ×
+          </Button>
         </div>
 
         <div className="mt-5 flex items-center justify-between rounded-lg border border-gold/40 bg-gold/5 px-4 py-2.5">
@@ -1301,14 +1285,18 @@ function PlayerProfilePanel({
           <span className="font-display text-lg font-semibold text-gold">🪙 {tokens}</span>
         </div>
 
-        <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">Nom d'utilisateur</label>
+        <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
+          Nom d'utilisateur
+        </label>
         <input
           id="player-name"
           value={playerName}
           maxLength={20}
           autoFocus
           onChange={(event) => onNameChange(event.target.value)}
-          onBlur={() => { if (!playerName.trim()) onNameChange("Joueur"); }}
+          onBlur={() => {
+            if (!playerName.trim()) onNameChange("Joueur");
+          }}
           className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
           placeholder="Votre nom"
         />
@@ -1316,15 +1304,21 @@ function PlayerProfilePanel({
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>
         <div className="mt-2 flex gap-2">
           {[true, false].map((on) => (
-            <Button key={String(on)} type="button" size="sm" variant={settings.sound === on ? "default" : "outline"} onClick={() => onChange({ ...settings, sound: on })}>
+            <Button
+              key={String(on)}
+              type="button"
+              size="sm"
+              variant={settings.sound === on ? "default" : "outline"}
+              onClick={() => onChange({ ...settings, sound: on })}
+            >
               {on ? "Activés" : "Coupés"}
             </Button>
           ))}
         </div>
 
-
-
-        <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
+        <p className="mt-6 text-sm text-foreground">
+          Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s
+        </p>
         <input
           type="range"
           min={300}
@@ -1334,11 +1328,17 @@ function PlayerProfilePanel({
           onChange={(event) => onChange({ ...settings, trickDelay: Number(event.target.value) })}
           className="mt-2 w-full accent-[var(--gold)]"
         />
-        <p className="mt-1 text-[0.7rem] text-muted-foreground">Les deux cartes restent visibles au milieu pendant ce temps.</p>
+        <p className="mt-1 text-[0.7rem] text-muted-foreground">
+          Les deux cartes restent visibles au milieu pendant ce temps.
+        </p>
 
         <div className="mt-6 grid grid-cols-2 gap-2">
-          <Button type="button" variant="outline" onClick={onRules}><BookOpen aria-hidden="true" /> Règles</Button>
-          <Button type="button" onClick={onClose}><Settings2 aria-hidden="true" /> Enregistrer</Button>
+          <Button type="button" variant="outline" onClick={onRules}>
+            <BookOpen aria-hidden="true" /> Règles
+          </Button>
+          <Button type="button" onClick={onClose}>
+            <Settings2 aria-hidden="true" /> Enregistrer
+          </Button>
         </div>
       </div>
     </div>
@@ -1355,8 +1355,14 @@ function AiProfilePanel({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
-      <div className="panel w-full max-w-md p-6 text-left" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5"
+      onClick={onClose}
+    >
+      <div
+        className="panel w-full max-w-md p-6 text-left"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center gap-3">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
             <Bot className="h-7 w-7" aria-hidden="true" />
@@ -1368,12 +1374,20 @@ function AiProfilePanel({
         </div>
         <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {DIFFICULTIES.map((level) => (
-            <Button key={level} type="button" variant={difficulty === level ? "default" : "outline"} onClick={() => onChange(level)} className="w-full">
+            <Button
+              key={level}
+              type="button"
+              variant={difficulty === level ? "default" : "outline"}
+              onClick={() => onChange(level)}
+              className="w-full"
+            >
               {DIFFICULTY_LABEL[level]}
             </Button>
           ))}
         </div>
-        <Button type="button" onClick={onClose} className="mt-6 w-full">Enregistrer</Button>
+        <Button type="button" onClick={onClose} className="mt-6 w-full">
+          Enregistrer
+        </Button>
       </div>
     </div>
   );
@@ -1439,9 +1453,7 @@ function MeldHistoryPanel({
         </div>
 
         {entries.length === 0 ? (
-          <p className="mt-6 text-sm text-muted-foreground">
-            Aucun compte annoncé pour le moment.
-          </p>
+          <p className="mt-6 text-sm text-muted-foreground">Aucun compte annoncé pour le moment.</p>
         ) : (
           <ul className="mt-5 flex flex-col gap-2">
             {entries.map((e) => (

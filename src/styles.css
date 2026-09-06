@@ -110,7 +110,6 @@
   --font-body: "Outfit", system-ui, sans-serif;
 }
 
-
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
@@ -176,7 +175,10 @@
     background-attachment: fixed;
     min-height: 100dvh;
   }
-  h1, h2, h3, .font-display {
+  h1,
+  h2,
+  h3,
+  .font-display {
     font-family: var(--font-display);
     letter-spacing: 0.02em;
   }
@@ -198,34 +200,83 @@
 }
 
 @keyframes deal-in {
-  from { opacity: 0; transform: translateY(18px) scale(0.9); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes trick-in {
-  from { opacity: 0; transform: translateY(-10px) rotate(-4deg) scale(0.85); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(-10px) rotate(-4deg) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes slot-fill {
-  0% { opacity: 0; transform: translateY(-26px) scale(0.82) rotate(-6deg); }
-  60% { opacity: 1; transform: translateY(2px) scale(1.04) rotate(1deg); }
-  100% { opacity: 1; transform: none; }
+  0% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.82) rotate(-6deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.04) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes slot-wait {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 @keyframes banner-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-@utility animate-deal { animation: deal-in 0.35s ease-out both; }
-@utility animate-trick { animation: trick-in 0.3s ease-out both; }
-@utility animate-slot-fill { animation: slot-fill 0.5s cubic-bezier(.22,.9,.3,1) both; }
-@utility animate-slot-wait { animation: slot-wait 1.6s ease-in-out infinite; }
-@utility animate-banner { animation: banner-in 0.25s ease-out both; }
+@utility animate-deal {
+  animation: deal-in 0.35s ease-out both;
+}
+@utility animate-trick {
+  animation: trick-in 0.3s ease-out both;
+}
+@utility animate-slot-fill {
+  animation: slot-fill 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+@utility animate-slot-wait {
+  animation: slot-wait 1.6s ease-in-out infinite;
+}
+@utility animate-banner {
+  animation: banner-in 0.25s ease-out both;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-deal, .animate-trick, .animate-slot-fill, .animate-slot-wait, .animate-banner { animation: none; }
-  .playing-card { transition: none; }
+  .animate-deal,
+  .animate-trick,
+  .animate-slot-fill,
+  .animate-slot-wait,
+  .animate-banner {
+    animation: none;
+  }
+  .playing-card {
+    transition: none;
+  }
 }
-

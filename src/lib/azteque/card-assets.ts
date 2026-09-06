@@ -34,10 +34,46 @@ import clubTen from "@/assets/cards/10_club.svg";
 import clubAce from "@/assets/cards/ace_club.svg";
 
 const CARD_ASSETS: Record<Suit, Record<Rank, string>> = {
-  S: { "7": spade7, "8": spade8, "9": spade9, "J": spadeJack, "Q": spadeQueen, "K": spadeKing, "10": spadeTen, "A": spadeAce },
-  H: { "7": heart7, "8": heart8, "9": heart9, "J": heartJack, "Q": heartQueen, "K": heartKing, "10": heartTen, "A": heartAce },
-  D: { "7": diamond7, "8": diamond8, "9": diamond9, "J": diamondJack, "Q": diamondQueen, "K": diamondKing, "10": diamondTen, "A": diamondAce },
-  C: { "7": club7, "8": club8, "9": club9, "J": clubJack, "Q": clubQueen, "K": clubKing, "10": clubTen, "A": clubAce },
+  S: {
+    "7": spade7,
+    "8": spade8,
+    "9": spade9,
+    J: spadeJack,
+    Q: spadeQueen,
+    K: spadeKing,
+    "10": spadeTen,
+    A: spadeAce,
+  },
+  H: {
+    "7": heart7,
+    "8": heart8,
+    "9": heart9,
+    J: heartJack,
+    Q: heartQueen,
+    K: heartKing,
+    "10": heartTen,
+    A: heartAce,
+  },
+  D: {
+    "7": diamond7,
+    "8": diamond8,
+    "9": diamond9,
+    J: diamondJack,
+    Q: diamondQueen,
+    K: diamondKing,
+    "10": diamondTen,
+    A: diamondAce,
+  },
+  C: {
+    "7": club7,
+    "8": club8,
+    "9": club9,
+    J: clubJack,
+    Q: clubQueen,
+    K: clubKing,
+    "10": clubTen,
+    A: clubAce,
+  },
 };
 
 export function getCardAsset(rank: Rank, suit: Suit): string {

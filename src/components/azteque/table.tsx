@@ -77,7 +77,9 @@ export function CapturedPile({
         onClick={onOpen}
         disabled={cards.length === 0}
         className="flex w-24 flex-col items-center gap-0.5 disabled:cursor-default"
-        aria-label={cards.length > 0 ? `Consulter vos ${cards.length} cartes sorties` : "Aucune carte sortie"}
+        aria-label={
+          cards.length > 0 ? `Consulter vos ${cards.length} cartes sorties` : "Aucune carte sortie"
+        }
       >
         {pile}
       </button>
@@ -85,7 +87,10 @@ export function CapturedPile({
   }
 
   return (
-    <div className="flex w-24 cursor-not-allowed flex-col items-center gap-0.5" aria-label="Tas adverse non consultable">
+    <div
+      className="flex w-24 cursor-not-allowed flex-col items-center gap-0.5"
+      aria-label="Tas adverse non consultable"
+    >
       {pile}
     </div>
   );
@@ -103,7 +108,10 @@ export function GainsPanel({
   subtitle?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
       <div
         className="panel max-h-[85dvh] w-full max-w-lg overflow-y-auto p-4 sm:p-6"
         onClick={(event) => event.stopPropagation()}
@@ -241,11 +249,7 @@ export function HandRow({
     >
       {ordered.map((c, i) =>
         c === null ? (
-          <div
-            key={`empty-${i}`}
-            className="min-w-0 max-w-[4.5rem] flex-1"
-            aria-hidden="true"
-          >
+          <div key={`empty-${i}`} className="min-w-0 max-w-[4.5rem] flex-1" aria-hidden="true">
             <div className="animate-slot-wait aspect-[5/7] w-full rounded-[3px] border border-dashed border-gold/30" />
           </div>
         ) : (

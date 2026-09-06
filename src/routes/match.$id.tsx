@@ -39,7 +39,6 @@ import {
 } from "@/lib/azteque/online";
 import { BET_STEPS, addTokens, getTokens } from "@/lib/azteque/tokens";
 
-
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
     search["seat"] === "guest" ? { seat: "guest" } : { seat: "host" },
@@ -125,8 +124,8 @@ function OnlineTable() {
   const publish = useCallback(
     (next: GameState) => {
       setState(next);
-      void pushMatchState(id, next, next.phase === "gameEnd" ? "finished" : "playing").catch(
-        (e) => setError(e instanceof Error ? e.message : "Synchronisation impossible."),
+      void pushMatchState(id, next, next.phase === "gameEnd" ? "finished" : "playing").catch((e) =>
+        setError(e instanceof Error ? e.message : "Synchronisation impossible."),
       );
     },
     [id],
@@ -134,7 +133,7 @@ function OnlineTable() {
 
   /* ---------- Mise de jetons ---------- */
   const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
-  const settings = (row?.settings ?? {}) as Record<string, unknown>;
+  const settings = useMemo(() => (row?.settings ?? {}) as Record<string, unknown>, [row?.settings]);
   const bet = (settings["bet"] as BetNegotiation | undefined) ?? null;
   const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
   const [balance, setBalance] = useState(0);
@@ -183,8 +182,7 @@ function OnlineTable() {
       () => {
         publish(resolveTrick(state, { atout10: true }));
         sfx.collect();
-        if (state.trick.some((entry) => isBonne(entry.card)))
-          setTimeout(() => sfx.snicker(), 320);
+        if (state.trick.some((entry) => isBonne(entry.card))) setTimeout(() => sfx.snicker(), 320);
       },
       isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
     );
@@ -212,10 +210,8 @@ function OnlineTable() {
   useEffect(() => {
     if (!state) return;
     if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
-    const won =
-      state.phase === "gameEnd" ? state.champWinner === me : state.roundWinner === me;
-    const lost =
-      state.phase === "gameEnd" ? state.champWinner === opp : state.roundWinner === opp;
+    const won = state.phase === "gameEnd" ? state.champWinner === me : state.roundWinner === me;
+    const lost = state.phase === "gameEnd" ? state.champWinner === opp : state.roundWinner === opp;
     const t = setTimeout(() => {
       if (won) sfx.cheer();
       else if (lost) sfx.taunt();
@@ -290,7 +286,6 @@ function OnlineTable() {
       setMyLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
     }, 500);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnKey, myMustAct]);
 
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
@@ -322,13 +317,7 @@ function OnlineTable() {
     return () => clearInterval(t);
   }, [oppOnline, state, opp, declareForfeit]);
 
-
-
-
-  const myMelds = useMemo(
-    () => (state ? availableMelds(state, me) : []),
-    [state, me],
-  );
+  const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   const legalIds = useMemo(() => {
     if (!state) return new Set<string>();
     const ok =
@@ -511,9 +500,7 @@ function OnlineTable() {
                   <button
                     key={m.suit}
                     onClick={() =>
-                      setMeldPick((p) =>
-                        on ? p.filter((s) => s !== m.suit) : [...p, m.suit],
-                      )
+                      setMeldPick((p) => (on ? p.filter((s) => s !== m.suit) : [...p, m.suit]))
                     }
                     className={
                       on
@@ -635,9 +622,7 @@ function OnlineTable() {
             </p>
             {state.phase === "roundEnd" ? (
               !betReady ? (
-                <p className="mt-5 text-xs text-gold">
-                  Accordez-vous sur la mise du tour suivant…
-                </p>
+                <p className="mt-5 text-xs text-gold">Accordez-vous sur la mise du tour suivant…</p>
               ) : isHost ? (
                 <button
                   onClick={nextRound}
@@ -699,9 +684,7 @@ function OnlineTable() {
         </div>
       )}
 
-      {showMyGains && (
-        <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />
-      )}
+      {showMyGains && <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />}
       {showMyBonnes && (
         <GainsPanel
           cards={state.gains[me].filter(isBonne)}
@@ -725,6 +708,5 @@ function OnlineTable() {
 
       <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
     </main>
-
   );
 }

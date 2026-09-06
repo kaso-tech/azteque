@@ -109,7 +109,11 @@ function OnlineLobby() {
     if (!inviteLink) return;
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Partie d'Aztèque", text: `Rejoins ma partie : ${match?.code}`, url: inviteLink });
+        await navigator.share({
+          title: "Partie d'Aztèque",
+          text: `Rejoins ma partie : ${match?.code}`,
+          url: inviteLink,
+        });
         return;
       }
       await navigator.clipboard.writeText(inviteLink);
