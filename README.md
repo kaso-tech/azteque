@@ -182,7 +182,13 @@ Valeur des comptes :
 | | Compte simple | Compte triple |
 | --- | --- | --- |
 | Premier compte (créant l'atout) | 4 points | 5 points |
-| Comptes suivants | 2 points | 3 points |
+| Comptes suivants (autre couleur) | 2 points | 3 points |
+
+**Second compte à l'atout**
+
+Le jeu utilise deux jeux de 52 cartes : un second Roi + Dame (+ Valet) de la couleur d'atout peut donc exister. Ce second compte à l'atout est annonçable — par le même joueur ou par l'adversaire — et se compte exactement comme le premier compte (4 points pour un compte simple, 5 points pour un compte triple), et non au barème réduit des comptes d'une autre couleur.
+
+> Exemple : un joueur annonce un compte à Trèfle qui fixe l'atout et vaut 4 points (5 s'il s'agit d'un trio). Plus tard dans le tour, ce même joueur ou son adversaire peut encore annoncer le deuxième compte à Trèfle, formé avec les cartes du second jeu : il vaut lui aussi 4 points (ou 5).
 
 ## 12. Compléter un compte
 
@@ -274,6 +280,7 @@ ou
 - Plusieurs comptes peuvent être annoncés simultanément.
 - Le premier compte annoncé détermine l'atout.
 - Si plusieurs comptes sont annoncés lors de cette première annonce, le joueur choisit celui qui fixe l'atout.
+- Le second compte à la couleur d'atout (issu du second jeu de cartes), annoncé par le même joueur ou par l'adversaire, se compte comme le premier compte.
 - Une fois la pioche épuisée, aucun compte ne peut plus être annoncé.
 - Les cartes d'un compte restent dans la main du joueur.
 - Les cartes gagnées dans les plis ne reviennent jamais dans le jeu pendant le tour.

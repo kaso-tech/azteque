@@ -134,14 +134,18 @@ export function availableMelds(state: GameState, p: PlayerIndex, anytime = false
   if (state.stock.length === 0) return [];
   if (!anytime && state.canAnnounce !== p) return [];
   const hand = state.hands[p];
+  const used = new Set(state.exposed[p]);
   const done = new Set(state.melds[p].map((m) => m.suit));
   const out: MeldOption[] = [];
   for (const s of SUITS) {
-    if (done.has(s)) continue;
-    const k = hand.find((c) => c.suit === s && c.rank === "K");
-    const q = hand.find((c) => c.suit === s && c.rank === "Q");
+    // Une deuxième annonce dans la même couleur n'est permise que pour
+    // l'atout : le second jeu de cartes peut fournir un second Roi + Dame
+    // (+ Valet) de la couleur d'atout, qui se compte comme le premier.
+    if (done.has(s) && s !== state.trump) continue;
+    const k = hand.find((c) => c.suit === s && c.rank === "K" && !used.has(c.id));
+    const q = hand.find((c) => c.suit === s && c.rank === "Q" && !used.has(c.id));
     if (!k || !q) continue;
-    const j = hand.find((c) => c.suit === s && c.rank === "J");
+    const j = hand.find((c) => c.suit === s && c.rank === "J" && !used.has(c.id));
     out.push({ suit: s, type: j ? "triple" : "simple", cards: j ? [k, q, j] : [k, q] });
   }
   return out;
@@ -176,14 +180,20 @@ export function announce(
       ? trumpChoice
       : opts[0]!.suit
     : null;
+  // Couleur d'atout après cette annonce (déjà fixée, ou fixée à l'instant).
+  const effectiveTrump = trumpSuit ?? s.trump;
 
   let simpleAnnounced: Suit | null = null;
   const ordered = trumpSuit
     ? [opts.find((o) => o.suit === trumpSuit)!, ...opts.filter((o) => o.suit !== trumpSuit)]
     : opts;
 
-  ordered.forEach((o, i) => {
-    const first = isFirstAnnounceOfRound && i === 0;
+  ordered.forEach((o) => {
+    // Tout compte à la couleur d'atout se compte comme le premier compte
+    // (celui qui a créé l'atout), même annoncé plus tard par le même
+    // joueur ou par l'adversaire — seuls les comptes d'une autre couleur
+    // valent le barème réduit.
+    const first = o.suit === effectiveTrump;
     const pts = meldPoints(o.type, first);
     s.melds[p].push({ suit: o.suit, type: o.type, points: pts, first });
     s.exposed[p].push(...o.cards.map((c) => c.id));
