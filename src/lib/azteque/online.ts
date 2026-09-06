@@ -95,6 +95,24 @@ export async function pushMatchState(id: string, state: unknown, status: MatchSt
   if (error) throw error;
 }
 
+/** Négociation de mise avant le début d'un tour. */
+export interface BetNegotiation {
+  amount: number;
+  /** Siège ayant fait la dernière proposition. */
+  by: "host" | "guest";
+  status: "pending" | "accepted";
+  /** Numéro du tour concerné (1 = premier tour). */
+  round: number;
+}
+
+export async function pushMatchSettings(id: string, settings: Record<string, unknown>) {
+  const { error } = await supabase
+    .from("matches")
+    .update({ settings: settings as never })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export function subscribeMatch(id: string, onChange: (row: MatchRow) => void) {
   const channel = supabase
     .channel(`match-${id}`)
