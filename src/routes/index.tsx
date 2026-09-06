@@ -974,9 +974,43 @@ function Azteque() {
                   ? "Rejouer le tour"
                   : "Tour suivant"}
             </button>
+            <button
+              onClick={quitTable}
+              className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
+            >
+              Quitter
+            </button>
           </div>
         </div>
       )}
+
+      {confirmQuit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Quitter la table ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              La partie en cours sera abandonnée.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmQuit(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Rester
+              </button>
+              <button
+                type="button"
+                onClick={quitTable}
+                className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
+              >
+                Quitter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
       {showPlayerProfile && (
