@@ -107,7 +107,7 @@ export async function clearStaleSession(): Promise<void> {
 export async function signInWithGoogle() {
   const { lovable } = await import("@/integrations/lovable");
   await lovable.auth.signInWithOAuth("google", {
-    redirect_uri: typeof window === "undefined" ? undefined : window.location.origin,
+    redirect_uri: window.location.origin,
   });
 }
 
