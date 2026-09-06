@@ -268,6 +268,29 @@
   animation: banner-in 0.25s ease-out both;
 }
 
+/*
+ * Compte à rebours du tour. La barre est animée par le navigateur d'un seul
+ * trait, du vert au rouge : la progression est ainsi parfaitement continue,
+ * là où une largeur recalculée à chaque seconde par React avançait par
+ * à-coups. Le décompte JavaScript, lui, reste grossier — il ne sert qu'à
+ * déclarer le dépassement de délai.
+ */
+@keyframes turn-countdown {
+  from {
+    width: 100%;
+    background-color: hsl(120 78% 45%);
+    box-shadow: 0 0 8px hsl(120 78% 45% / 0.6);
+  }
+  to {
+    width: 0%;
+    background-color: hsl(0 78% 45%);
+    box-shadow: 0 0 8px hsl(0 78% 45% / 0.6);
+  }
+}
+@utility animate-countdown {
+  animation: turn-countdown var(--turn-duration, 30s) linear forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-deal,
   .animate-trick,

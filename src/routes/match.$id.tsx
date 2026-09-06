@@ -79,7 +79,7 @@ function OnlineTable() {
   const [row, setRow] = useState<MatchRow | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [meldPick, setMeldPick] = useState<Suit[]>([]);
+  const [choosingTrump, setChoosingTrump] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -420,7 +420,6 @@ function OnlineTable() {
     state.turn === me &&
     state.trick.length < 2 &&
     state.drawPending.length === 0;
-  const myLeft = useTurnCountdown(myMustAct, turnKey, TURN_LIMIT);
 
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
@@ -489,15 +488,37 @@ function OnlineTable() {
     void runAction({ type: "play_card", cardId: card.id });
   };
 
+  // Un compte s'annonce en bloc : tous ceux que la main permet, d'un seul clic
+  // — c'est toujours l'intérêt du joueur, chacun valant des points. L'atout
+  // n'est à désigner que s'il est réellement ambigu : plusieurs comptes
+  // annonçables alors qu'il n'est pas encore fixé.
+  const needsTrumpChoice = !!state && state.trump === null && myMelds.length > 1;
+  const meldSummary = myMelds
+    .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
+    .join(" + ");
+
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
     sfx.chuckle();
-    void runAction({ type: "announce", suits: meldPick, trump: trumpChoice });
-    setMeldPick([]);
+    void runAction({
+      type: "announce",
+      suits: myMelds.map((m) => m.suit),
+      trump: trumpChoice,
+    });
+    setChoosingTrump(false);
+  };
+
+  const announceMelds = () => {
+    if (!state) return;
+    if (needsTrumpChoice) {
+      setChoosingTrump(true);
+      return;
+    }
+    doAnnounce(state.trump === null ? (myMelds[0]?.suit ?? null) : null);
   };
 
   const skipAnnounce = () => {
-    setMeldPick([]);
+    setChoosingTrump(false);
     void runAction({ type: "skip_announce" });
   };
 
@@ -582,7 +603,7 @@ function OnlineTable() {
             keepSlots={state.stock.length > 0}
           />
         </div>
-        <TurnBar left={turnLeft} total={TURN_LIMIT} active={oppMustAct} label={oppName} />
+        <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} />
       </section>
 
       {/* Tapis */}
@@ -601,13 +622,17 @@ function OnlineTable() {
           />
         </div>
 
+        {/* Aligné sur les mêmes conditions que la barre de temps, pour que
+            l'annonce du tour et le compte à rebours apparaissent ensemble. */}
         {state.trick.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            {state.phase === "playing"
-              ? state.turn === me
+            {state.phase !== "playing"
+              ? "Tour terminé."
+              : myMustAct
                 ? "À vous de jouer."
-                : `${oppName} réfléchit…`
-              : "Tour terminé."}
+                : oppMustAct
+                  ? `${oppName} réfléchit…`
+                  : "\u00a0"}
           </p>
         )}
 
@@ -646,61 +671,47 @@ function OnlineTable() {
           </span>
         )}
 
+        {/* Annonce de comptes : un seul clic dans le cas courant, le choix de
+            l'atout n'étant demandé que lorsqu'il est réellement ambigu. */}
         {meldDecisionPending && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2">
-            <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-              Annoncer un compte ?
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {myMelds.map((m) => {
-                const on = meldPick.includes(m.suit);
-                return (
+            {choosingTrump ? (
+              <>
+                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+                  Quel compte fixe l'atout ?
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {myMelds.map((m) => (
+                    <button
+                      key={m.suit}
+                      onClick={() => doAnnounce(m.suit)}
+                      className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                    >
+                      {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+                  Annoncer {meldSummary} ?
+                </p>
+                <div className="flex flex-wrap gap-1">
                   <button
-                    key={m.suit}
-                    onClick={() =>
-                      setMeldPick((p) => (on ? p.filter((s) => s !== m.suit) : [...p, m.suit]))
-                    }
-                    className={
-                      on
-                        ? "rounded border border-gold bg-gold/20 px-2 py-1 text-[0.6rem] leading-none text-gold"
-                        : "rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
-                    }
-                  >
-                    {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]} — {m.type}
-                  </button>
-                );
-              })}
-              <button
-                onClick={skipAnnounce}
-                className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
-              >
-                Passer
-              </button>
-            </div>
-            {meldPick.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                {state.trump === null ? (
-                  <>
-                    <span className="text-[0.58rem] text-muted-foreground">Atout :</span>
-                    {meldPick.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => doAnnounce(s)}
-                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
-                      >
-                        {SUIT_SYMBOL[s]} {SUIT_NAME[s]}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <button
-                    onClick={() => doAnnounce(null)}
+                    onClick={announceMelds}
                     className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
                   >
                     Annoncer
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={skipAnnounce}
+                    className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
+                  >
+                    Passer
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -708,7 +719,7 @@ function OnlineTable() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
-        <TurnBar left={myLeft} total={TURN_LIMIT} active={myMustAct} label={myName} />
+        <TurnBar total={TURN_LIMIT} active={myMustAct} resetKey={turnKey} />
         <div ref={handRefs[me]}>
           <HandRow
             cards={state.hands[me]}

@@ -81,7 +81,7 @@ function Azteque() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("Joueur");
   const [profileReady, setProfileReady] = useState(false);
-  const [meldPick, setMeldPick] = useState<Suit[]>([]);
+  const [choosingTrump, setChoosingTrump] = useState(false);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
@@ -89,7 +89,6 @@ function Azteque() {
     { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
   >([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [phaseMsg, setPhaseMsg] = useState<string | null>(null);
 
   const [flying, setFlying] = useState<{ card: Card; from: { x: number; y: number } } | null>(null);
   const [collect, setCollect] = useState<
@@ -241,7 +240,10 @@ function Azteque() {
 
   const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
     setState(newRound(dealer, won));
-    setMeldPick([]);
+    // Les comptes annoncés valent pour le tour écoulé : la nouvelle donne
+    // repart d'un historique vide.
+    setMeldHistory([]);
+    setChoosingTrump(false);
     setRedealDone(false);
     setRoundKey((k) => k + 1);
   }, []);
@@ -299,7 +301,6 @@ function Azteque() {
 
         if (winner === second.player) sfx.beat();
         else sfx.collect();
-        setPhaseMsg(winner === 0 ? "Vous ramassez le pli" : "L'adversaire ramasse le pli");
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
         // Petit ricanement dès qu'une bonne tombe dans un tas
@@ -319,11 +320,6 @@ function Azteque() {
             if (sweeps > 0 && loserPile && winnerPile) {
               const layers = Math.min(6, sweeps);
               sfx.sweep();
-              setPhaseMsg(
-                winner === 0
-                  ? `Atout 10 ! Vous raflez le tas adverse (${sweeps})`
-                  : `Atout 10 ! L'adversaire rafle votre tas (${sweeps})`,
-              );
               setSweepFlights(
                 Array.from({ length: layers }, (_, i) => ({
                   id: i,
@@ -337,7 +333,6 @@ function Azteque() {
                   () => {
                     setSweepFlights([]);
                     setState(next);
-                    timers.push(setTimeout(() => setPhaseMsg(null), 900));
                   },
                   layers * 90 + 620,
                 ),
@@ -345,7 +340,6 @@ function Azteque() {
               return;
             }
             setState(next);
-            timers.push(setTimeout(() => setPhaseMsg(null), 600));
           }, lastDelay + 560),
         );
       }, settings.trickDelay),
@@ -389,15 +383,6 @@ function Azteque() {
     const t = setTimeout(() => {
       const from = center(stockRef.current);
       const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
-      setPhaseMsg(
-        player === 0
-          ? state.drawPending.length > 1
-            ? "Vous piochez en premier"
-            : "Vous piochez"
-          : state.drawPending.length > 1
-            ? "L'adversaire pioche en premier"
-            : "L'adversaire pioche",
-      );
       if (from && to) {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
         sfx.draw();
@@ -406,7 +391,6 @@ function Azteque() {
       timers.push(
         setTimeout(() => {
           setDrawFlights([]);
-          setPhaseMsg(null);
           setState((s) => drawNext(s));
         }, 580),
       );
@@ -471,7 +455,6 @@ function Azteque() {
     state.turn === 1 &&
     !meldDecisionPending &&
     state.drawPending.length === 0;
-  const oppLeft = useTurnCountdown(oppTurnActive, turnKey, TURN_LIMIT);
 
   const [confirmQuit, setConfirmQuit] = useState(false);
   const quitTable = useCallback(() => {
@@ -485,21 +468,58 @@ function Azteque() {
       const ns = newRound(dealer, s.roundsWon);
       return ns;
     });
-    setMeldPick([]);
+    setMeldHistory([]);
+    setChoosingTrump(false);
     setRedealDone(false);
     setRoundKey((k) => k + 1);
   }, []);
 
   const restart = useCallback(() => {
-    setMeldHistory([]);
     tokenAwarded.current = false;
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
+  // Un compte s'annonce en bloc : tous ceux que la main permet, d'un seul clic
+  // — c'est toujours l'intérêt du joueur, chacun valant des points. L'atout
+  // n'est à désigner que s'il est réellement ambigu : plusieurs comptes
+  // annonçables alors qu'il n'est pas encore fixé. Avec un seul compte, la
+  // couleur se déduit d'elle-même.
+  const needsTrumpChoice = state.trump === null && myMelds.length > 1;
+  const meldSummary = myMelds
+    .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
+    .join(" + ");
+
+  // Changer de niveau en cours de partie reviendrait à finir en Légende un
+  // champ commencé en Facile — et à empocher la récompense du niveau le plus
+  // élevé sans l'avoir affrontée. Tout changement repart donc d'une partie
+  // neuve, quel que soit l'écran par lequel il passe.
+  const playedDifficulty = useRef(settings.difficulty);
+  useEffect(() => {
+    if (playedDifficulty.current === settings.difficulty) return;
+    playedDifficulty.current = settings.difficulty;
+    if (!started) return;
+    restart();
+  }, [settings.difficulty, started, restart]);
+
   const doAnnounce = (trumpChoice: Suit | null) => {
-    setState((s) => announce(s, 0, meldPick, trumpChoice));
-    setMeldPick([]);
+    setState((s) =>
+      announce(
+        s,
+        0,
+        availableMelds(s, 0).map((m) => m.suit),
+        trumpChoice,
+      ),
+    );
+    setChoosingTrump(false);
     sfx.chuckle();
+  };
+
+  const announceMelds = () => {
+    if (needsTrumpChoice) {
+      setChoosingTrump(true);
+      return;
+    }
+    doAnnounce(state.trump === null ? (myMelds[0]?.suit ?? null) : null);
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
@@ -613,12 +633,7 @@ function Azteque() {
               keepSlots={state.stock.length > 0}
             />
           </div>
-          <TurnBar
-            left={oppLeft}
-            total={TURN_LIMIT}
-            active={oppTurnActive}
-            label={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
-          />
+          <TurnBar total={TURN_LIMIT} active={oppTurnActive} resetKey={turnKey} />
         </div>
       </section>
 
@@ -635,13 +650,18 @@ function Azteque() {
           <CapturedPile cards={state.gains[0]} owner="player" onOpen={() => setShowMyGains(true)} />
         </div>
 
+        {/* Aligné sur les mêmes conditions que la barre de temps, pour que
+            l'annonce du tour et le compte à rebours apparaissent ensemble.
+            L'espace insécable réserve la ligne pendant la pioche. */}
         {state.trick.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            {state.phase === "playing"
-              ? state.turn === 0
+            {state.phase !== "playing"
+              ? "Tour terminé."
+              : myTurnActive && !meldDecisionPending
                 ? "À vous de mener."
-                : "L'adversaire réfléchit…"
-              : "Tour terminé."}
+                : oppTurnActive
+                  ? "L'adversaire réfléchit…"
+                  : "\u00a0"}
           </p>
         )}
 
@@ -676,31 +696,19 @@ function Azteque() {
           </div>
         </div>
 
-        {(phaseMsg || (state.trick.length === 2 && collect.length === 0) || state.trump) && (
-          <div className="pointer-events-none absolute right-2 top-2 z-20 flex max-w-32 flex-col items-end gap-1">
-            {(phaseMsg || (state.trick.length === 2 && collect.length === 0)) && (
-              <p
-                key={phaseMsg ?? "compare"}
-                className="animate-banner rounded border border-gold/35 bg-felt-deep/90 px-2 py-1 text-center text-[0.58rem] font-semibold leading-tight text-gold-soft shadow-[var(--shadow-card)]"
-              >
-                {phaseMsg ?? "Comparaison des cartes…"}
-              </p>
-            )}
-            {state.trump && (
-              <span className="rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
-                Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
-              </span>
-            )}
-          </div>
+        {state.trump && (
+          <span className="pointer-events-none absolute right-2 top-2 z-20 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
+            Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
+          </span>
         )}
 
         {/* Main blanche */}
         {canRedeal && (
-          <div className="w-full max-w-lg rounded-lg border border-accent/50 bg-secondary/60 p-3 text-center">
+          <div className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]">
             <p className="text-xs text-accent">
               Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
             </p>
-            <div className="mt-2 flex justify-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
               <button
                 onClick={() => deal(state.dealer, state.roundsWon)}
                 className="rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground"
@@ -717,92 +725,67 @@ function Azteque() {
           </div>
         )}
 
-        {/* Annonce de comptes */}
+        {/* Annonce de comptes : un seul clic dans le cas courant. Le choix de
+            l'atout n'est demandé que s'il est réellement ambigu — deux comptes
+            annonçables et l'atout pas encore fixé. Avec un seul compte, ou
+            l'atout déjà fixé, il n'y a rien à choisir. */}
         {meldDecisionPending && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
-            <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-              Annoncer un compte ?
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {myMelds.map((m) => {
-                const on = meldPick.includes(m.suit);
-                return (
+            {choosingTrump ? (
+              <>
+                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+                  Quel compte fixe l'atout ?
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {myMelds.map((m) => (
+                    <button
+                      key={m.suit}
+                      onClick={() => doAnnounce(m.suit)}
+                      className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                    >
+                      {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+                  Annoncer {meldSummary} ?
+                </p>
+                <div className="flex flex-wrap gap-1">
                   <button
-                    key={m.suit}
-                    onClick={() =>
-                      setMeldPick((p) => (on ? p.filter((s) => s !== m.suit) : [...p, m.suit]))
-                    }
-                    className={cn(
-                      "rounded border px-2 py-1 text-[0.6rem] leading-none transition-colors",
-                      on
-                        ? "border-gold bg-gold/20 text-gold"
-                        : "border-border text-muted-foreground hover:bg-secondary",
-                    )}
-                  >
-                    {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]} — {m.type}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => {
-                  setMeldPick([]);
-                  // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
-                  setState((s) => (s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s));
-                }}
-                className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
-              >
-                Passer
-              </button>
-            </div>
-            {meldPick.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                {state.trump === null ? (
-                  <>
-                    <span className="text-[0.58rem] text-muted-foreground">Atout :</span>
-                    {meldPick.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => doAnnounce(s)}
-                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
-                      >
-                        {SUIT_SYMBOL[s]} {SUIT_NAME[s]}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <button
-                    onClick={() => doAnnounce(null)}
+                    onClick={announceMelds}
                     className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
                   >
                     Annoncer
                   </button>
-                )}
-                <button
-                  onClick={() => setMeldPick([])}
-                  className="px-1 text-[0.58rem] text-muted-foreground underline"
-                >
-                  Annuler
-                </button>
-              </div>
+                  <button
+                    onClick={() => {
+                      setChoosingTrump(false);
+                      // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
+                      setState((s) => (s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s));
+                    }}
+                    className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
+                  >
+                    Passer
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
 
         {state.stock.length === 0 && state.phase === "playing" && (
           <p className="text-[0.7rem] uppercase tracking-widest text-accent">
-            Phase finale — fournir, battre, protéger ses bonnes
+            Pioche épuisée — fournir, battre, protéger ses bonnes
           </p>
         )}
       </section>
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
-        <TurnBar
-          left={turnLeft}
-          total={TURN_LIMIT}
-          active={myTurnActive}
-          label={playerName || "Vous"}
-        />
+        <TurnBar total={TURN_LIMIT} active={myTurnActive} resetKey={turnKey} />
         <div ref={playerHandRef}>
           <HandRow
             cards={state.hands[0]}

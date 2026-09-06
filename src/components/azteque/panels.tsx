@@ -204,7 +204,11 @@ export function AiProfilePanel({
             </Button>
           ))}
         </div>
-        <Button type="button" onClick={onClose} className="mt-6 w-full">
+        <p className="mt-3 text-[0.68rem] text-muted-foreground">
+          Changer de niveau relance la partie depuis le premier tour : la récompense en jetons
+          dépend du niveau réellement affronté.
+        </p>
+        <Button type="button" onClick={onClose} className="mt-4 w-full">
           Enregistrer
         </Button>
       </div>

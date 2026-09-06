@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { cn } from "@/lib/utils";
 import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
@@ -42,7 +42,7 @@ export function CapturedPile({
 }) {
   const visibleLayers = Math.min(4, Math.max(1, Math.ceil(cards.length / 6)));
   const isPlayer = owner === "player";
-  const label = isPlayer ? "Vos cartes sorties" : "Cartes sorties adverses";
+  const label = isPlayer ? "Vos cartes" : "Cartes adverses";
   const pile = (
     <>
       <span className="text-[0.58rem] font-semibold text-muted-foreground">{label}</span>
@@ -78,7 +78,7 @@ export function CapturedPile({
         disabled={cards.length === 0}
         className="flex w-24 flex-col items-center gap-0.5 disabled:cursor-default"
         aria-label={
-          cards.length > 0 ? `Consulter vos ${cards.length} cartes sorties` : "Aucune carte sortie"
+          cards.length > 0 ? `Consulter vos ${cards.length} cartes` : "Aucune carte remportée"
         }
       >
         {pile}
@@ -99,7 +99,7 @@ export function CapturedPile({
 export function GainsPanel({
   cards,
   onClose,
-  title = "Vos cartes sorties",
+  title = "Vos cartes",
   subtitle,
 }: {
   cards: Card[];
@@ -302,41 +302,34 @@ export function StockPile({ count }: { count: number }) {
   );
 }
 
-/** Barre de temps du tour : verte au départ, rouge à l'approche de la fin. */
+/**
+ * Barre de temps du tour : verte au départ, rouge à l'approche de la fin.
+ *
+ * L'animation est confiée au navigateur (voir `animate-countdown`) plutôt que
+ * recalculée à chaque seconde : la progression est ainsi continue. `resetKey`
+ * doit changer à chaque nouveau tour — il sert de `key` React, ce qui remonte
+ * l'élément et relance l'animation depuis le début.
+ */
 export function TurnBar({
-  left,
   total,
   active,
-  label,
+  resetKey,
 }: {
-  left: number;
   total: number;
   active: boolean;
-  label: string;
+  resetKey: string;
 }) {
-  const ratio = active ? Math.max(0, Math.min(1, left / total)) : 1;
-  const hue = Math.round(120 * ratio);
-
   return (
-    <div className="flex w-full items-center gap-2">
-      <span
-        className={cn(
-          "w-24 shrink-0 text-[0.58rem] font-semibold uppercase tracking-wide",
-          active ? "text-gold" : "text-muted-foreground/60",
-        )}
-      >
-        {label}
-      </span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
+    <div className="h-1.5 w-full overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
+      {active ? (
         <div
-          className="h-full rounded-full transition-[width,background-color] duration-500 ease-linear"
-          style={{
-            width: `${ratio * 100}%`,
-            backgroundColor: active ? `hsl(${hue} 78% 45%)` : "hsl(0 0% 40% / 0.35)",
-            boxShadow: active ? `0 0 8px hsl(${hue} 78% 45% / 0.6)` : "none",
-          }}
+          key={resetKey}
+          className="animate-countdown h-full rounded-full"
+          style={{ "--turn-duration": `${total}s` } as CSSProperties}
         />
-      </div>
+      ) : (
+        <div className="h-full w-full rounded-full bg-muted-foreground/20" />
+      )}
     </div>
   );
 }
