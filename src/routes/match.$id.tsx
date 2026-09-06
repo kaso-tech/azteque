@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SUIT_NAME,
   SUIT_SYMBOL,
@@ -25,14 +25,18 @@ import {
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
+import { BetPanel } from "@/components/azteque/BetPanel";
 import {
   ensureOnlineIdentity,
   getMatch,
+  pushMatchSettings,
   pushMatchState,
   subscribeMatch,
   trackPresence,
+  type BetNegotiation,
   type MatchRow,
 } from "@/lib/azteque/online";
+import { BET_STEPS, addTokens, getTokens } from "@/lib/azteque/tokens";
 
 
 export const Route = createFileRoute("/match/$id")({
@@ -127,32 +131,78 @@ function OnlineTable() {
     [id],
   );
 
-  // L'hôte distribue la première donne dès que l'invité est là
-  useEffect(() => {
-    if (!isHost || !row?.guest_name || state) return;
-    publish(newRound(1));
-  }, [isHost, row?.guest_name, state, publish]);
+  /* ---------- Mise de jetons ---------- */
+  const roundNo = state ? state.roundsWon[0] + state.roundsWon[1] + 1 : 1;
+  const settings = (row?.settings ?? {}) as Record<string, unknown>;
+  const bet = (settings["bet"] as BetNegotiation | undefined) ?? null;
+  const betReady = !!bet && bet.status === "accepted" && bet.round === roundNo;
+  const [balance, setBalance] = useState(0);
+  useEffect(() => setBalance(getTokens()), []);
 
-  // L'hôte arbitre : résolution du pli puis pioches
+  const proposeBet = useCallback(
+    (amount: number) => {
+      if (!row || !verifiedSeat) return;
+      const next: BetNegotiation = { amount, by: verifiedSeat, status: "pending", round: roundNo };
+      setRow({ ...row, settings: { ...settings, bet: next } });
+      void pushMatchSettings(id, { ...settings, bet: next });
+    },
+    [id, row, settings, roundNo, verifiedSeat],
+  );
+
+  const acceptBet = useCallback(() => {
+    if (!row || !bet) return;
+    const next: BetNegotiation = { ...bet, status: "accepted", round: roundNo };
+    setRow({ ...row, settings: { ...settings, bet: next } });
+    void pushMatchSettings(id, { ...settings, bet: next });
+  }, [id, row, settings, bet, roundNo]);
+
+  // Règlement des jetons en fin de champ
+  const settled = useRef(false);
   useEffect(() => {
-    if (!isHost || !state || state.phase !== "playing" || state.trick.length < 2) return;
-    const t = setTimeout(() => {
-      publish(resolveTrick(state, { atout10: true }));
-      sfx.collect();
-    }, TRICK_DELAY);
+    if (!state || state.phase !== "gameEnd" || !bet || bet.status !== "accepted") return;
+    if (settled.current) return;
+    settled.current = true;
+    setBalance(addTokens(state.champWinner === me ? bet.amount : -bet.amount));
+  }, [state, bet, me]);
+
+  // L'hôte distribue la donne une fois la mise acceptée
+  useEffect(() => {
+    if (!isHost || !row?.guest_name || !betReady) return;
+    if (state && state.phase !== "roundEnd") return;
+    if (state && state.roundsWon[0] + state.roundsWon[1] + 1 !== roundNo) return;
+    if (state) return;
+    publish(newRound(1));
+  }, [isHost, row?.guest_name, state, publish, betReady, roundNo]);
+
+  // L'hôte arbitre : résolution du pli puis pioches.
+  // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
+  useEffect(() => {
+    if (!state || state.phase !== "playing" || state.trick.length < 2) return;
+    const t = setTimeout(
+      () => {
+        publish(resolveTrick(state, { atout10: true }));
+        sfx.collect();
+        if (state.trick.some((entry) => isBonne(entry.card)))
+          setTimeout(() => sfx.snicker(), 320);
+      },
+      isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
+    );
     return () => clearTimeout(t);
   }, [isHost, state, publish]);
 
   useEffect(() => {
-    if (!isHost || !state || state.phase !== "playing") return;
+    if (!state || state.phase !== "playing") return;
     if (state.drawPending.length === 0 || state.stock.length === 0) return;
     const player = state.drawPending[0]!;
     // Le vainqueur peut annoncer avant de piocher (5 cartes en main)
     if (state.canAnnounce === player && availableMelds(state, player).length > 0) return;
-    const t = setTimeout(() => {
-      publish(drawNext(state));
-      sfx.draw();
-    }, 700);
+    const t = setTimeout(
+      () => {
+        publish(drawNext(state));
+        sfx.draw();
+      },
+      isHost ? 700 : 4700,
+    );
     return () => clearTimeout(t);
   }, [isHost, state, publish]);
 
@@ -173,6 +223,14 @@ function OnlineTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey, me, opp]);
 
+  // Rire léger lorsque l'adversaire annonce un compte
+  const oppMeldCount = state ? state.melds[opp].length : 0;
+  const prevOppMelds = useRef(0);
+  useEffect(() => {
+    if (oppMeldCount > prevOppMelds.current) sfx.chuckle();
+    prevOppMelds.current = oppMeldCount;
+  }, [oppMeldCount]);
+
   // --- Chronomètre du tour et surveillance de la connexion ---
   const declareForfeit = useCallback(
     (loser: PlayerIndex, reason: "timeout" | "disconnect" | "quit") => {
@@ -188,12 +246,18 @@ function OnlineTable() {
   );
 
   // Le compte à rebours redémarre à chaque changement de tour
+  const oppMustAct =
+    !!state &&
+    state.phase === "playing" &&
+    state.turn === opp &&
+    state.trick.length < 2 &&
+    state.drawPending.length === 0;
   const turnKey = state
-    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}`
+    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}-${String(oppMustAct)}`
     : "";
   const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
   useEffect(() => {
-    if (!state || state.phase !== "playing") {
+    if (!state || state.phase !== "playing" || !oppMustAct) {
       setTurnLeft(TURN_LIMIT);
       return;
     }
@@ -208,11 +272,10 @@ function OnlineTable() {
 
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
-    if (!state || state.phase !== "playing") return;
+    if (!state || state.phase !== "playing" || !oppMustAct) return;
     if (turnLeft > 0) return;
-    if (state.turn !== opp || state.drawPending.length > 0) return;
     declareForfeit(opp, "timeout");
-  }, [turnLeft, state, opp, declareForfeit]);
+  }, [turnLeft, state, opp, oppMustAct, declareForfeit]);
 
   const [oppOnline, setOppOnline] = useState(true);
   const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
@@ -222,7 +285,7 @@ function OnlineTable() {
   }, [id, verifiedSeat]);
 
   useEffect(() => {
-    if (oppOnline || !state || state.phase === "gameEnd") {
+    if (oppOnline || !state || state.phase !== "playing") {
       setOfflineLeft(null);
       return;
     }
@@ -270,6 +333,7 @@ function OnlineTable() {
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
+    sfx.chuckle();
     publish(announce(state, me, meldPick, trumpChoice));
     setMeldPick([]);
   };
@@ -296,13 +360,26 @@ function OnlineTable() {
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
         <h1 className="gold-text text-3xl">Table en préparation…</h1>
         <p className="text-sm text-muted-foreground">
-          {row?.guest_name
-            ? "Distribution des cartes en cours."
-            : "En attente du second joueur."}
+          {!row?.guest_name
+            ? "En attente du second joueur."
+            : betReady
+              ? "Distribution des cartes en cours."
+              : "Accordez-vous sur la mise pour lancer le tour."}
         </p>
         <Link to="/online" className="text-xs text-gold underline">
           Retour au salon
         </Link>
+        {row?.guest_name && verifiedSeat && !betReady && (
+          <BetPanel
+            bet={bet}
+            mySeat={verifiedSeat}
+            oppName={me === 0 ? (row.guest_name ?? "Invité") : row.host_name}
+            balance={balance}
+            roundNo={roundNo}
+            onPropose={proposeBet}
+            onAccept={acceptBet}
+          />
+        )}
       </main>
     );
   }
@@ -324,6 +401,11 @@ function OnlineTable() {
           <p className="mt-0.5 text-[0.6rem] uppercase tracking-widest text-gold">
             Code {row.code}
           </p>
+          {bet?.status === "accepted" && (
+            <p className="mt-0.5 whitespace-nowrap text-[0.6rem] font-semibold text-gold">
+              🪙 {bet.amount}
+            </p>
+          )}
         </div>
         <p className="truncate text-right text-xs font-semibold text-foreground">{oppName}</p>
       </header>
@@ -390,7 +472,7 @@ function OnlineTable() {
                 : "border-gold/40 bg-felt-deep/90 text-gold")
             }
           >
-            {state.turn === me ? "Votre tour" : "Tour adverse"} · {turnLeft}s
+            {state.turn === me ? "Votre tour" : "Tour adverse"}{oppMustAct ? ` · ${turnLeft}s` : ""}
           </span>
         )}
 
@@ -507,7 +589,7 @@ function OnlineTable() {
         </div>
       </section>
 
-      {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
+      {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-md p-6 text-center">
             <h2 className="gold-text text-3xl">
@@ -540,7 +622,11 @@ function OnlineTable() {
               Tours gagnés — {myName} {state.roundsWon[me]} · {oppName} {state.roundsWon[opp]}
             </p>
             {state.phase === "roundEnd" ? (
-              isHost ? (
+              !betReady ? (
+                <p className="mt-5 text-xs text-gold">
+                  Accordez-vous sur la mise du tour suivant…
+                </p>
+              ) : isHost ? (
                 <button
                   onClick={nextRound}
                   className="mt-5 rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
@@ -604,6 +690,18 @@ function OnlineTable() {
           title="Vos bonnes"
           subtitle={`${myBonnes} bonnes remportées — treize bonnes gagnent le tour`}
           onClose={() => setShowMyBonnes(false)}
+        />
+      )}
+
+      {state.phase === "roundEnd" && !betReady && (
+        <BetPanel
+          bet={bet}
+          mySeat={verifiedSeat}
+          oppName={oppName}
+          balance={balance}
+          roundNo={roundNo}
+          onPropose={proposeBet}
+          onAccept={acceptBet}
         />
       )}
 

@@ -283,7 +283,7 @@ function Azteque() {
         const winnerPile = winner === null ? null : center(pileRefs[winner].current);
 
         const flights: typeof collect = [];
-        const lastDelay = 220;
+        const lastDelay = 140;
         // Après comparaison, les deux cartes convergent uniquement vers le tas gagnant.
         if (fromFirst && winnerPile)
           flights.push({ id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 });
@@ -297,6 +297,9 @@ function Azteque() {
         );
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+        // Petit ricanement dès qu'une bonne tombe dans un tas
+        if ([first.card, second.card].some(isBonne))
+          timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
         const sweeps =
@@ -365,7 +368,9 @@ function Azteque() {
           setState((s) => {
             if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
             const a = aiAnnounceAt(s, settings.difficulty);
-            return a ? announce(s, 1, a.suits, a.trump) : { ...s, canAnnounce: null };
+            if (!a) return { ...s, canAnnounce: null };
+            sfx.chuckle();
+            return announce(s, 1, a.suits, a.trump);
           });
         }, 650);
         return () => clearTimeout(t);
@@ -494,6 +499,7 @@ function Azteque() {
   const doAnnounce = (trumpChoice: Suit | null) => {
     setState((s) => announce(s, 0, meldPick, trumpChoice));
     setMeldPick([]);
+    sfx.chuckle();
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
@@ -973,6 +979,42 @@ function Azteque() {
 }
 
 
+/** Déclenche la transition à la frame suivante (mouvement toujours joué). */
+function useDeparture(delay: number) {
+  const [departed, setDeparted] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const timer = setTimeout(() => {
+      raf = requestAnimationFrame(() => setDeparted(true));
+    }, Math.max(0, delay));
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [delay]);
+  return departed;
+}
+
+/** Mouvement fluide : uniquement des transformations (aucun recalcul de mise en page). */
+function flightStyle(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  departed: boolean,
+  opts: { scale: number; rotate: number; duration: number; ease: string },
+) {
+  const dx = departed ? to.x - from.x : 0;
+  const dy = departed ? to.y - from.y : 0;
+  return {
+    left: from.x,
+    top: from.y,
+    transform: `translate3d(calc(${dx}px - 50%), calc(${dy}px - 50%), 0) scale(${
+      departed ? opts.scale : 1
+    }) rotate(${departed ? opts.rotate : 0}deg)`,
+    transition: `transform ${opts.duration}ms ${opts.ease}, opacity ${opts.duration}ms ease-out`,
+    willChange: "transform",
+  } as const;
+}
+
 function SweepCard({
   from,
   to,
@@ -982,24 +1024,20 @@ function SweepCard({
   to: { x: number; y: number };
   delay: number;
 }) {
-  const [departed, setDeparted] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDeparted(true), delay + 20);
-    return () => clearTimeout(timer);
-  }, [delay]);
+  const departed = useDeparture(delay);
 
   return (
     <div
       className="pointer-events-none fixed z-50 w-10 drop-shadow-[0_14px_22px_rgba(0,0,0,0.5)]"
       aria-hidden="true"
       style={{
-        left: departed ? to.x : from.x,
-        top: departed ? to.y : from.y,
-        transform: `translate(-50%, -50%) scale(${departed ? 1 : 1.06}) rotate(${departed ? 8 : -6}deg)`,
+        ...flightStyle(from, to, departed, {
+          scale: 1,
+          rotate: 6,
+          duration: 560,
+          ease: "cubic-bezier(.33,.9,.28,1)",
+        }),
         opacity: departed ? 1 : 0.95,
-        transition:
-          "left 0.6s cubic-bezier(.2,.8,.25,1), top 0.6s cubic-bezier(.2,.8,.25,1), transform 0.6s cubic-bezier(.2,.8,.25,1)",
       }}
     >
       <PlayingCard faceDown size="sm" />
@@ -1008,7 +1046,6 @@ function SweepCard({
 }
 
 function CollectCard({
-
   card,
   from,
   to,
@@ -1019,24 +1056,23 @@ function CollectCard({
   to: { x: number; y: number };
   delay: number;
 }) {
-  const [departed, setDeparted] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDeparted(true), delay + 20);
-    return () => clearTimeout(timer);
-  }, [delay]);
+  const departed = useDeparture(delay);
 
   return (
     <div
-      className="pointer-events-none fixed z-50 w-[4.5rem] drop-shadow-[0_12px_18px_rgba(0,0,0,0.45)]"
+      className="pointer-events-none fixed z-50 w-[4.5rem]"
       aria-hidden="true"
       style={{
-        left: departed ? to.x : from.x,
-        top: departed ? to.y : from.y,
-        transform: `translate(-50%, -50%) scale(${departed ? 0.555 : 1}) rotate(${departed ? 4 : 0}deg)`,
+        ...flightStyle(from, to, departed, {
+          scale: 0.555,
+          rotate: 3,
+          duration: 520,
+          ease: "cubic-bezier(.32,.72,.2,1)",
+        }),
+        filter: departed
+          ? "drop-shadow(0 6px 10px rgba(0,0,0,0.35))"
+          : "drop-shadow(0 16px 24px rgba(0,0,0,0.5))",
         opacity: 1,
-        transition:
-          "left 0.55s cubic-bezier(.25,.85,.3,1), top 0.55s cubic-bezier(.25,.85,.3,1), transform 0.55s cubic-bezier(.25,.85,.3,1)",
       }}
     >
       <PlayingCard card={card} size="hand" />
@@ -1055,21 +1091,19 @@ function FlyingCard({
   from: { x: number; y: number };
   to: { x: number; y: number };
 }) {
-  const [pos, setPos] = useState(from);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setPos(to));
-    return () => cancelAnimationFrame(id);
-  }, [to.x, to.y]);
-  const done = pos !== from;
+  const departed = useDeparture(0);
   return (
     <div
       className="pointer-events-none fixed z-50"
       style={{
-        left: pos.x,
-        top: pos.y,
-        transform: `translate(-50%, -50%) scale(${done ? 0.9 : 1})`,
-        opacity: done ? 0 : 1,
-        transition: "left 0.35s ease-out, top 0.35s ease-out, opacity 0.35s ease-out, transform 0.35s ease-out",
+        ...flightStyle(from, to, departed, {
+          scale: 0.94,
+          rotate: 0,
+          duration: 380,
+          ease: "cubic-bezier(.3,.8,.25,1)",
+        }),
+        opacity: departed ? 0 : 1,
+        filter: "drop-shadow(0 14px 20px rgba(0,0,0,0.45))",
       }}
     >
       <PlayingCard card={card} size="lg" />
@@ -1088,23 +1122,22 @@ function DrawCard({
   delay: number;
   player: PlayerIndex;
 }) {
-  const [departed, setDeparted] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDeparted(true), delay + 20);
-    return () => clearTimeout(timer);
-  }, [delay]);
+  const departed = useDeparture(delay);
 
   return (
     <div
       className="pointer-events-none fixed z-50 w-10"
       aria-hidden="true"
       style={{
-        left: departed ? to.x : from.x,
-        top: departed ? to.y : from.y,
-        transform: `translate(-50%, -50%) scale(${departed ? 0.82 : 1}) rotate(${player === 0 ? 5 : -5}deg)`,
-        opacity: departed ? 0 : 1,
-        transition: `left 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, top 0.48s cubic-bezier(.22,.8,.3,1) ${delay}ms, opacity 0.16s ease ${delay + 380}ms, transform 0.48s ease ${delay}ms`,
+        ...flightStyle(from, to, departed, {
+          scale: 0.86,
+          rotate: player === 0 ? 5 : -5,
+          duration: 480,
+          ease: "cubic-bezier(.24,.82,.28,1)",
+        }),
+        opacity: departed ? 0.05 : 1,
+        transitionDelay: "0ms, 320ms",
+        filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))",
       }}
     >
       <PlayingCard faceDown size="sm" />
