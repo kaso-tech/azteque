@@ -65,14 +65,14 @@ interface Settings {
   trickDelay: number; // ms
   difficulty: Difficulty;
   sound: boolean;
-  atout10: boolean;
 }
+
+const TURN_LIMIT = 30;
 
 const DEFAULT_SETTINGS: Settings = {
   trickDelay: 1000,
   difficulty: "normal",
   sound: true,
-  atout10: true,
 };
 
 
@@ -274,7 +274,7 @@ function Azteque() {
 
     timers.push(
       setTimeout(() => {
-        const next = resolveTrick(state, { atout10: settings.atout10 });
+        const next = resolveTrick(state, { atout10: true });
         const winner = next.lastTrickWinner;
         const first = state.trick[0]!;
         const second = state.trick[1]!;
@@ -300,7 +300,7 @@ function Azteque() {
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
         const sweeps =
-          winner !== null && trickCapturesPile(state, { atout10: settings.atout10 })
+          winner !== null && trickCapturesPile(state, { atout10: true })
             ? state.gains[winner === 0 ? 1 : 0].length
             : 0;
         const loserPile =
@@ -347,7 +347,7 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.trickDelay, settings.atout10]);
+  }, [state, settings.trickDelay]);
 
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
@@ -425,6 +425,53 @@ function Azteque() {
     }, 750);
     return () => clearTimeout(t);
   }, [state, settings.difficulty]);
+
+  // Acclamations / rire moqueur en fin de tour
+  const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
+  useEffect(() => {
+    if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
+    const won =
+      state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
+    const lost =
+      state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
+    const t = setTimeout(() => {
+      if (won) sfx.cheer();
+      else if (lost) sfx.taunt();
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseKey]);
+
+  // Compte à rebours du tour : dépasser le délai fait perdre le champ
+  const myTurnActive =
+    state.phase === "playing" &&
+    state.trick.length < 2 &&
+    (state.turn === 0 || meldDecisionPending) &&
+    (state.drawPending.length === 0 || meldDecisionPending);
+  const turnKey = `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}-${String(meldDecisionPending)}`;
+  const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!myTurnActive) {
+      setTurnLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setTurnLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setTurnLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey, myTurnActive]);
+
+  useEffect(() => {
+    if (!myTurnActive || turnLeft > 0) return;
+    setState((s) =>
+      s.phase === "playing"
+        ? { ...s, phase: "gameEnd", champWinner: 1, forfeit: { loser: 0, reason: "timeout" } }
+        : s,
+    );
+  }, [turnLeft, myTurnActive]);
 
   const nextRound = useCallback(() => {
     setState((s) => {
@@ -778,6 +825,18 @@ function Azteque() {
           >
             Comptes · {myComptes}
           </button>
+          {myTurnActive && (
+            <span
+              className={cn(
+                "rounded-full border px-3 py-1 text-[0.68rem] font-semibold",
+                turnLeft <= 10
+                  ? "border-destructive/60 bg-destructive/15 text-destructive"
+                  : "border-border bg-felt-deep/60 text-muted-foreground",
+              )}
+            >
+              Votre tour · {turnLeft}s
+            </span>
+          )}
         </div>
 
 
@@ -816,7 +875,8 @@ function Azteque() {
 
 
 
-      {(state.phase === "roundEnd" || state.phase === "gameEnd") && state.roundScore && (
+      {(state.phase === "roundEnd" || state.phase === "gameEnd") &&
+        (state.roundScore || state.forfeit) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-md p-6 text-center">
             <h2 className="gold-text text-3xl">
@@ -843,10 +903,17 @@ function Azteque() {
                 Égalité parfaite : aucun tour marqué, on rejoue le tour.
               </p>
             )}
-            <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
-              <Recap title="Vous" s={state.roundScore[0]} />
-              <Recap title="Adversaire" s={state.roundScore[1]} />
-            </div>
+            {state.forfeit?.reason === "timeout" && (
+              <p className="mt-2 text-xs text-destructive">
+                Temps écoulé : vous n'avez pas joué dans le délai imparti.
+              </p>
+            )}
+            {state.roundScore && (
+              <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm">
+                <Recap title="Vous" s={state.roundScore[0]} />
+                <Recap title="Adversaire" s={state.roundScore[1]} />
+              </div>
+            )}
             <p className="mt-4 text-xs text-muted-foreground">
               Tours gagnés — Vous {state.roundsWon[0]} · Adversaire {state.roundsWon[1]}
             </p>
@@ -1147,23 +1214,6 @@ function PlayerProfilePanel({
           ))}
         </div>
 
-        <p className="mt-6 text-sm text-foreground">Règle « Atout 10 »</p>
-        <div className="mt-2 flex gap-2">
-          {[true, false].map((on) => (
-            <Button
-              key={`atout10-${String(on)}`}
-              type="button"
-              size="sm"
-              variant={settings.atout10 === on ? "default" : "outline"}
-              onClick={() => onChange({ ...settings, atout10: on })}
-            >
-              {on ? "Activée" : "Désactivée"}
-            </Button>
-          ))}
-        </div>
-        <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          Prendre un 10 de la couleur d'atout rafle tout le tas de l'adversaire.
-        </p>
 
 
         <p className="mt-6 text-sm text-foreground">Temps d'affichage du pli : {(settings.trickDelay / 1000).toFixed(1)} s</p>
