@@ -283,7 +283,7 @@ function Azteque() {
         const winnerPile = winner === null ? null : center(pileRefs[winner].current);
 
         const flights: typeof collect = [];
-        const lastDelay = 220;
+        const lastDelay = 140;
         // Après comparaison, les deux cartes convergent uniquement vers le tas gagnant.
         if (fromFirst && winnerPile)
           flights.push({ id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 });
