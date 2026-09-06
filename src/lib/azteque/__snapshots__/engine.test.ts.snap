@@ -1,0 +1,36 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`aiChooseCardAt (non-régression) > niveau expert : décision stable sur une main de référence 1`] = `
+{
+  "rank": "K",
+  "suit": "H",
+}
+`;
+
+exports[`aiChooseCardAt (non-régression) > niveau facile : décision stable sur une main de référence 1`] = `
+{
+  "rank": "K",
+  "suit": "H",
+}
+`;
+
+exports[`aiChooseCardAt (non-régression) > niveau légende : résout exactement la fin de partie sans pioche 1`] = `
+{
+  "rank": "A",
+  "suit": "S",
+}
+`;
+
+exports[`aiChooseCardAt (non-régression) > niveau maitre : décision stable sur une main de référence 1`] = `
+{
+  "rank": "9",
+  "suit": "S",
+}
+`;
+
+exports[`aiChooseCardAt (non-régression) > niveau normal : décision stable sur une main de référence 1`] = `
+{
+  "rank": "K",
+  "suit": "H",
+}
+`;
