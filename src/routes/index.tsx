@@ -610,7 +610,14 @@ function Azteque() {
               keepSlots={state.stock.length > 0}
             />
           </div>
+          <TurnBar
+            left={oppLeft}
+            total={TURN_LIMIT}
+            active={oppTurnActive}
+            label={`IA ${DIFFICULTY_LABEL[settings.difficulty]}`}
+          />
         </div>
+
       </section>
 
       {/* Tapis */}
