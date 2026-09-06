@@ -51,6 +51,38 @@ export interface GameInvite {
 
 export const USERNAME_RULE = /^[A-Za-z0-9_-]{3,20}$/;
 
+/**
+ * Rend lisible une erreur remontée par Supabase.
+ *
+ * PostgREST ne lève pas des `Error` mais des objets simples
+ * (`{ message, code, details, hint }`) : un test `instanceof Error` les manque
+ * donc systématiquement, et la cause réelle se perdait derrière un message
+ * générique. Les codes les plus courants sont traduits en explication
+ * actionnable, car ils désignent presque toujours un défaut de mise en service
+ * plutôt qu'un défaut du code.
+ */
+export function describeError(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (typeof e === "string" && e) return e;
+  if (e && typeof e === "object") {
+    const o = e as { message?: string; code?: string; hint?: string; details?: string };
+    const code = o.code ?? "";
+    if (code === "PGRST205" || code === "42P01") {
+      return (
+        "Les tables des comptes sont introuvables sur ce projet Supabase. " +
+        "La migration n'y a pas été appliquée, ou le cache de schéma n'a pas " +
+        "encore été rechargé. Voir docs/mise-en-service-comptes.md."
+      );
+    }
+    if (code === "42501" || code === "PGRST301") {
+      return "Accès refusé par la base pour ce compte (droits ou policy RLS).";
+    }
+    const parts = [o.message, o.details, o.hint].filter(Boolean);
+    if (parts.length) return `${parts.join(" — ")}${code ? ` (${code})` : ""}`;
+  }
+  return fallback;
+}
+
 /* ---------- Session ---------- */
 
 /**

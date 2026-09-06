@@ -131,12 +131,22 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
 
   // Retour de la connexion Google (redirection pleine page) : établit la
   // session à partir des jetons présents dans l'adresse, le cas échéant.
+  //
+  // Le courtier ramène sur la racine du site, alors que le joueur venait du
+  // salon en ligne : on l'y renvoie une fois la session ouverte, plutôt que de
+  // le laisser sur le menu sans indication de ce qui vient de se passer.
   useEffect(() => {
-    void import("@/lib/azteque/account").then((m) => m.completeOAuthRedirect());
-  }, []);
+    void import("@/lib/azteque/account").then(async (m) => {
+      const handled = await m.completeOAuthRedirect().catch(() => false);
+      if (handled && window.location.pathname === "/") {
+        void router.navigate({ to: "/online" });
+      }
+    });
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>

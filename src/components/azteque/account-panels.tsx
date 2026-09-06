@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   USERNAME_RULE,
+  describeError,
   acceptFriend,
   createProfile,
   listFriends,
@@ -36,7 +37,7 @@ export function SignInCard({ error }: { error?: string | null }) {
           setFailed(null);
           signInWithGoogle().catch((e: unknown) => {
             setBusy(false);
-            setFailed(e instanceof Error ? e.message : "Connexion impossible.");
+            setFailed(describeError(e, "Connexion impossible."));
           });
         }}
       >
@@ -61,7 +62,7 @@ export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void })
     setError(null);
     createProfile(name)
       .then(onCreated)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Création impossible."))
+      .catch((e: unknown) => setError(describeError(e, "Création impossible.")))
       .finally(() => setBusy(false));
   };
 
@@ -115,7 +116,7 @@ export function FriendsPanel({
   const refresh = () => {
     listFriends()
       .then(setFriends)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Liste indisponible."));
+      .catch((e: unknown) => setError(describeError(e, "Liste indisponible.")));
   };
   useEffect(refresh, []);
 
@@ -137,9 +138,7 @@ export function FriendsPanel({
 
   const act = (p: Promise<unknown>) => {
     setError(null);
-    p.then(refresh).catch((e: unknown) =>
-      setError(e instanceof Error ? e.message : "Action impossible."),
-    );
+    p.then(refresh).catch((e: unknown) => setError(describeError(e, "Action impossible.")));
   };
 
   const known = new Map(friends.map((f) => [f.id, f] as const));

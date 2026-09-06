@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
 import {
   acceptInvite,
+  describeError,
   claimLocalTokens,
   clearStaleSession,
   completeOAuthRedirect,
@@ -102,7 +103,7 @@ function OnlineLobby() {
     } catch (e: unknown) {
       setStage("signed-out");
       setProfile(null);
-      setError(e instanceof Error ? e.message : "Connexion refusée.");
+      setError(describeError(e, "Connexion refusée."));
       return;
     }
     let id: string | null;
@@ -128,7 +129,7 @@ function OnlineLobby() {
     } catch (e: unknown) {
       setStage("signed-out");
       setProfile(null);
-      setError(e instanceof Error ? e.message : "Profil illisible.");
+      setError(describeError(e, "Profil illisible."));
       return;
     }
     if (!p) {
@@ -152,7 +153,7 @@ function OnlineLobby() {
   useEffect(() => {
     load().catch((e: unknown) => {
       setStage("signed-out");
-      setError(e instanceof Error ? e.message : "Chargement impossible.");
+      setError(describeError(e, "Chargement impossible."));
     });
     return onAuthChange(() => {
       void load();
@@ -203,7 +204,7 @@ function OnlineLobby() {
           if (row.guest_id) enterTable(row.id, "host");
         });
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Invitation impossible."))
+      .catch((e: unknown) => setError(describeError(e, "Invitation impossible.")))
       .finally(() => setBusyInvite(null));
   };
 
@@ -220,7 +221,7 @@ function OnlineLobby() {
         if (!match) throw new Error("Cette partie n'est plus disponible.");
         enterTable(match.id, "guest");
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Impossible de rejoindre."));
+      .catch((e: unknown) => setError(describeError(e, "Impossible de rejoindre.")));
   };
 
   /* ---------- Partie par code (repli) ---------- */
@@ -237,7 +238,7 @@ function OnlineLobby() {
           if (row.guest_id) enterTable(row.id, "host");
         });
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Création impossible."))
+      .catch((e: unknown) => setError(describeError(e, "Création impossible.")))
       .finally(() => setBusyCode(false));
   };
 
@@ -247,7 +248,7 @@ function OnlineLobby() {
     setError(null);
     joinMatch(codeInput, profile.username)
       .then((match) => enterTable(match.id, "guest"))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Impossible de rejoindre."))
+      .catch((e: unknown) => setError(describeError(e, "Impossible de rejoindre.")))
       .finally(() => setBusyCode(false));
   };
 
