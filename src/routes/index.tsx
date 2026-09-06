@@ -831,18 +831,14 @@ function Azteque() {
           >
             Comptes · {myComptes}
           </button>
-          {myTurnActive && (
-            <span
-              className={cn(
-                "rounded-full border px-3 py-1 text-[0.68rem] font-semibold",
-                turnLeft <= 10
-                  ? "border-destructive/60 bg-destructive/15 text-destructive"
-                  : "border-border bg-felt-deep/60 text-muted-foreground",
-              )}
-            >
-              Votre tour · {turnLeft}s
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => setConfirmQuit(true)}
+            className="rounded-full border border-destructive/50 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-destructive transition-colors hover:bg-destructive/10"
+          >
+            Quitter la table
+          </button>
+
         </div>
 
 
