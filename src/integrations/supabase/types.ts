@@ -14,45 +14,137 @@ export type Database = {
   }
   public: {
     Tables: {
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          requester_id: string
+          status: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          requester_id: string
+          status?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          requester_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      game_invites: {
+        Row: {
+          created_at: string
+          from_id: string
+          id: string
+          match_id: string
+          status: string
+          to_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_id: string
+          id?: string
+          match_id: string
+          status?: string
+          to_id: string
+        }
+        Update: {
+          created_at?: string
+          from_id?: string
+          id?: string
+          match_id?: string
+          status?: string
+          to_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_invites_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           code: string
           created_at: string
+          finished_at: string | null
           guest_id: string | null
           guest_name: string | null
           host_id: string | null
           host_name: string
           id: string
           settings: Json
+          settled_at: string | null
           state: Json | null
           status: string
           updated_at: string
+          winner_id: string | null
         }
         Insert: {
           code: string
           created_at?: string
+          finished_at?: string | null
           guest_id?: string | null
           guest_name?: string | null
           host_id?: string | null
           host_name: string
           id?: string
           settings?: Json
+          settled_at?: string | null
           state?: Json | null
           status?: string
           updated_at?: string
+          winner_id?: string | null
         }
         Update: {
           code?: string
           created_at?: string
+          finished_at?: string | null
           guest_id?: string | null
           guest_name?: string | null
           host_id?: string | null
           host_name?: string
           id?: string
           settings?: Json
+          settled_at?: string | null
           state?: Json | null
           status?: string
           updated_at?: string
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          claimed_local_tokens: boolean
+          created_at: string
+          id: string
+          tokens: number
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          claimed_local_tokens?: boolean
+          created_at?: string
+          id: string
+          tokens?: number
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          claimed_local_tokens?: boolean
+          created_at?: string
+          id?: string
+          tokens?: number
+          updated_at?: string
+          username?: string
         }
         Relationships: []
       }
@@ -61,20 +153,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      join_match_by_code: {
-        Args: { _code: string; _guest_name: string }
+      accept_game_invite: {
+        Args: { _invite_id: string }
         Returns: {
           code: string
           created_at: string
+          finished_at: string | null
           guest_id: string | null
           guest_name: string | null
           host_id: string | null
           host_name: string
           id: string
           settings: Json
+          settled_at: string | null
           state: Json | null
           status: string
           updated_at: string
+          winner_id: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -83,6 +178,34 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      award_ai_win: { Args: { _difficulty: string }; Returns: number }
+      claim_local_tokens: { Args: { _amount: number }; Returns: number }
+      join_match_by_code: {
+        Args: { _code: string; _guest_name: string }
+        Returns: {
+          code: string
+          created_at: string
+          finished_at: string | null
+          guest_id: string | null
+          guest_name: string | null
+          host_id: string | null
+          host_name: string
+          id: string
+          settings: Json
+          settled_at: string | null
+          state: Json | null
+          status: string
+          updated_at: string
+          winner_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "matches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      settle_match: { Args: { _match_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
