@@ -133,3 +133,29 @@ export function openChat(matchId: string, onMessage: (msg: ChatMessage) => void)
   };
 }
 
+
+/** Présence temps réel : signale la connexion des deux joueurs. */
+export function trackPresence(
+  matchId: string,
+  seat: "host" | "guest",
+  onOpponent: (online: boolean) => void,
+) {
+  const other = seat === "host" ? "guest" : "host";
+  const channel = supabase.channel(`presence-${matchId}`, {
+    config: { presence: { key: seat } },
+  });
+  const sync = () => {
+    const st = channel.presenceState() as Record<string, unknown[]>;
+    onOpponent(Array.isArray(st[other]) && st[other]!.length > 0);
+  };
+  channel
+    .on("presence", { event: "sync" }, sync)
+    .on("presence", { event: "join" }, sync)
+    .on("presence", { event: "leave" }, sync)
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") void channel.track({ seat, at: Date.now() });
+    });
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}

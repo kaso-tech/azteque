@@ -25,7 +25,14 @@ import {
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
-import { ensureOnlineIdentity, getMatch, pushMatchState, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
+import {
+  ensureOnlineIdentity,
+  getMatch,
+  pushMatchState,
+  subscribeMatch,
+  trackPresence,
+  type MatchRow,
+} from "@/lib/azteque/online";
 
 
 export const Route = createFileRoute("/match/$id")({
@@ -52,6 +59,10 @@ export const Route = createFileRoute("/match/$id")({
 });
 
 const TRICK_DELAY = 1000;
+/** Temps maximum pour jouer son coup (secondes). */
+const TURN_LIMIT = 30;
+/** Temps toléré avant de déclarer un joueur déconnecté perdant (secondes). */
+const DISCONNECT_LIMIT = 30;
 
 function OnlineTable() {
   const { id } = Route.useParams();
@@ -159,6 +170,71 @@ function OnlineTable() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey, me, opp]);
+
+  // --- Chronomètre du tour et surveillance de la connexion ---
+  const declareForfeit = useCallback(
+    (loser: PlayerIndex, reason: "timeout" | "disconnect") => {
+      if (!state || state.phase === "gameEnd") return;
+      publish({
+        ...state,
+        phase: "gameEnd",
+        champWinner: (loser === 0 ? 1 : 0) as PlayerIndex,
+        forfeit: { loser, reason },
+      });
+    },
+    [state, publish],
+  );
+
+  // Le compte à rebours redémarre à chaque changement de tour
+  const turnKey = state
+    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}`
+    : "";
+  const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!state || state.phase !== "playing") {
+      setTurnLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setTurnLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setTurnLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey]);
+
+  // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
+  useEffect(() => {
+    if (!state || state.phase !== "playing") return;
+    if (turnLeft > 0) return;
+    if (state.turn !== opp || state.drawPending.length > 0) return;
+    declareForfeit(opp, "timeout");
+  }, [turnLeft, state, opp, declareForfeit]);
+
+  const [oppOnline, setOppOnline] = useState(true);
+  const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!verifiedSeat) return;
+    return trackPresence(id, verifiedSeat, setOppOnline);
+  }, [id, verifiedSeat]);
+
+  useEffect(() => {
+    if (oppOnline || !state || state.phase === "gameEnd") {
+      setOfflineLeft(null);
+      return;
+    }
+    const start = Date.now();
+    setOfflineLeft(DISCONNECT_LIMIT);
+    const t = setInterval(() => {
+      const left = Math.max(0, DISCONNECT_LIMIT - Math.round((Date.now() - start) / 1000));
+      setOfflineLeft(left);
+      if (left === 0) declareForfeit(opp, "disconnect");
+    }, 1000);
+    return () => clearInterval(t);
+  }, [oppOnline, state, opp, declareForfeit]);
+
+
 
 
   const myMelds = useMemo(
@@ -303,6 +379,25 @@ function OnlineTable() {
           <TrickPosition trick={state.trick} player={me} me={me} />
         </div>
 
+        {state.phase === "playing" && (
+          <span
+            className={
+              "absolute left-1/2 top-2 -translate-x-1/2 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold " +
+              (turnLeft <= 10
+                ? "border-destructive/60 bg-felt-deep/90 text-destructive"
+                : "border-gold/40 bg-felt-deep/90 text-gold")
+            }
+          >
+            {state.turn === me ? "Votre tour" : "Tour adverse"} · {turnLeft}s
+          </span>
+        )}
+
+        {offlineLeft !== null && (
+          <span className="absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-destructive/60 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-destructive">
+            {oppName} est hors ligne · {offlineLeft}s
+          </span>
+        )}
+
         {state.trump && (
           <span className="absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
             Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
@@ -418,6 +513,17 @@ function OnlineTable() {
                     ? "Tour gagné"
                     : "Tour perdu"}
             </h2>
+            {state.forfeit && (
+              <p className="mt-2 text-xs text-gold">
+                {state.forfeit.loser === me
+                  ? state.forfeit.reason === "timeout"
+                    ? "Temps écoulé : vous avez tardé à jouer."
+                    : "Connexion perdue trop longtemps de votre côté."
+                  : state.forfeit.reason === "timeout"
+                    ? `${oppName} a dépassé le temps de jeu.`
+                    : `${oppName} a perdu la connexion.`}
+              </p>
+            )}
             <p className="mt-4 text-xs text-muted-foreground">
               Tours gagnés — {myName} {state.roundsWon[me]} · {oppName} {state.roundsWon[opp]}
             </p>
