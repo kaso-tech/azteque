@@ -798,7 +798,14 @@ function Azteque() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
+        <TurnBar
+          left={turnLeft}
+          total={TURN_LIMIT}
+          active={myTurnActive}
+          label={playerName || "Vous"}
+        />
         <div ref={playerHandRef}>
+
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
