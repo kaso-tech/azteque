@@ -22,6 +22,7 @@ import {
   HandRow,
   StockPile,
   TrickPosition,
+  TurnBar,
 } from "@/components/azteque/table";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
@@ -270,6 +271,28 @@ function OnlineTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnKey]);
 
+  // Barre de temps du joueur local
+  const myMustAct =
+    !!state &&
+    state.phase === "playing" &&
+    state.turn === me &&
+    state.trick.length < 2 &&
+    state.drawPending.length === 0;
+  const [myLeft, setMyLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!myMustAct) {
+      setMyLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setMyLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setMyLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey, myMustAct]);
+
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
     if (!state || state.phase !== "playing" || !oppMustAct) return;
@@ -419,6 +442,7 @@ function OnlineTable() {
           interactive={false}
           keepSlots={state.stock.length > 0}
         />
+        <TurnBar left={turnLeft} total={TURN_LIMIT} active={oppMustAct} label={oppName} />
       </section>
 
       {/* Tapis */}
@@ -462,19 +486,6 @@ function OnlineTable() {
           </div>
           <TrickPosition trick={state.trick} player={me} me={me} />
         </div>
-
-        {state.phase === "playing" && (
-          <span
-            className={
-              "absolute left-1/2 top-2 -translate-x-1/2 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold " +
-              (turnLeft <= 10
-                ? "border-destructive/60 bg-felt-deep/90 text-destructive"
-                : "border-gold/40 bg-felt-deep/90 text-gold")
-            }
-          >
-            {state.turn === me ? "Votre tour" : "Tour adverse"}{oppMustAct ? ` · ${turnLeft}s` : ""}
-          </span>
-        )}
 
         {offlineLeft !== null && (
           <span className="absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-destructive/60 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-destructive">
@@ -555,6 +566,7 @@ function OnlineTable() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
+        <TurnBar left={myLeft} total={TURN_LIMIT} active={myMustAct} label={myName} />
         <HandRow
           cards={state.hands[me]}
           exposedIds={state.exposed[me]}
@@ -646,6 +658,12 @@ function OnlineTable() {
                 Retour au salon
               </Link>
             )}
+            <Link
+              to="/online"
+              className="mt-3 block w-full rounded-full border border-destructive/50 px-6 py-2.5 font-display text-sm font-semibold text-destructive"
+            >
+              Quitter
+            </Link>
           </div>
         </div>
       )}
