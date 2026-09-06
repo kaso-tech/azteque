@@ -160,6 +160,71 @@ function OnlineTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey, me, opp]);
 
+  // --- Chronomètre du tour et surveillance de la connexion ---
+  const declareForfeit = useCallback(
+    (loser: PlayerIndex, reason: "timeout" | "disconnect") => {
+      if (!state || state.phase === "gameEnd") return;
+      publish({
+        ...state,
+        phase: "gameEnd",
+        champWinner: (loser === 0 ? 1 : 0) as PlayerIndex,
+        forfeit: { loser, reason },
+      });
+    },
+    [state, publish],
+  );
+
+  // Le compte à rebours redémarre à chaque changement de tour
+  const turnKey = state
+    ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}`
+    : "";
+  const [turnLeft, setTurnLeft] = useState(TURN_LIMIT);
+  useEffect(() => {
+    if (!state || state.phase !== "playing") {
+      setTurnLeft(TURN_LIMIT);
+      return;
+    }
+    const start = Date.now();
+    setTurnLeft(TURN_LIMIT);
+    const t = setInterval(() => {
+      setTurnLeft(Math.max(0, TURN_LIMIT - Math.round((Date.now() - start) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey]);
+
+  // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
+  useEffect(() => {
+    if (!state || state.phase !== "playing") return;
+    if (turnLeft > 0) return;
+    if (state.turn !== opp || state.drawPending.length > 0) return;
+    declareForfeit(opp, "timeout");
+  }, [turnLeft, state, opp, declareForfeit]);
+
+  const [oppOnline, setOppOnline] = useState(true);
+  const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!verifiedSeat) return;
+    return trackPresence(id, verifiedSeat, setOppOnline);
+  }, [id, verifiedSeat]);
+
+  useEffect(() => {
+    if (oppOnline || !state || state.phase === "gameEnd") {
+      setOfflineLeft(null);
+      return;
+    }
+    const start = Date.now();
+    setOfflineLeft(DISCONNECT_LIMIT);
+    const t = setInterval(() => {
+      const left = Math.max(0, DISCONNECT_LIMIT - Math.round((Date.now() - start) / 1000));
+      setOfflineLeft(left);
+      if (left === 0) declareForfeit(opp, "disconnect");
+    }, 1000);
+    return () => clearInterval(t);
+  }, [oppOnline, state, opp, declareForfeit]);
+
+
+
 
   const myMelds = useMemo(
     () => (state ? availableMelds(state, me) : []),
