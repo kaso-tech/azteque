@@ -262,25 +262,34 @@ export async function removeFriend(otherId: string): Promise<void> {
 
 /* ---------- Invitations à jouer ---------- */
 
-export async function invitePlayer(toId: string, matchId: string): Promise<void> {
+/** Invite un joueur sur une partie déjà créée. Renvoie l'identifiant de
+ * l'invitation, qui permet de la retirer si l'hôte renonce à attendre. */
+export async function invitePlayer(toId: string, matchId: string): Promise<string> {
   const me = await currentUserId();
   if (!me) throw new Error("Connectez-vous d'abord.");
-  const { error } = await anyTable("game_invites").insert({
-    from_id: me,
-    to_id: toId,
-    match_id: matchId,
-    status: "pending",
-  } as never);
+  const { data, error } = await anyTable("game_invites")
+    .insert({ from_id: me, to_id: toId, match_id: matchId, status: "pending" } as never)
+    .select("id")
+    .single();
   if (error) throw error;
+  return (data as unknown as { id: string }).id;
 }
+
+/** Au-delà de ce délai, une invitation restée sans réponse n'est plus proposée. */
+const INVITE_TTL_MS = 10 * 60 * 1000;
 
 export async function listIncomingInvites(): Promise<GameInvite[]> {
   const me = await currentUserId();
   if (!me) return [];
+  // L'hôte qui ferme son onglet laisse une invitation en attente derrière lui :
+  // on ne propose donc que les plus récentes, faute de quoi l'adversaire se
+  // verrait offrir des tables abandonnées depuis longtemps.
+  const since = new Date(Date.now() - INVITE_TTL_MS).toISOString();
   const { data, error } = await anyTable("game_invites")
     .select("*")
     .eq("to_id", me)
     .eq("status", "pending")
+    .gte("created_at", since)
     .order("created_at", { ascending: false });
   if (error) throw error;
   const invites = (data as unknown as GameInvite[]) ?? [];

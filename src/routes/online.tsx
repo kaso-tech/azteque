@@ -64,8 +64,13 @@ function OnlineLobby() {
   const [error, setError] = useState<string | null>(null);
   const [busyInvite, setBusyInvite] = useState<string | null>(null);
 
-  // Partie créée en attendant que l'invité rejoigne.
-  const [pending, setPending] = useState<{ match: MatchRow; who: string } | null>(null);
+  // Partie créée en attendant que l'invité rejoigne. `inviteId` permet de
+  // retirer l'invitation si l'hôte renonce.
+  const [pending, setPending] = useState<{
+    match: MatchRow;
+    who: string;
+    inviteId: string | null;
+  } | null>(null);
   const unwatch = useRef<(() => void) | null>(null);
 
   const [codeInput, setCodeInput] = useState(codeParam ? normalizeCode(codeParam) : "");
@@ -144,8 +149,8 @@ function OnlineLobby() {
     setError(null);
     createMatch(profile.username)
       .then(async (match) => {
-        await invitePlayer(playerId, match.id);
-        setPending({ match, who: username });
+        const inviteId = await invitePlayer(playerId, match.id);
+        setPending({ match, who: username, inviteId });
         // L'invité accepté rejoint la partie : la ligne se met à jour.
         unwatch.current?.();
         unwatch.current = subscribeMatch(match.id, (row) => {
@@ -180,7 +185,7 @@ function OnlineLobby() {
     setError(null);
     createMatch(profile.username)
       .then((match) => {
-        setPending({ match, who: "un adversaire" });
+        setPending({ match, who: "un adversaire", inviteId: null });
         unwatch.current?.();
         unwatch.current = subscribeMatch(match.id, (row) => {
           if (row.guest_id) enterTable(row.id, "host");
@@ -247,6 +252,9 @@ function OnlineLobby() {
           onClick={() => {
             unwatch.current?.();
             unwatch.current = null;
+            // Retirer l'invitation : sans cela l'adversaire se verrait proposer
+            // une table que plus personne n'attend.
+            if (pending.inviteId) void respondInvite(pending.inviteId, "cancelled").catch(() => {});
             setPending(null);
           }}
         >
