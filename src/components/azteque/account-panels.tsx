@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RankBadge } from "@/components/azteque/rank";
+import { AVATAR_CHOICES, PlayerAvatar, type AvatarKind } from "@/components/azteque/avatar";
 import {
   USERNAME_RULE,
   describeError,
+  isUsernameFree,
+  setAvatarKind,
+  updateUsername,
   acceptFriend,
   createProfile,
   listFriends,
@@ -96,6 +100,171 @@ export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void })
   );
 }
 
+/* ---------- Identité : avatar et pseudo ---------- */
+
+type NameCheck = "vierge" | "invalide" | "verification" | "libre" | "pris" | "erreur";
+
+/**
+ * Ce que le joueur montre et sous quel nom : l'avatar et le pseudo, tous deux
+ * publics et tous deux modifiables.
+ *
+ * La disponibilité du pseudo est annoncée pendant la frappe, mais ne vaut que
+ * pour l'instant où elle est donnée : c'est l'enregistrement qui tranche, et
+ * son refus est affiché tel quel. Mieux vaut une politesse faillible qu'un
+ * formulaire qu'on remplit pour rien.
+ */
+export function AccountIdentity({
+  profile,
+  onChange,
+}: {
+  profile: Profile;
+  onChange: (p: Profile) => void;
+}) {
+  const [name, setName] = useState(profile.username);
+  const [check, setCheck] = useState<NameCheck>("vierge");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const modifie = name.trim().toLowerCase() !== profile.username.toLowerCase();
+
+  useEffect(() => {
+    const q = name.trim();
+    if (!modifie) {
+      setCheck("vierge");
+      return;
+    }
+    if (!USERNAME_RULE.test(q)) {
+      setCheck("invalide");
+      return;
+    }
+    setCheck("verification");
+    // Un temps de repos : on n'interroge pas la base à chaque caractère.
+    const t = setTimeout(() => {
+      isUsernameFree(q)
+        .then((libre) => setCheck(libre ? "libre" : "pris"))
+        .catch(() => setCheck("erreur"));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [name, modifie]);
+
+  const enregistrer = () => {
+    if (busy || !modifie || check === "invalide" || check === "pris") return;
+    setBusy(true);
+    setError(null);
+    updateUsername(name)
+      .then((p) => {
+        onChange(p);
+        setName(p.username);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      })
+      .catch((e: unknown) => setError(describeError(e, "Renommage impossible.")))
+      .finally(() => setBusy(false));
+  };
+
+  const choisirAvatar = (kind: AvatarKind) => {
+    const avant = profile.avatar_kind;
+    onChange({ ...profile, avatar_kind: kind });
+    setAvatarKind(kind).catch((e: unknown) => {
+      onChange({ ...profile, avatar_kind: avant });
+      setError(describeError(e, "Changement d'avatar impossible."));
+    });
+  };
+
+  const aucunePhoto = !profile.avatar_url;
+
+  return (
+    <>
+      <p className="mt-6 text-sm text-foreground">Photo de profil</p>
+      <div className="mt-2 flex gap-3">
+        {AVATAR_CHOICES.map(({ kind, label }) => {
+          const actif = profile.avatar_kind === kind;
+          const indisponible = kind === "google" && aucunePhoto;
+          return (
+            <button
+              key={kind}
+              type="button"
+              disabled={indisponible}
+              onClick={() => choisirAvatar(kind)}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-lg px-2 py-2 transition-colors",
+                actif ? "bg-gold/10 ring-1 ring-gold" : "hover:bg-secondary",
+                indisponible && "cursor-not-allowed opacity-40",
+              )}
+              aria-pressed={actif}
+            >
+              <PlayerAvatar
+                className="h-12 w-12"
+                profile={{ avatar_kind: kind, avatar_url: profile.avatar_url }}
+              />
+              <span className="text-[0.7rem] text-muted-foreground">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {aucunePhoto && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Aucune photo n'accompagne votre compte Google : choisissez un avatar.
+        </p>
+      )}
+
+      <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
+        Nom d'utilisateur
+      </label>
+      <input
+        id="player-name"
+        value={name}
+        maxLength={20}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && enregistrer()}
+        className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+      />
+      <p className="mt-1.5 min-h-4 text-xs">
+        {check === "invalide" && (
+          <span className="text-destructive">
+            3 à 20 caractères : lettres, chiffres, tiret ou souligné.
+          </span>
+        )}
+        {check === "verification" && <span className="text-muted-foreground">Vérification…</span>}
+        {check === "libre" && <span className="text-emerald-400">✓ {name.trim()} est libre</span>}
+        {check === "pris" && <span className="text-destructive">Ce pseudo est déjà pris.</span>}
+        {check === "erreur" && (
+          <span className="text-muted-foreground">
+            Disponibilité invérifiable ; vous pouvez tout de même essayer.
+          </span>
+        )}
+        {check === "vierge" && saved && (
+          <span className="text-emerald-400">✓ Pseudo enregistré</span>
+        )}
+        {check === "vierge" && !saved && (
+          <span className="text-muted-foreground">
+            C'est sous ce nom que les autres joueurs vous trouvent.
+          </span>
+        )}
+      </p>
+      {modifie && (
+        <div className="mt-2 flex gap-2">
+          <Button
+            size="sm"
+            className="font-semibold"
+            // Une vérification en échec ne bloque pas : la base tranche, et son
+            // refus est affiché tel quel.
+            disabled={busy || (check !== "libre" && check !== "erreur")}
+            onClick={enregistrer}
+          >
+            {busy ? "…" : "Enregistrer le pseudo"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setName(profile.username)}>
+            Annuler
+          </Button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+    </>
+  );
+}
+
 /* ---------- Amis, recherche et invitations ---------- */
 
 export function FriendsPanel({
@@ -171,6 +340,7 @@ export function FriendsPanel({
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <OnlineDot on={online.has(p.id)} />
+                    <PlayerAvatar className="h-8 w-8" profile={p} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm">{p.username}</span>
                       <RankBadge rating={p.rating} />
@@ -209,9 +379,12 @@ export function FriendsPanel({
                 key={f.id}
                 className="flex items-center justify-between gap-2 rounded-md border border-gold/40 px-3 py-2"
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm">{f.username}</span>
-                  <RankBadge rating={f.rating} />
+                <span className="flex min-w-0 items-center gap-2">
+                  <PlayerAvatar className="h-8 w-8" profile={f} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm">{f.username}</span>
+                    <RankBadge rating={f.rating} />
+                  </span>
                 </span>
                 <span className="flex shrink-0 gap-1">
                   <Button size="sm" onClick={() => act(acceptFriend(f.id))}>
@@ -249,6 +422,7 @@ export function FriendsPanel({
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <OnlineDot on={online.has(f.id)} />
+                    <PlayerAvatar className="h-8 w-8" profile={f} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm">{f.username}</span>
                       <RankBadge rating={f.rating} />

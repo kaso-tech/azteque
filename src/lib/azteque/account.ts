@@ -33,6 +33,10 @@ export interface PublicProfile {
   id: string;
   username: string;
   rating: number;
+  /** `google`, `homme` ou `femme` : ce que le joueur montre de lui. */
+  avatar_kind: string;
+  /** Photo du compte Google, quand c'est elle qui est choisie. */
+  avatar_url: string | null;
 }
 
 export interface Profile extends PublicProfile {
@@ -50,6 +54,8 @@ export interface Friend {
   id: string;
   username: string;
   rating: number;
+  avatar_kind: string;
+  avatar_url: string | null;
   /** `pending` : demande en attente ; `accepted` : ami confirmé. */
   status: "pending" | "accepted";
   /** Vrai si c'est l'autre joueur qui a envoyé la demande. */
@@ -66,6 +72,7 @@ export interface GameInvite {
   /** Renseignés à la lecture, à partir des profils. */
   from_username?: string;
   from_rating?: number;
+  from_avatar?: PublicProfile | null;
 }
 
 export const USERNAME_RULE = /^[A-Za-z0-9_-]{3,20}$/;
@@ -307,6 +314,101 @@ export async function createProfile(username: string): Promise<Profile> {
   return data as unknown as Profile;
 }
 
+/* ---------- Pseudo et avatar ---------- */
+
+/**
+ * La photo du compte Google, telle que le fournisseur l'a transmise.
+ *
+ * Elle est lue sur la session déjà en mémoire — aucun appel réseau — et n'est
+ * conservée en base que pour que les AUTRES joueurs puissent l'afficher : rien
+ * n'obligerait le joueur lui-même à passer par la base pour voir la sienne.
+ */
+export async function googlePhoto(): Promise<string | null> {
+  const { data } = await withTimeout(supabase.auth.getSession(), 3500, {
+    data: { session: null },
+  } as Awaited<ReturnType<typeof supabase.auth.getSession>>);
+  const meta = data.session?.user?.user_metadata as Record<string, unknown> | undefined;
+  const url = meta?.["avatar_url"] ?? meta?.["picture"];
+  return typeof url === "string" && url.startsWith("https://") ? url : null;
+}
+
+/**
+ * Recopie la photo Google sur le profil si elle a changé.
+ *
+ * Google renouvelle l'adresse de la photo quand le joueur la remplace : sans
+ * cette mise à jour, les autres joueurs continueraient d'afficher l'ancienne,
+ * ou une image devenue introuvable. Un échec n'est pas grave — l'avatar neutre
+ * prend le relais — donc l'appelant reçoit le profil inchangé plutôt qu'une
+ * erreur.
+ */
+export async function syncGooglePhoto(profile: Profile): Promise<Profile> {
+  const url = await googlePhoto().catch(() => null);
+  if (!url || url === profile.avatar_url) return profile;
+  const { error } = await anyTable("profiles")
+    .update({ avatar_url: url } as never)
+    .eq("id", profile.id);
+  if (error) return profile;
+  return { ...profile, avatar_url: url };
+}
+
+/** Choisit ce que le joueur montre : sa photo Google ou l'un des deux avatars. */
+export async function setAvatarKind(kind: "google" | "homme" | "femme"): Promise<void> {
+  const id = await currentUserId();
+  if (!id) throw new Error("Connectez-vous d'abord.");
+  const { error } = await anyTable("profiles")
+    .update({ avatar_kind: kind } as never)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Dit si un pseudo est libre, pour le signaler pendant la frappe.
+ *
+ * La réponse ne vaut que pour l'instant où elle est donnée : entre elle et
+ * l'enregistrement, un autre joueur peut prendre le nom. C'est l'index unique
+ * qui tranche, et `updateUsername` traduit son refus — cette vérification-ci
+ * n'est qu'une politesse, pour ne pas laisser saisir un nom voué à l'échec.
+ * Elle ne conditionne donc rien : si elle échoue, l'enregistrement reste
+ * possible et c'est la base qui répond.
+ */
+export async function isUsernameFree(username: string): Promise<boolean> {
+  const name = username.trim();
+  if (!USERNAME_RULE.test(name)) return false;
+  const me = await currentUserId();
+  // Une vérification qui n'aboutit pas doit se déclarer perdue plutôt que de
+  // laisser le joueur devant un « Vérification… » sans fin : c'est un confort,
+  // pas une condition.
+  const { data, error } = await withTimeout(
+    anyTable("profiles").select("id").ilike("username", name).limit(2),
+    6000,
+    { data: null, error: { message: "Vérification interrompue" } } as never,
+  );
+  if (error) throw error;
+  const rows = (data as unknown as { id: string }[]) ?? [];
+  // Reprendre son propre pseudo, ou n'en changer que la casse, reste permis.
+  return rows.every((r) => r.id === me);
+}
+
+/** Renomme le compte. Le pseudo reste unique, à la casse près. */
+export async function updateUsername(username: string): Promise<Profile> {
+  const id = await currentUserId();
+  if (!id) throw new Error("Connectez-vous d'abord.");
+  const name = username.trim();
+  if (!USERNAME_RULE.test(name)) {
+    throw new Error("Pseudo : 3 à 20 caractères, lettres, chiffres, tiret ou souligné.");
+  }
+  const { data, error } = await anyTable("profiles")
+    .update({ username: name } as never)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) {
+    if (error.code === "23505") throw new Error("Ce pseudo est déjà pris.");
+    throw error;
+  }
+  return data as unknown as Profile;
+}
+
 /* ---------- Jetons ---------- */
 
 /**
@@ -390,7 +492,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
   if (q.length < 2) return [];
   const me = await currentUserId();
   const { data, error } = await anyTable("profiles")
-    .select("id, username, rating")
+    .select("id, username, rating, avatar_kind, avatar_url")
     .ilike("username", `%${q}%`)
     .limit(limit + 1);
   if (error) throw error;
@@ -400,7 +502,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
 /** Profil public d'un joueur, pour afficher son grade à côté de son nom. */
 export async function getPublicProfile(id: string): Promise<PublicProfile | null> {
   const { data, error } = await anyTable("profiles")
-    .select("id, username, rating")
+    .select("id, username, rating, avatar_kind, avatar_url")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -426,7 +528,7 @@ export async function listFriends(): Promise<Friend[]> {
 
   const others = rows.map((r) => (r.requester_id === me ? r.addressee_id : r.requester_id));
   const { data: profiles, error: pErr } = await anyTable("profiles")
-    .select("id, username, rating")
+    .select("id, username, rating, avatar_kind, avatar_url")
     .in("id", others);
   if (pErr) throw pErr;
   const known = new Map(
@@ -440,6 +542,8 @@ export async function listFriends(): Promise<Friend[]> {
       id: otherId,
       username: other?.username ?? "Joueur",
       rating: other?.rating ?? START_RATING,
+      avatar_kind: other?.avatar_kind ?? "google",
+      avatar_url: other?.avatar_url ?? null,
       status: r.status,
       incoming: r.addressee_id === me && r.status === "pending",
     };
@@ -518,7 +622,7 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
   if (invites.length === 0) return [];
 
   const { data: profiles } = await anyTable("profiles")
-    .select("id, username, rating")
+    .select("id, username, rating, avatar_kind, avatar_url")
     .in("id", [...new Set(invites.map((i) => i.from_id))]);
   const known = new Map(
     ((profiles as unknown as PublicProfile[]) ?? []).map((p) => [p.id, p] as const),
@@ -527,6 +631,7 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
     ...i,
     from_username: known.get(i.from_id)?.username ?? "Joueur",
     from_rating: known.get(i.from_id)?.rating ?? START_RATING,
+    from_avatar: known.get(i.from_id) ?? null,
   }));
 }
 

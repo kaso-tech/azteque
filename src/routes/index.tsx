@@ -38,6 +38,7 @@ import {
   claimDailyBonus,
   claimLocalTokens,
   getMyProfile,
+  syncGooglePhoto,
   type Profile,
 } from "@/lib/azteque/account";
 import {
@@ -200,6 +201,9 @@ function Azteque() {
         if (!alive || !p) return;
         setAccount(p);
         setPlayerName(p.username);
+        // La photo Google change d'adresse quand le joueur la remplace : on la
+        // recopie, faute de quoi les autres afficheraient l'ancienne.
+        void syncGooglePhoto(p).then((f) => alive && setAccount(f));
         if (askedForName.current) {
           askedForName.current = false;
           setShowPlayerProfile(false);
@@ -660,6 +664,7 @@ function Azteque() {
           <ProfileButton
             name={playerName}
             icon="player"
+            account={account}
             align="center"
             onClick={() => setShowPlayerProfile(true)}
           />
@@ -693,7 +698,8 @@ function Azteque() {
             playerName={playerName}
             tokens={tokens}
             onNameChange={setPlayerName}
-            nameLocked={accountBound}
+            account={account}
+            onAccountChange={setAccount}
             rank={
               account && {
                 rating: account.rating,
@@ -721,6 +727,7 @@ function Azteque() {
         <ProfileButton
           name={playerName}
           icon="player"
+          account={account}
           align="left"
           onClick={() => setShowPlayerProfile(true)}
         />
@@ -1078,7 +1085,8 @@ function Azteque() {
           playerName={playerName}
           tokens={tokens}
           onNameChange={setPlayerName}
-          nameLocked={accountBound}
+          account={account}
+          onAccountChange={setAccount}
           rank={
             account && {
               rating: account.rating,

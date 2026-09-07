@@ -3,6 +3,9 @@ import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DIFFICULTY_LABEL, type Difficulty, type PlayerIndex } from "@/lib/azteque/engine";
+import { AccountIdentity } from "@/components/azteque/account-panels";
+import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
+import type { Profile } from "@/lib/azteque/account";
 import { RankLadder, RankProgressCard } from "@/components/azteque/rank";
 
 export interface Settings {
@@ -38,11 +41,14 @@ export function ProfileButton({
   name,
   icon,
   align,
+  account = null,
   onClick,
 }: {
   name: string;
   icon: "player" | "ai";
   align: "left" | "center" | "right";
+  /** Pour un joueur connecté : son avatar remplace l'icône générique. */
+  account?: AvatarSource | null;
   onClick: () => void;
 }) {
   const Icon = icon === "ai" ? Bot : UserRound;
@@ -57,9 +63,13 @@ export function ProfileButton({
       )}
       aria-label={`Ouvrir le profil ${name}`}
     >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)] sm:h-12 sm:w-12">
-        <Icon className="h-6 w-6" aria-hidden="true" />
-      </span>
+      {icon === "player" && account ? (
+        <PlayerAvatar className="h-11 w-11 sm:h-12 sm:w-12" profile={account} />
+      ) : (
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)] sm:h-12 sm:w-12">
+          <Icon className="h-6 w-6" aria-hidden="true" />
+        </span>
+      )}
       <span className="max-w-24 truncate text-[0.65rem] font-semibold text-foreground sm:max-w-36 sm:text-xs">
         {name}
       </span>
@@ -150,7 +160,8 @@ export function PlayerProfilePanel({
   playerName,
   tokens,
   onNameChange,
-  nameLocked = false,
+  account = null,
+  onAccountChange,
   rank = null,
   settings,
   onChange,
@@ -160,8 +171,10 @@ export function PlayerProfilePanel({
   playerName: string;
   tokens: number;
   onNameChange: (name: string) => void;
-  /** Vrai quand le pseudo vient d'un compte : il ne se change pas d'ici. */
-  nameLocked?: boolean;
+  /** Le compte ouvert, s'il y en a un : c'est lui qui porte l'identité. */
+  account?: Profile | null;
+  /** Reçoit le profil mis à jour après un renommage ou un changement d'avatar. */
+  onAccountChange?: (p: Profile) => void;
   /** Classement du joueur, absent tant qu'aucun compte n'est ouvert. */
   rank?: { rating: number; peak: number; games: number } | null;
   settings: Settings;
@@ -180,9 +193,7 @@ export function PlayerProfilePanel({
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
-              <UserRound className="h-7 w-7" aria-hidden="true" />
-            </span>
+            <PlayerAvatar className="h-12 w-12" profile={account} />
             <div>
               <h2 className="gold-text text-2xl">Votre profil</h2>
               <p className="text-xs text-muted-foreground">Nom et préférences de jeu</p>
@@ -225,30 +236,26 @@ export function PlayerProfilePanel({
           </p>
         )}
 
-        <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
-          Nom d'utilisateur
-        </label>
-        <input
-          id="player-name"
-          value={playerName}
-          maxLength={20}
-          autoFocus={!nameLocked}
-          readOnly={nameLocked}
-          onChange={(event) => onNameChange(event.target.value)}
-          onBlur={() => {
-            if (!nameLocked && !playerName.trim()) onNameChange("Joueur");
-          }}
-          className={cn(
-            "mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring",
-            nameLocked && "cursor-not-allowed text-muted-foreground",
-          )}
-          placeholder="Votre nom"
-        />
-        {nameLocked && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            C'est le pseudo de votre compte : il vous suit d'un appareil à l'autre et sert à vous
-            trouver en ligne.
-          </p>
+        {account && onAccountChange ? (
+          <AccountIdentity profile={account} onChange={onAccountChange} />
+        ) : (
+          <>
+            <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
+              Nom d'utilisateur
+            </label>
+            <input
+              id="player-name"
+              value={playerName}
+              maxLength={20}
+              autoFocus
+              onChange={(event) => onNameChange(event.target.value)}
+              onBlur={() => {
+                if (!playerName.trim()) onNameChange("Joueur");
+              }}
+              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+              placeholder="Votre nom"
+            />
+          </>
         )}
 
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>

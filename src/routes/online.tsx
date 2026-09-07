@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
 import { RankBadge, RankProgressCard } from "@/components/azteque/rank";
+import { PlayerAvatar } from "@/components/azteque/avatar";
 import {
   acceptInvite,
   describeError,
@@ -11,6 +12,7 @@ import {
   completeOAuthRedirect,
   currentUserId,
   getMyProfile,
+  syncGooglePhoto,
   invitePlayer,
   listIncomingInvites,
   myRecord,
@@ -139,6 +141,9 @@ function OnlineLobby() {
     }
     setProfile(p);
     setStage("ready");
+    void syncGooglePhoto(p)
+      .then(setProfile)
+      .catch(() => {});
     // Les jetons gagnés hors connexion rejoignent le solde du compte, qu'il
     // vienne d'être créé ou qu'il existe depuis longtemps.
     try {
@@ -318,7 +323,8 @@ function OnlineLobby() {
       {profile && (
         <div className="panel w-full space-y-3 px-5 py-3 text-left">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+            <PlayerAvatar className="h-11 w-11" profile={profile} />
+            <div className="min-w-0 flex-1">
               <p className="truncate font-display text-lg text-gold">{profile.username}</p>
               {record && (
                 <p className="text-xs text-muted-foreground">
@@ -347,9 +353,12 @@ function OnlineLobby() {
               key={i.id}
               className="flex items-center justify-between gap-2 rounded-md border border-gold/40 px-3 py-2"
             >
-              <span className="min-w-0">
-                <span className="block truncate text-sm">{i.from_username} vous invite</span>
-                {i.from_rating !== undefined && <RankBadge rating={i.from_rating} />}
+              <span className="flex min-w-0 items-center gap-2">
+                <PlayerAvatar className="h-8 w-8" profile={i.from_avatar ?? null} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm">{i.from_username} vous invite</span>
+                  {i.from_rating !== undefined && <RankBadge rating={i.from_rating} />}
+                </span>
               </span>
               <span className="flex shrink-0 gap-1">
                 <Button size="sm" onClick={() => answer(i.id, true)}>

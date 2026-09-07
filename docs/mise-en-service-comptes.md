@@ -14,6 +14,7 @@ Fichiers, dans cet ordre :
 2. `supabase/migrations/20260906230000_sync_offline_tokens.sql`
 3. `supabase/migrations/20260906240000_player_ranks.sql`
 4. `supabase/migrations/20260907090000_daily_bonus.sql`
+5. `supabase/migrations/20260907120000_avatars_and_rename.sql`
 
 La seconde doit passer **après** `20260906224310_...`, la copie de la première
 appliquée par Lovable : celle-ci recrée l'ancienne fonction
@@ -43,7 +44,10 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > `elo_k`, `rating_floor` et `apply_match_rating`, et remplace `settle_match`.
 > Applique pour finir `supabase/migrations/20260907090000_daily_bonus.sql`, qui
 > ajoute la colonne `daily_bonus_at` à `profiles`, crée la fonction
-> `claim_daily_bonus` et met à jour le barème de `award_ai_win`.
+> `claim_daily_bonus` et met à jour le barème de `award_ai_win`. Applique
+> enfin `supabase/migrations/20260907120000_avatars_and_rename.sql`, qui ajoute
+> les colonnes `avatar_kind` et `avatar_url` à `profiles` avec leurs contraintes
+> et étend le droit d'écriture du client à ces deux colonnes.
 > Ensuite, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
 
@@ -128,6 +132,27 @@ que le cadeau ne paraisse jamais dû ici et refusé là-bas.
 Une longue absence ne cumule pas les cadeaux manqués : le retour en vaut un,
 pas trente.
 
+## Visage et pseudo
+
+Le joueur porte la **photo de son compte Google** par défaut, ou l'un des deux
+avatars dessinés dans l'application (`src/components/azteque/avatar.tsx`), qui
+n'appellent aucune requête. Le choix est public, comme le pseudo et le grade.
+
+L'adresse de la photo est recopiée sur le profil à chaque ouverture, parce que
+Google la renouvelle quand le joueur change d'image. Elle n'est acceptée que si
+elle vient de `*.googleusercontent.com`, et le moteur le vérifie : cette photo
+est chargée par le navigateur des **autres** joueurs, et une adresse quelconque
+y ferait partir une requête vers un serveur choisi par un tiers, qui y lirait
+leur adresse IP.
+
+Le **pseudo est modifiable**. Sa disponibilité s'affiche pendant la frappe,
+mais ne conditionne rien : c'est l'index unique qui tranche au moment de
+l'enregistrement, et son refus est montré tel quel. Une vérification qui
+n'aboutit pas — réseau lent, projet injoignable — se déclare perdue au bout de
+six secondes et laisse tout de même essayer. Renommer un compte est sans
+conséquence sur le reste : parties, amitiés, jetons et confrontations se
+rattachent à l'identifiant du compte, jamais au nom.
+
 ## Le classement
 
 Chaque joueur porte une **cote** (un nombre) dont se déduit son **grade** (un
@@ -210,9 +235,13 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
 6. Se déconnecter, gagner une partie contre l'IA, se reconnecter : les jetons
    gagnés doivent s'ajouter au solde du compte, et une seconde connexion ne
    doit rien ajouter de plus.
-7. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
+7. Vérifier que la photo Google apparaît d'elle-même sur le profil, la
+   remplacer par un avatar, et la voir reparaître en la rechoisissant.
+8. Renommer son compte, vérifier que le nouveau nom est bien annoncé libre
+   pendant la frappe, puis qu'un second compte se voit refuser le même.
+9. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
    plus jusqu'au lendemain, y compris après rechargement ou dans un second
    onglet.
-8. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
-   affichée sous le score — puis le grade mis à jour dans le salon et sur le
-   profil. L'adversaire doit voir la variation opposée.
+10. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
+    affichée sous le score — puis le grade mis à jour dans le salon et sur le
+    profil. L'adversaire doit voir la variation opposée.

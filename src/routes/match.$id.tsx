@@ -37,8 +37,15 @@ import {
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
-import { getMyProfile, getPublicProfile, headToHead, type HeadToHead } from "@/lib/azteque/account";
+import {
+  getMyProfile,
+  getPublicProfile,
+  headToHead,
+  type HeadToHead,
+  type PublicProfile,
+} from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
+import { PlayerAvatar } from "@/components/azteque/avatar";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 
 export const Route = createFileRoute("/match/$id")({
@@ -236,7 +243,8 @@ function OnlineTable() {
   // table : c'est ce qui permet de savoir contre qui l'on mise. Les deux sont
   // relus en fin de champ, une fois le classement appliqué par le serveur.
   const [myRank, setMyRank] = useState<number | null>(null);
-  const [oppRank, setOppRank] = useState<number | null>(null);
+  const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
+  const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
   useEffect(() => {
     let alive = true;
@@ -246,7 +254,7 @@ function OnlineTable() {
         .catch(() => {});
       if (oppUserId) {
         getPublicProfile(oppUserId)
-          .then((p) => alive && setOppRank(p?.rating ?? null))
+          .then((p) => alive && setOppProfile(p))
           .catch(() => {});
       }
     };
@@ -646,11 +654,14 @@ function OnlineTable() {
             </p>
           )}
         </div>
-        <div className="min-w-0 text-right">
-          <p className="truncate text-xs font-semibold text-foreground">{oppName}</p>
-          {oppRank !== null && (
-            <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
-          )}
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          <div className="min-w-0 text-right">
+            <p className="truncate text-xs font-semibold text-foreground">{oppName}</p>
+            {oppRank !== null && (
+              <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
+            )}
+          </div>
+          <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
         </div>
       </header>
 
