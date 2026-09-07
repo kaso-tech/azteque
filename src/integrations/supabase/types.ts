@@ -125,6 +125,7 @@ export type Database = {
         Row: {
           claimed_local_tokens: boolean
           created_at: string
+          daily_bonus_at: string
           id: string
           tokens: number
           updated_at: string
@@ -133,6 +134,7 @@ export type Database = {
         Insert: {
           claimed_local_tokens?: boolean
           created_at?: string
+          daily_bonus_at?: string
           id: string
           tokens?: number
           updated_at?: string
@@ -141,6 +143,7 @@ export type Database = {
         Update: {
           claimed_local_tokens?: boolean
           created_at?: string
+          daily_bonus_at?: string
           id?: string
           tokens?: number
           updated_at?: string
@@ -179,6 +182,7 @@ export type Database = {
         }
       }
       award_ai_win: { Args: { _difficulty: string }; Returns: number }
+      claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
