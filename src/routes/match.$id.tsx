@@ -30,12 +30,13 @@ import { Recap } from "@/components/azteque/panels";
 import {
   ensureOnlineIdentity,
   getMatch,
-  subscribeMatch,
   trackPresence,
   type MatchRow,
   type NextRoundReady,
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
+import { isTransientError, withRetry } from "@/lib/azteque/net";
+import { useMatchSync } from "@/hooks/useMatchSync";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
 import {
@@ -171,8 +172,9 @@ function OnlineTable() {
     let alive = true;
     ensureOnlineIdentity()
       .then(async (user) => {
-        const match = await getMatch(id);
-        if (!match) return { match: null, userId: user.id };
+        // Le premier chargement est le moment le plus fragile sur un réseau
+        // lent : on réessaie plutôt que d'afficher « chargement impossible ».
+        const match = await withRetry(() => getMatch(id), { attempts: 4, deadlineMs: 12_000 });
         return { match, userId: user.id };
       })
       .then(({ match: r, userId }) => {
@@ -190,12 +192,20 @@ function OnlineTable() {
         applyRow(r);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Chargement impossible."));
-    const unsub = subscribeMatch(id, applyRow);
     return () => {
       alive = false;
-      unsub();
     };
   }, [id, applyRow, seat]);
+
+  // Temps réel + rattrapage périodique : sur connexion faible le websocket
+  // tombe sans prévenir, la relecture régulière évite la table figée.
+  const sync = useMatchSync(id, !!verifiedSeat, applyRow);
+
+  // Envoi d'action en cours (affiché discrètement) et file d'attente : sur un
+  // lien lent, deux actions envoyées coup sur coup ne doivent pas se croiser.
+  const [sending, setSending] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   // Envoie une action au serveur, qui la rejoue et la valide avant de
   // l'appliquer — le client ne calcule plus lui-même le résultat.
@@ -204,16 +214,39 @@ function OnlineTable() {
   // afficher (l'autre joueur a déjà résolu l'action entre-temps).
   const runAction = useCallback(
     async (action: MatchAction, opts: { silent?: boolean } = {}) => {
-      try {
-        const result = await applyMatchAction({ data: { matchId: id, action } });
-        setState(result.state);
-        setRow((r) => (r ? { ...r, settings: result.settings } : r));
-      } catch (e) {
-        if (!opts.silent) setError(e instanceof Error ? e.message : "Action impossible.");
-      }
+      const task = queue.current.then(async () => {
+        setSending((n) => n + 1);
+        try {
+          const result = await withRetry(
+            () => applyMatchAction({ data: { matchId: id, action } }),
+            {
+              attempts: 4,
+              deadlineMs: 12_000,
+              onRetry: () => setRetrying(true),
+            },
+          );
+          setRetrying(false);
+          setState(result.state);
+          setRow((r) => (r ? { ...r, settings: result.settings } : r));
+        } catch (e) {
+          setRetrying(false);
+          // Coupure franche : l'état sera rattrapé par la relecture; inutile
+          // d'alarmer avec un message d'action refusée.
+          if (isTransientError(e)) {
+            sync.refresh();
+            return;
+          }
+          if (!opts.silent) setError(e instanceof Error ? e.message : "Action impossible.");
+        } finally {
+          setSending((n) => Math.max(0, n - 1));
+        }
+      });
+      queue.current = task.catch(() => undefined);
+      return task;
     },
-    [id],
+    [id, sync],
   );
+
 
   /* ---------- Mise de jetons ---------- */
   const { bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
