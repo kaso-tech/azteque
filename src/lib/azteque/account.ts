@@ -871,7 +871,7 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
   if (invites.length === 0) return [];
 
   const { data: profiles } = await readProfiles((cols) =>
-    anyTable("profiles")
+    anyTable("public_profiles")
       .select(cols)
       .in("id", [...new Set(invites.map((i) => i.from_id))]),
   );
