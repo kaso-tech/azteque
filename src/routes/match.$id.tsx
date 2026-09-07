@@ -566,12 +566,18 @@ function OnlineTable() {
     state.trick.length < 2 &&
     state.drawPending.length === 0;
 
+  // Sur réseau faible, c'est souvent NOTRE liaison qui flanche, pas celle de
+  // l'adversaire : tant qu'elle n'est pas saine, on ne déclare aucun abandon —
+  // ni dépassement de temps (son coup peut être en route), ni déconnexion (la
+  // présence passe par le même canal que nous avons perdu).
+  const linkHealthy = sync.live && !sync.offline && !sync.stale;
+
   // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
   useEffect(() => {
     if (!state || state.phase !== "playing" || !oppMustAct) return;
-    if (turnLeft > 0) return;
+    if (turnLeft > 0 || !linkHealthy) return;
     declareForfeit("timeout");
-  }, [turnLeft, state, opp, oppMustAct, declareForfeit]);
+  }, [turnLeft, state, opp, oppMustAct, declareForfeit, linkHealthy]);
 
   const [oppOnline, setOppOnline] = useState(true);
   const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
@@ -581,7 +587,7 @@ function OnlineTable() {
   }, [id, verifiedSeat]);
 
   useEffect(() => {
-    if (oppOnline || !state || state.phase !== "playing") {
+    if (oppOnline || !linkHealthy || !state || state.phase !== "playing") {
       setOfflineLeft(null);
       return;
     }
@@ -593,7 +599,8 @@ function OnlineTable() {
       if (left === 0) declareForfeit("disconnect");
     }, 1000);
     return () => clearInterval(t);
-  }, [oppOnline, state, opp, declareForfeit]);
+  }, [oppOnline, state, opp, declareForfeit, linkHealthy]);
+
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   const legalIds = useMemo(() => {
