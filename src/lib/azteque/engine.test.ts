@@ -11,6 +11,7 @@ import {
   legalCards,
   meldPoints,
   resolveTrick,
+  stealsBonne,
   trickCapturesPile,
   type Card,
   type Difficulty,
@@ -19,6 +20,7 @@ import {
   type PlayerIndex,
   type Rank,
   type Suit,
+  type TrickCard,
 } from "./engine";
 
 let cardId = 0;
@@ -674,5 +676,37 @@ describe("tactiques de l'IA", () => {
       gains,
     });
     expect(aiChooseCardAt(state, "expert").id).toBe(junk.id);
+  });
+});
+
+describe("quand le rire se déclenche", () => {
+  const carte = (rank: Rank, suit: Suit, id: string): Card => card(rank, suit, id);
+  const pli = (a: Card, b: Card): TrickCard[] => [
+    { player: 0, card: a },
+    { player: 1, card: b },
+  ];
+
+  it("rit quand on prend la bonne de l'adversaire", () => {
+    // Le perdant a joué un As : le vainqueur l'emporte.
+    expect(stealsBonne(pli(carte("7", "S", "x"), carte("A", "S", "y")), 0)).toBe(true);
+    expect(stealsBonne(pli(carte("A", "S", "y"), carte("7", "S", "x")), 1)).toBe(true);
+  });
+
+  it("ne rit pas quand on ramasse sa propre bonne", () => {
+    // Gagner avec son propre dix n'a rien d'un vol.
+    expect(stealsBonne(pli(carte("10", "S", "x"), carte("7", "S", "y")), 0)).toBe(false);
+    expect(stealsBonne(pli(carte("7", "S", "y"), carte("10", "S", "x")), 1)).toBe(false);
+  });
+
+  it("rit dès que l'une des bonnes du pli vient de l'adversaire", () => {
+    expect(stealsBonne(pli(carte("A", "S", "x"), carte("10", "S", "y")), 0)).toBe(true);
+  });
+
+  it("ne rit pas sur un pli sans bonne", () => {
+    expect(stealsBonne(pli(carte("8", "S", "x"), carte("K", "S", "y")), 0)).toBe(false);
+  });
+
+  it("ne rit pas tant que le pli n'a pas de vainqueur", () => {
+    expect(stealsBonne(pli(carte("7", "S", "x"), carte("A", "S", "y")), null)).toBe(false);
   });
 });

@@ -88,30 +88,156 @@ function tone(
   osc.stop(t + duration + 0.02);
 }
 
-/** Syllabe vocale filtrée : la base d'un rire. */
-function voiceBlip(at: number, freq: number, duration: number, gainValue: number) {
+/* ---------- Voix ---------- */
+
+/*
+ * Les niveaux des voix ci-dessous ont été réglés sur ceux des cartes, mesurés
+ * en rendant chaque son hors ligne : filtrer par trois bandes étroites retire
+ * beaucoup d'énergie, et à gain égal un rire passait sous le bruit d'une carte
+ * posée. Ils visent tous une crête d'environ 0,035, comme « beat » et
+ * « sweep », les deux sons les plus marquants du jeu.
+ */
+
+/**
+ * Un appareil vocal simplifié.
+ *
+ * Une voix humaine, c'est une source — les cordes vocales, un son riche en
+ * harmoniques — filtrée par la bouche et la gorge, qui en renforcent trois
+ * bandes étroites : les formants. Leur position fait la voyelle, et c'est ce
+ * qui distingue un « ha » d'un bourdonnement. L'ancienne version n'avait qu'un
+ * filtre, d'où son côté synthétique.
+ *
+ * Trois détails achèvent de rendre la chose vivante, et leur absence s'entend
+ * plus que leur présence : le souffle du « h » qui ouvre la syllabe, la chute
+ * de hauteur pendant qu'on la prononce, et le tremblement involontaire de la
+ * voix — aucune corde vocale ne tient une note parfaitement droite.
+ */
+const VOYELLES = {
+  a: [730, 1100, 2450],
+  e: [530, 1840, 2480],
+  o: [460, 800, 2540],
+} as const;
+
+type Voyelle = keyof typeof VOYELLES;
+
+function syllabe(
+  at: number,
+  {
+    duree,
+    f0,
+    voyelle = "a",
+    gain: gainValue,
+    chute = 0.82,
+    souffle = 0.5,
+  }: {
+    duree: number;
+    /** Hauteur de départ, en hertz. */
+    f0: number;
+    voyelle?: Voyelle;
+    gain: number;
+    /** Rapport de la hauteur finale à la hauteur initiale. */
+    chute?: number;
+    /** Part d'aspiration au tout début — le « h » de « ha ». */
+    souffle?: number;
+  },
+) {
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
-  const osc = ac.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(freq * 1.12, t);
-  osc.frequency.exponentialRampToValueAtTime(freq * 0.82, t + duration);
 
-  const formant = ac.createBiquadFilter();
-  formant.type = "bandpass";
-  formant.Q.value = 4;
-  formant.frequency.setValueAtTime(760, t);
-  formant.frequency.exponentialRampToValueAtTime(1180, t + duration);
+  const src = ac.createOscillator();
+  src.type = "sawtooth";
+  src.frequency.setValueAtTime(f0, t);
+  src.frequency.exponentialRampToValueAtTime(Math.max(60, f0 * chute), t + duree);
 
-  const gain = ac.createGain();
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(gainValue, t + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  // Vibrato irrégulier : la hauteur ne tient jamais droite.
+  const tremble = ac.createOscillator();
+  tremble.type = "sine";
+  tremble.frequency.value = 4.5 + Math.random() * 2.5;
+  const trembleGain = ac.createGain();
+  trembleGain.gain.value = f0 * 0.018;
+  tremble.connect(trembleGain).connect(src.frequency);
 
-  osc.connect(formant).connect(gain).connect(ac.destination);
-  osc.start(t);
-  osc.stop(t + duration + 0.02);
+  // La source glottique est plus douce qu'une dent de scie nue.
+  const glotte = ac.createBiquadFilter();
+  glotte.type = "lowpass";
+  glotte.frequency.value = 3200;
+
+  const sortie = ac.createGain();
+  sortie.gain.setValueAtTime(0.0001, t);
+  sortie.gain.exponentialRampToValueAtTime(gainValue, t + 0.018);
+  sortie.gain.setValueAtTime(gainValue, t + duree * 0.35);
+  sortie.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+
+  const formants = VOYELLES[voyelle];
+  const poids = [1, 0.62, 0.28];
+  src.connect(glotte);
+  formants.forEach((f, i) => {
+    const bande = ac.createBiquadFilter();
+    bande.type = "bandpass";
+    bande.frequency.value = f * (0.98 + Math.random() * 0.04);
+    // Bandes assez larges pour attraper une harmonique quelle que soit la
+    // hauteur : à voix haute, les harmoniques sont espacées de plusieurs
+    // centaines de hertz et une bande étroite peut tomber entre deux, ce qui
+    // vide la voyelle de sa substance — c'est ce qui rendait le rire clair
+    // deux fois plus faible que les autres.
+    bande.Q.value = i === 2 ? 7 : 5;
+    const g = ac.createGain();
+    g.gain.value = poids[i] ?? 0.2;
+    glotte.connect(bande).connect(g).connect(sortie);
+  });
+  sortie.connect(ac.destination);
+
+  src.start(t);
+  tremble.start(t);
+  src.stop(t + duree + 0.03);
+  tremble.stop(t + duree + 0.03);
+
+  if (souffle > 0) {
+    noise(at, 0.05, gainValue * souffle * 0.4, 1800, 900, "highpass");
+  }
+}
+
+/**
+ * Un rire : une suite de syllabes qui descendent et s'essoufflent, close par
+ * une reprise de souffle. Le tempo et la hauteur ne se répètent jamais tout à
+ * fait d'une syllabe à l'autre, sans quoi l'oreille entend une machine.
+ */
+function rire(
+  at: number,
+  {
+    syllabes,
+    f0,
+    pas = 0.93,
+    tempo,
+    voyelle = "a",
+    gain: gainValue,
+    reprise = true,
+  }: {
+    syllabes: number;
+    f0: number;
+    /** Rapport de hauteur d'une syllabe à la suivante. */
+    pas?: number;
+    tempo: number;
+    voyelle?: Voyelle;
+    gain: number;
+    reprise?: boolean;
+  },
+) {
+  let t = at;
+  for (let i = 0; i < syllabes; i += 1) {
+    const irregulier = 1 + (Math.random() - 0.5) * 0.18;
+    syllabe(t, {
+      duree: tempo * 0.62 * irregulier,
+      f0: f0 * Math.pow(pas, i) * (1 + (Math.random() - 0.5) * 0.06),
+      voyelle,
+      gain: gainValue * (1 - i * 0.09),
+      souffle: i === 0 ? 0.8 : 0.45,
+    });
+    t += tempo * irregulier;
+  }
+  // L'inspiration qui suit : c'est elle qui fait qu'un rire a une fin.
+  if (reprise) noise(t - tempo * 0.2, 0.22, gainValue * 0.35, 700, 2200, "bandpass");
 }
 
 /**
@@ -172,41 +298,57 @@ export const sfx = {
     tone(0.22, 494, 0.36, 0.05, "sine", 740);
     tone(0.42, 740, 0.4, 0.045, "triangle", 988);
   },
-  /** Petit ricanement bref : une bonne vient d'être ramassée. */
+  /**
+   * Ricanement bref, quand on prend une bonne à l'adversaire. Voix moyenne,
+   * trois syllabes serrées : de quoi se moquer, pas de quoi triompher.
+   */
   snicker() {
-    const base = 300;
-    for (let i = 0; i < 3; i += 1) {
-      const at = i * 0.1;
-      voiceBlip(at, base * Math.pow(0.88, i), 0.07, 0.06);
-      noise(at, 0.04, 0.022, 1600, 620, "bandpass");
-    }
+    rire(0, { syllabes: 3, f0: 300, pas: 0.9, tempo: 0.15, voyelle: "e", gain: 0.19 });
   },
-  /** Rire plus clair et chantant : un compte vient d'être annoncé. */
+  /** Rire clair et chantant : un compte vient d'être annoncé. */
   chuckle() {
-    const base = 420;
-    for (let i = 0; i < 4; i += 1) {
-      const at = i * 0.085;
-      voiceBlip(at, base * Math.pow(1.05, i), 0.06, 0.055);
-    }
-    tone(0.02, 660, 0.24, 0.04, "triangle", 990);
+    rire(0, {
+      syllabes: 4,
+      f0: 380,
+      pas: 1.02,
+      tempo: 0.13,
+      voyelle: "e",
+      gain: 0.24,
+      reprise: false,
+    });
+    tone(0.03, 660, 0.26, 0.035, "triangle", 990);
   },
-  /** Rire moqueur : suite de « ha » descendants. */
+  /** Rire moqueur : voix grave, syllabes lentes qui descendent. */
   taunt() {
-    const base = 250;
-    for (let i = 0; i < 5; i += 1) {
-      const at = i * 0.16;
-      const f = base * Math.pow(0.9, i);
-      voiceBlip(at, f, 0.11, 0.075);
-      noise(at, 0.06, 0.03, 1400, 500, "bandpass");
-    }
+    rire(0, { syllabes: 5, f0: 210, pas: 0.9, tempo: 0.21, voyelle: "a", gain: 0.28 });
   },
-  /** Acclamations : applaudissements et clameur. */
+  /**
+   * Acclamations : une foule, et non une note de victoire.
+   *
+   * Elle est faite de voix distinctes — chacune sa hauteur, son entrée et sa
+   * durée — sous une nappe de mains qui applaudissent, dense au début puis qui
+   * se disperse. Une foule qui commencerait et finirait d'un bloc s'entendrait
+   * comme un effet ; celle-ci monte et retombe.
+   */
   cheer() {
-    for (let i = 0; i < 26; i += 1) {
-      noise(Math.random() * 1.1, 0.05, 0.05 + Math.random() * 0.05, 2600, 1100, "bandpass");
+    for (let i = 0; i < 14; i += 1) {
+      const depart = Math.random() * 0.7;
+      const voyelle = (["a", "e", "o"] as const)[Math.floor(Math.random() * 3)]!;
+      syllabe(depart, {
+        duree: 0.7 + Math.random() * 0.9,
+        f0: 190 + Math.random() * 230,
+        voyelle,
+        gain: 0.045 + Math.random() * 0.035,
+        chute: 0.9 + Math.random() * 0.16,
+        souffle: 0.2,
+      });
     }
-    noise(0, 1.3, 0.09, 500, 1600, "bandpass");
-    tone(0.05, 523, 0.7, 0.045, "triangle", 784);
-    tone(0.3, 659, 0.6, 0.04, "sine", 988);
+    // Applaudissements : la densité culmine tôt, puis se clairsème.
+    for (let i = 0; i < 80; i += 1) {
+      const t = Math.pow(Math.random(), 0.55) * 1.9;
+      noise(t, 0.035, 0.048 + Math.random() * 0.056, 2800, 1200, "bandpass");
+    }
+    // La rumeur de fond, qui lie le tout.
+    noise(0, 1.9, 0.088, 500, 1400, "bandpass");
   },
 };

@@ -12,6 +12,7 @@ import {
   drawNext,
   hasMainBlanche,
   isBonne,
+  stealsBonne,
   legalCards,
   newRound,
   playCard,
@@ -408,8 +409,10 @@ function Azteque() {
         else sfx.collect();
         setCollect(flights);
         timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
-        // Petit ricanement dès qu'une bonne tombe dans un tas
-        if ([first.card, second.card].some(isBonne))
+        // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : ramasser
+        // sa propre bonne n'a rien d'un exploit, et le rire à chaque pli en
+        // perdait tout son sel.
+        if (stealsBonne([first, second], winner))
           timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse

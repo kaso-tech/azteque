@@ -5,6 +5,7 @@ import {
   SUIT_SYMBOL,
   availableMelds,
   isBonne,
+  stealsBonne,
   legalCards,
   resolveTrick,
   trickCapturesPile,
@@ -329,7 +330,6 @@ function OnlineTable() {
   useEffect(() => {
     if (!state || state.phase !== "playing" || state.trick.length < 2) return;
     if (animating) return;
-    const hadBonne = state.trick.some((entry) => isBonne(entry.card));
     const timers: ReturnType<typeof setTimeout>[] = [];
     timers.push(
       setTimeout(
@@ -357,7 +357,10 @@ function OnlineTable() {
             { id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay },
           ]);
           timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
-          if (hadBonne) timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
+          // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : il ne
+          // peut se juger qu'une fois le vainqueur du pli connu.
+          if (stealsBonne(preTrick.trick, winner))
+            timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
           const sweeps = trickCapturesPile(preTrick, { atout10: true })
             ? preTrick.gains[loser].length

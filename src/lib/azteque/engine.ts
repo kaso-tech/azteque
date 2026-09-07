@@ -23,6 +23,18 @@ export interface Card {
 export const rankValue = (r: Rank) => RANKS.indexOf(r);
 export const isBonne = (c: Card) => c.rank === "10" || c.rank === "A";
 
+/**
+ * Vrai quand le vainqueur d'un pli emporte une bonne jouée par l'adversaire.
+ *
+ * C'est le seul moment qui mérite un rire : ramasser sa propre bonne n'est pas
+ * un exploit, et sonner à chaque pli qui en contient une ôtait au rire tout ce
+ * qu'il voulait dire.
+ */
+export function stealsBonne(trick: TrickCard[], winner: PlayerIndex | null): boolean {
+  if (winner === null) return false;
+  return trick.some((e) => e.player !== winner && isBonne(e.card));
+}
+
 export interface Meld {
   suit: Suit;
   type: "simple" | "triple";
