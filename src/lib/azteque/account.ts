@@ -507,20 +507,25 @@ export async function isUsernameFree(username: string): Promise<boolean> {
   // Une vérification qui n'aboutit pas doit se déclarer perdue plutôt que de
   // laisser le joueur devant un « Vérification… » sans fin : c'est un confort,
   // pas une condition.
+  const timeoutFallback: PostgrestSingleResponse<{ id: string }[]> = {
+    data: null,
+    error: {
+      message: "Vérification interrompue",
+      details: "",
+      hint: "",
+      code: "timeout",
+      name: "PostgrestError",
+      toJSON: () => ({}),
+    } as PostgrestError,
+    count: null,
+    status: 0,
+    statusText: "",
+    success: false,
+  };
   const { data, error } = await withTimeout(
     (async () => supabase.from("profiles").select("id").ilike("username", name).limit(2))(),
     6000,
-    {
-      data: null,
-      error: {
-        message: "Vérification interrompue",
-        details: "",
-        hint: "",
-        code: "timeout",
-        name: "PostgrestError",
-        toJSON: () => ({}),
-      } as PostgrestError,
-    },
+    timeoutFallback,
   );
   if (error) throw error;
   const rows = (data as unknown as { id: string }[]) ?? [];
