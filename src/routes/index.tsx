@@ -440,7 +440,11 @@ function Azteque() {
           const precedent = bonneStreak.current;
           const compte = precedent.player === winner ? precedent.count + 1 : 1;
           bonneStreak.current = { player: winner, count: compte };
-          if (compte === 3) timers.push(setTimeout(() => sfx.streakLaugh(), lastDelay + 420));
+          // Trois, quatre, cinq bonnes ou plus d'affilée : un rire de plus en
+          // plus franc, tant que l'adversaire n'en reprend aucune.
+          const rireDeSerie =
+            compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
+          if (compte >= 3) timers.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
         }
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse

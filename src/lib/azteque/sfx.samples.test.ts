@@ -161,15 +161,22 @@ describe("un son remplacé par un fichier", () => {
 });
 
 /**
- * Les quatre rires ajoutés pour des moments précis de la partie : l'atout
- * qui se fixe, le tas raflé par un 10 d'atout, un tour dominé à treize
- * bonnes ou plus, et trois bonnes prises d'affilée. Chacun doit produire du
- * son — un rire silencieux serait un bogue qu'un simple « ne lève pas »
- * ne verrait jamais — et rester remplaçable comme les autres.
+ * Les rires ajoutés pour des moments précis de la partie : l'atout qui se
+ * fixe, le tas raflé par un 10 d'atout, un tour dominé à treize bonnes ou
+ * plus, et trois, quatre, cinq bonnes ou plus prises d'affilée. Chacun doit
+ * produire du son — un rire silencieux serait un bogue qu'un simple « ne
+ * lève pas » ne verrait jamais — et rester remplaçable comme les autres.
  */
 describe("les rires des moments forts", () => {
   it("se font tous entendre", () => {
-    for (const id of ["trumpLaugh", "sweepLaugh", "landslideLaugh", "streakLaugh"] as const) {
+    for (const id of [
+      "trumpLaugh",
+      "sweepLaugh",
+      "landslideLaugh",
+      "streakLaugh",
+      "streakLaugh4",
+      "streakLaugh5",
+    ] as const) {
       oscillateurs = 0;
       sfx[id]();
       expect(oscillateurs).toBeGreaterThan(0);

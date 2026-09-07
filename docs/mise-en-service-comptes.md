@@ -185,7 +185,7 @@ l'intérieur, et il pourrait ne rester personne pour la rouvrir.
   reste acquis à ceux qui l'ont déjà ; il ne se supprime que s'il n'a jamais été
   acheté. Les dessins, eux, restent dans le code — on ne dessine pas un avatar
   depuis une page web — et un article nouveau choisit parmi ceux qui existent.
-- **Sons** — les quinze sons du jeu, réglables en volume, hauteur et vitesse, et,
+- **Sons** — les dix-sept sons du jeu, réglables en volume, hauteur et vitesse, et,
   pour les rires, en nombre de syllabes, descente et voyelle ; pour les
   acclamations, en nombre de voix et densité d'applaudissements. Un bouton
   d'écoute, un volume général. Enregistré, le réglage vaut pour tous les joueurs

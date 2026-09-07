@@ -283,7 +283,7 @@ function riffle(at: number, g = 1, s = 1) {
 /* ---------- Réglages ---------- */
 
 /**
- * Les quinze sons du jeu, réglables depuis la console d'administration.
+ * Les dix-sept sons du jeu, réglables depuis la console d'administration.
  *
  * Chacun se règle sur trois axes : le volume, la hauteur et la vitesse. Ce
  * n'est pas un synthétiseur complet — on ne redessine pas un son depuis une
@@ -307,6 +307,8 @@ export const SOUND_IDS = [
   "sweepLaugh",
   "landslideLaugh",
   "streakLaugh",
+  "streakLaugh4",
+  "streakLaugh5",
 ] as const;
 
 export type SoundId = (typeof SOUND_IDS)[number];
@@ -328,6 +330,8 @@ export const SOUND_LABELS: Record<SoundId, string> = {
   sweepLaugh: "Rire — tas raflé (Atout 10)",
   landslideLaugh: "Rire — tour dominé (13 bonnes ou plus)",
   streakLaugh: "Rire — trois bonnes d'affilée",
+  streakLaugh4: "Rire — quatre bonnes d'affilée",
+  streakLaugh5: "Rire — cinq bonnes d'affilée ou plus",
 };
 
 export interface SoundTuning {
@@ -370,6 +374,8 @@ export const SOUND_EXTRAS: Record<SoundId, (keyof SoundTuning)[]> = {
   sweepLaugh: ["syllables", "step", "vowel"],
   landslideLaugh: ["syllables", "step", "vowel"],
   streakLaugh: ["syllables", "step", "vowel"],
+  streakLaugh4: ["syllables", "step", "vowel"],
+  streakLaugh5: ["syllables", "step", "vowel"],
 };
 
 /** Bornes de chaque réglage : au-delà, le son cesse d'être un son. */
@@ -457,6 +463,8 @@ const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
   sweepLaugh: { syllables: 4, step: 0.92, vowel: 0 },
   landslideLaugh: { syllables: 7, step: 0.94, vowel: 0 },
   streakLaugh: { syllables: 4, step: 0.97, vowel: 1 },
+  streakLaugh4: { syllables: 5, step: 0.95, vowel: 1 },
+  streakLaugh5: { syllables: 6, step: 0.93, vowel: 1 },
 };
 
 /** Les réglages en vigueur, tels que la console doit les afficher. */
@@ -718,5 +726,34 @@ export const sfx = {
     const { g, p, s, syllabes, pas, voyelle } = reglage("streakLaugh");
     rire(0, { syllabes, f0: 330 * p, pas, tempo: 0.13 * s, voyelle, gain: 0.24 * g });
     tone(0.05 * s, 587 * p, 0.22 * s, 0.03 * g, "triangle", 880 * p);
+  },
+  /**
+   * Rire plus franc : quatre bonnes prises d'affilée. Une syllabe de plus et
+   * un accent final plus marqué que le rire à trois — la série s'installe.
+   */
+  streakLaugh4() {
+    if (echantillon("streakLaugh4")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("streakLaugh4");
+    rire(0, { syllabes, f0: 340 * p, pas, tempo: 0.125 * s, voyelle, gain: 0.27 * g });
+    tone(0.06 * s, 660 * p, 0.24 * s, 0.035 * g, "triangle", 950 * p);
+  },
+  /**
+   * Rire à deux vagues : cinq bonnes d'affilée ou plus, une série que
+   * l'adversaire ne devrait plus rattraper. La première vague s'essouffle,
+   * la seconde repart — un rire qu'on n'arrive plus à arrêter.
+   */
+  streakLaugh5() {
+    if (echantillon("streakLaugh5")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("streakLaugh5");
+    rire(0, { syllabes, f0: 350 * p, pas, tempo: 0.12 * s, voyelle, gain: 0.3 * g });
+    rire(syllabes * 0.12 * s + 0.14 * s, {
+      syllabes: 3,
+      f0: 300 * p,
+      pas,
+      tempo: 0.14 * s,
+      voyelle,
+      gain: 0.24 * g,
+      reprise: false,
+    });
   },
 };
