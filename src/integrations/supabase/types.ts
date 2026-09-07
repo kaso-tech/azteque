@@ -125,6 +125,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -141,6 +143,8 @@ export type Database = {
           host_id?: string | null
           host_name: string
           id?: string
+          rating_delta_guest?: number | null
+          rating_delta_host?: number | null
           settings?: Json
           settled_at?: string | null
           state?: Json | null
@@ -157,6 +161,8 @@ export type Database = {
           host_id?: string | null
           host_name?: string
           id?: string
+          rating_delta_guest?: number | null
+          rating_delta_host?: number | null
           settings?: Json
           settled_at?: string | null
           state?: Json | null
@@ -177,6 +183,9 @@ export type Database = {
           id: string
           is_admin: boolean
           local_tokens_total: number
+          peak_rating: number
+          rated_games: number
+          rating: number
           tokens: number
           updated_at: string
           username: string
@@ -191,6 +200,9 @@ export type Database = {
           id: string
           is_admin?: boolean
           local_tokens_total?: number
+          peak_rating?: number
+          rated_games?: number
+          rating?: number
           tokens?: number
           updated_at?: string
           username: string
@@ -205,6 +217,9 @@ export type Database = {
           id?: string
           is_admin?: boolean
           local_tokens_total?: number
+          peak_rating?: number
+          rated_games?: number
+          rating?: number
           tokens?: number
           updated_at?: string
           username?: string
@@ -274,6 +289,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -325,10 +342,18 @@ export type Database = {
         Returns: undefined
       }
       admin_stats: { Args: never; Returns: Json }
+      apply_match_rating: {
+        Args: { _loser: string; _match_id: string; _winner: string }
+        Returns: undefined
+      }
       award_ai_win: { Args: { _difficulty: string }; Returns: number }
       buy_item: { Args: { _item_id: string }; Returns: Json }
       claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
+      elo_k: {
+        Args: { _rated_games: number; _rating: number }
+        Returns: number
+      }
       is_admin: { Args: never; Returns: boolean }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
@@ -341,6 +366,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -359,6 +386,7 @@ export type Database = {
         Args: { _action: string; _details: Json; _target: string }
         Returns: undefined
       }
+      rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
     }
