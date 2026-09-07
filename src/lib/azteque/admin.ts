@@ -4,6 +4,7 @@ import {
   clearSample,
   isSoundId,
   registerSample,
+  type SoundId,
   type SoundSettings,
 } from "@/lib/azteque/sfx";
 
@@ -359,55 +360,75 @@ export async function adminSaveSoundSettings(settings: SoundSettings): Promise<v
  *
  * Chaque joueur télécharge ces sons à l'ouverture : ce qui est confortable
  * pour l'administrateur qui téléverse ne l'est pas pour celui qui joue en
- * bord de réseau. La base refuse de son côté au même seuil.
+ * bord de réseau.
  */
 export const SON_MAX_OCTETS = 700 * 1024;
 
+/** Le seau Supabase Storage où vivent les fichiers de remplacement. */
+const SEAU_SONS = "sounds";
+
 export interface SoundFileInfo {
-  id: string;
+  id: SoundId;
+  /** Le chemin dans le seau — l'horodatage évite qu'un remplacement serve
+   *  une version mise en cache par le navigateur à la même adresse. */
+  path: string;
   mime: string;
-  name: string;
   bytes: number;
   updated_at: string;
 }
 
-/** Octets → base64, par tranches : `btoa` sur un grand tableau déborde la pile. */
-export function versBase64(bytes: ArrayBuffer): string {
-  const octets = new Uint8Array(bytes);
-  const pas = 0x8000;
-  let s = "";
-  for (let i = 0; i < octets.length; i += pas) {
-    s += String.fromCharCode(...octets.subarray(i, i + pas));
+/**
+ * Les fichiers de sons déposés dans le seau, un par son au plus.
+ *
+ * Le nom encode l'identifiant du son et un horodatage (`cheer-1699999.mp3`) :
+ * pas besoin d'une table à part pour savoir ce qui est en place, le seau lui-
+ * même en tient le compte. Si un remplacement a été interrompu et qu'il en
+ * reste deux pour le même son, le plus récent l'emporte.
+ */
+async function fichiersDuSeau(): Promise<SoundFileInfo[]> {
+  const { data, error } = await supabase.storage.from(SEAU_SONS).list("", { limit: 200 });
+  if (error || !data) return [];
+  const parSon = new Map<SoundId, SoundFileInfo>();
+  for (const objet of data) {
+    const correspond = /^([a-zA-Z][a-zA-Z0-9]{1,39})-\d+\.[a-z0-9]+$/.exec(objet.name);
+    const id = correspond?.[1];
+    if (!id || !isSoundId(id)) continue;
+    const existant = parSon.get(id);
+    if (existant && existant.path >= objet.name) continue;
+    const meta = (objet as unknown as { metadata?: Record<string, unknown> }).metadata ?? {};
+    parSon.set(id, {
+      id,
+      path: objet.name,
+      mime: typeof meta["mimetype"] === "string" ? (meta["mimetype"] as string) : "audio/mpeg",
+      bytes: typeof meta["size"] === "number" ? (meta["size"] as number) : 0,
+      updated_at:
+        (objet as unknown as { updated_at?: string }).updated_at ??
+        (objet as unknown as { created_at?: string }).created_at ??
+        new Date().toISOString(),
+    });
   }
-  return btoa(s);
-}
-
-/** Base64 → octets. */
-export function depuisBase64(b64: string): ArrayBuffer {
-  const bin = atob(b64);
-  const octets = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i += 1) octets[i] = bin.charCodeAt(i);
-  return octets.buffer;
+  return [...parSon.values()];
 }
 
 /**
  * Installe les sons remplacés par un fichier.
  *
  * Lue sans compte, comme les réglages : le jeu contre l'IA doit s'entendre
- * pareil. Un échec — table absente, migration en retard, réseau coupé — laisse
+ * pareil. Un échec — seau absent, migration en retard, réseau coupé — laisse
  * la synthèse en place, et un fichier illisible n'emporte que lui-même.
  */
 export async function loadSoundFiles(): Promise<void> {
   try {
-    const { data, error } = await anyTable("sound_files").select("id, data");
-    if (error || !data) return;
+    const fichiers = await fichiersDuSeau();
     await Promise.all(
-      (data as unknown as { id: string; data: string }[]).map(async (l) => {
-        if (!isSoundId(l.id)) return;
+      fichiers.map(async (f) => {
         try {
-          await registerSample(l.id, depuisBase64(l.data));
+          const { data: pub } = supabase.storage.from(SEAU_SONS).getPublicUrl(f.path);
+          const reponse = await fetch(pub.publicUrl);
+          if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+          await registerSample(f.id, await reponse.arrayBuffer());
         } catch {
-          clearSample(l.id);
+          clearSample(f.id);
         }
       }),
     );
@@ -416,30 +437,71 @@ export async function loadSoundFiles(): Promise<void> {
   }
 }
 
-/** Ce qui est installé, sans les octets : de quoi renseigner la console. */
+/** Ce qui est installé : de quoi renseigner la console. */
 export async function listSoundFiles(): Promise<SoundFileInfo[]> {
-  const { data, error } = await anyTable("sound_files").select("id, mime, name, bytes, updated_at");
-  if (error) throw error;
-  return (data as unknown as SoundFileInfo[]) ?? [];
+  return fichiersDuSeau();
 }
 
-export async function adminSetSoundFile(
-  id: string,
-  mime: string,
-  name: string,
-  bytes: ArrayBuffer,
+/**
+ * Journalise un dépôt ou un retrait de fichier de son.
+ *
+ * Storage n'appelle pas le code de l'application : contrairement au reste de
+ * la console, le dépôt et le retrait ne passent pas par une fonction RPC qui
+ * pourrait écrire le journal elle-même. On l'appelle donc à part, une fois
+ * l'opération Storage réussie — et un échec ici n'annule rien : le journal
+ * est un agrément, pas une condition.
+ */
+async function journaliserSon(
+  id: SoundId,
+  action: string,
+  details: Record<string, unknown> = {},
 ): Promise<void> {
-  const { error } = await rpc("admin_set_sound_file", {
-    _id: id,
-    _mime: mime,
-    _name: name,
-    _bytes: bytes.byteLength,
-    _data: versBase64(bytes),
+  try {
+    await rpc("admin_log_sound_change", { _id: id, _action: action, _details: details });
+  } catch {
+    /* ignoré */
+  }
+}
+
+/**
+ * Dépose un fichier à la place d'un son.
+ *
+ * Le chemin est neuf à chaque appel (horodaté) : jamais deux administrateurs
+ * ne s'écrasent l'un l'autre en écrivant au même endroit, et jamais un
+ * navigateur ne sert une version mise en cache sous une adresse qui aurait
+ * changé de contenu. Les anciennes versions du même son sont retirées une
+ * fois la nouvelle bien en place.
+ */
+export async function adminSetSoundFile(
+  id: SoundId,
+  mime: string,
+  bytes: ArrayBuffer,
+): Promise<SoundFileInfo> {
+  const ext = mime.split("/")[1]?.replace("mpeg", "mp3") || "mp3";
+  const path = `${id}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from(SEAU_SONS).upload(path, bytes, {
+    contentType: mime,
+    cacheControl: "31536000",
+    upsert: false,
   });
   if (error) throw error;
+
+  await journaliserSon(id, "sound_file", { mime, bytes: bytes.byteLength });
+
+  const anciens = (await fichiersDuSeau())
+    .filter((f) => f.id === id && f.path !== path)
+    .map((f) => f.path);
+  if (anciens.length) await supabase.storage.from(SEAU_SONS).remove(anciens);
+
+  return { id, path, mime, bytes: bytes.byteLength, updated_at: new Date().toISOString() };
 }
 
-export async function adminClearSoundFile(id: string): Promise<void> {
-  const { error } = await rpc("admin_clear_sound_file", { _id: id });
-  if (error) throw error;
+/** Retire le fichier d'un son : il revient à sa synthèse. */
+export async function adminClearSoundFile(id: SoundId): Promise<void> {
+  const chemins = (await fichiersDuSeau()).filter((f) => f.id === id).map((f) => f.path);
+  if (chemins.length) {
+    const { error } = await supabase.storage.from(SEAU_SONS).remove(chemins);
+    if (error) throw error;
+  }
+  await journaliserSon(id, "sound_file_clear");
 }

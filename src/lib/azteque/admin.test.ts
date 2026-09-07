@@ -8,6 +8,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * écran de refus, et l'on ne savait pas s'il fallait se connecter, exécuter une
  * requête ou appliquer une migration.
  */
+interface FauxObjetStorage {
+  name: string;
+  metadata: { mimetype: string; size: number };
+  updated_at: string;
+}
+
 const base = {
   session: null as { id: string; is_anonymous: boolean } | null,
   rpc: { data: null as unknown, error: null as { code?: string } | null },
@@ -15,6 +21,10 @@ const base = {
   /** Colonnes que la base connaît, pour éprouver les replis. */
   colonnes: new Set<string>(),
   profils: [] as Record<string, unknown>[],
+  /** Le seau Storage des sons, tel qu'une console le laisserait. */
+  seau: [] as FauxObjetStorage[],
+  seauListeErreur: null as { code?: string; message?: string } | null,
+  seauEcritureErreur: null as { code?: string; message?: string } | null,
 };
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -51,11 +61,49 @@ vi.mock("@/integrations/supabase/client", () => ({
       };
       return q;
     },
+    storage: {
+      from: () => ({
+        list: () => Promise.resolve({ data: base.seau, error: base.seauListeErreur }),
+        upload: (path: string, bytes: ArrayBuffer, opts: { contentType: string }) => {
+          if (base.seauEcritureErreur) return Promise.resolve({ error: base.seauEcritureErreur });
+          base.seau.push({
+            name: path,
+            metadata: { mimetype: opts.contentType, size: (bytes as ArrayBuffer).byteLength },
+            updated_at: new Date().toISOString(),
+          });
+          return Promise.resolve({ error: null });
+        },
+        remove: (paths: string[]) => {
+          if (base.seauEcritureErreur) return Promise.resolve({ error: base.seauEcritureErreur });
+          base.seau = base.seau.filter((o) => !paths.includes(o.name));
+          return Promise.resolve({ error: null });
+        },
+        getPublicUrl: (path: string) => ({ data: { publicUrl: `https://exemple.test/${path}` } }),
+      }),
+    },
   },
 }));
 
-const { adminAccess, adminListPlayers, amIAdmin, depuisBase64, loadSoundFiles, versBase64 } =
-  await import("./admin");
+// `loadSoundFiles` récupère chaque fichier par une requête HTTP ordinaire —
+// c'est tout l'intérêt de servir les sons par URL publique plutôt que par
+// une colonne de la base. Une réponse minimale suffit ici : ce test ne juge
+// pas le décodage audio, déjà couvert ailleurs (sfx.samples.test.ts).
+vi.stubGlobal(
+  "fetch",
+  vi.fn(() =>
+    Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) }),
+  ),
+);
+
+const {
+  adminAccess,
+  adminClearSoundFile,
+  adminListPlayers,
+  adminSetSoundFile,
+  amIAdmin,
+  listSoundFiles,
+  loadSoundFiles,
+} = await import("./admin");
 
 beforeEach(() => {
   base.session = { id: "u1", is_anonymous: false };
@@ -87,6 +135,9 @@ beforeEach(() => {
       avatar_url: null,
     },
   ];
+  base.seau = [];
+  base.seauListeErreur = null;
+  base.seauEcritureErreur = null;
 });
 
 describe("accès à la console", () => {
@@ -162,30 +213,64 @@ describe("liste des joueurs quand la base est en retard", () => {
 });
 
 /**
- * Les fichiers de sons voyagent en base64 : la base les garde dans une colonne
- * texte, sans seau de stockage à configurer. Le codage doit rendre exactement
- * les octets qu'on lui a donnés, y compris sur un fichier assez gros pour que
- * `btoa` déborde la pile si on le lui passe d'un bloc.
+ * Les fichiers de sons vivent dans un seau Supabase Storage, pas dans une
+ * colonne de la base : le fichier part tel quel, sans base64, et sert par une
+ * URL publique. Le nom encode l'identifiant du son et un horodatage, pour que
+ * remplacer un fichier ne réutilise jamais l'adresse d'une version qu'un
+ * navigateur aurait mise en cache.
  */
 describe("sons locaux", () => {
-  it("rend les octets qu'on lui a confiés", () => {
-    const octets = new Uint8Array(200000);
-    for (let i = 0; i < octets.length; i += 1) octets[i] = (i * 7) % 256;
-    const rendu = new Uint8Array(depuisBase64(versBase64(octets.buffer)));
-    expect(rendu.length).toBe(octets.length);
-    expect(rendu).toEqual(octets);
+  it("dépose un fichier et le retrouve dans le catalogue", async () => {
+    const info = await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(64));
+    expect(info).toMatchObject({ id: "cheer", mime: "audio/mpeg", bytes: 64 });
+    expect(info.path).toMatch(/^cheer-\d+\.mp3$/);
+
+    const liste = await listSoundFiles();
+    expect(liste).toHaveLength(1);
+    expect(liste[0]).toMatchObject({ id: "cheer", path: info.path });
   });
 
-  it("code aussi le vide et les longueurs qui ne tombent pas juste", () => {
-    for (const taille of [0, 1, 2, 3, 4, 5]) {
-      const octets = new Uint8Array(taille).fill(0xab);
-      expect(new Uint8Array(depuisBase64(versBase64(octets.buffer)))).toEqual(octets);
-    }
+  it("ignore, dans le catalogue, ce qui ne nomme pas un son du jeu", async () => {
+    base.seau = [
+      { name: "cheer-1.mp3", metadata: { mimetype: "audio/mpeg", size: 10 }, updated_at: "x" },
+      // Un fichier déposé par erreur, ou par un autre usage du même projet.
+      { name: "notes-de-service.pdf", metadata: { mimetype: "", size: 0 }, updated_at: "x" },
+    ];
+    const liste = await listSoundFiles();
+    expect(liste.map((f) => f.id)).toEqual(["cheer"]);
   });
 
-  it("laisse la synthèse en place quand la base ne répond rien", async () => {
-    // La migration des sons locaux n'est peut-être pas encore passée : le jeu
-    // doit s'ouvrir quand même, avec les sons du code.
+  it("remplacer un son retire l'ancienne version, il n'en reste qu'une", async () => {
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
+    await adminSetSoundFile("cheer", "audio/wav", new ArrayBuffer(20));
+    const liste = await listSoundFiles();
+    expect(liste).toHaveLength(1);
+    expect(liste[0]).toMatchObject({ mime: "audio/wav", bytes: 20 });
+  });
+
+  it("garde un son de chaque, sans mélanger les identifiants", async () => {
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
+    await adminSetSoundFile("taunt", "audio/wav", new ArrayBuffer(20));
+    const liste = await listSoundFiles();
+    expect(liste.map((f) => f.id).sort()).toEqual(["cheer", "taunt"]);
+  });
+
+  it("retire le fichier d'un son : le catalogue l'oublie", async () => {
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
+    await adminClearSoundFile("cheer");
+    expect(await listSoundFiles()).toEqual([]);
+  });
+
+  it("répercute un refus du seau — un joueur ordinaire, par exemple", async () => {
+    base.seauEcritureErreur = { message: "new row violates row-level security policy" };
+    await expect(adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10))).rejects.toThrow();
+  });
+
+  it("laisse la synthèse en place quand le seau ne répond rien", async () => {
+    // Le seau n'existe peut-être pas encore sur ce projet : le jeu doit
+    // s'ouvrir quand même, avec les sons du code.
+    base.seauListeErreur = { code: "404" };
     await expect(loadSoundFiles()).resolves.toBeUndefined();
+    expect(await listSoundFiles()).toEqual([]);
   });
 });

@@ -804,11 +804,8 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
       const octets = await f.arrayBuffer();
       await registerSample(id, octets);
       const mime = typeDuFichier(f);
-      await adminSetSoundFile(id, mime, f.name, octets);
-      setFichiers((x) => ({
-        ...x,
-        [id]: { id, mime, name: f.name, bytes: f.size, updated_at: new Date().toISOString() },
-      }));
+      const info = await adminSetSoundFile(id, mime, octets);
+      setFichiers((x) => ({ ...x, [id]: info }));
       sfx[id]();
     } catch (e: unknown) {
       // Le son revient à sa synthèse : mieux vaut l'ancien effet qu'un silence.
@@ -956,8 +953,8 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
               </div>
               {fichier && (
                 <p className="mt-1 truncate text-[0.68rem] text-muted-foreground">
-                  🎵 {fichier.name || fichier.id} · {poids(fichier.bytes)}
-                  {/* Le fichier est en base mais pas dans cette page : elle a
+                  🎵 {(fichier.path.split(".").pop() ?? "").toUpperCase()} · {poids(fichier.bytes)}
+                  {/* Le fichier est déposé mais pas dans cette page : elle a
                       été ouverte avant qu'il n'y soit. */}
                   {!hasSample(id) && " · rechargez la page pour l'entendre"}
                 </p>

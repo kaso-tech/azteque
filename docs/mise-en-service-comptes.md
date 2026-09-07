@@ -18,7 +18,8 @@ Fichiers, dans cet ordre :
 6. `20260907140000_boutique.sql` — boutique et achats
 7. `20260907160000_administration.sql` — console d'administration
 8. `20260907190000_console_complete.sql` — fiches détaillées, catalogue en base
-9. `20260907220000_sons_locaux.sql` — sons remplaçables par des fichiers
+9. `20260907220000_sons_locaux.sql` — sons remplaçables par des fichiers (base64)
+10. `20260907230000_sons_storage.sql` — remplace le n° 9 par un seau Storage
 
 Tous sont dans `supabase/migrations/` et écrits pour être rejoués sans risque :
 `IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP POLICY IF EXISTS`. Les relancer ne
@@ -60,6 +61,9 @@ appliquée par Lovable : celle-ci recrée l'ancienne fonction
 >    `touch_last_seen`, `admin_upsert_item` et `admin_delete_item`.
 > 9. `supabase/migrations/20260907220000_sons_locaux.sql` — crée `sound_files`,
 >    `admin_set_sound_file` et `admin_clear_sound_file`.
+> 10. `supabase/migrations/20260907230000_sons_storage.sql` — retire ce que le
+>     n° 9 avait posé (base64 en colonne), crée à la place le seau Storage
+>     `sounds`, ses policies, et la fonction `admin_log_sound_change`.
 >
 > Régénère ensuite le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables et
