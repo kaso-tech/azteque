@@ -33,6 +33,10 @@ function noise(
   filterTo: number,
   type: BiquadFilterType = "bandpass",
 ) {
+  // Un volume nul est un ordre de silence, pas une erreur : la console permet
+  // de descendre un son à zéro, et une rampe exponentielle ne peut pas
+  // atteindre le zéro — elle lève. On se tait plutôt que de rompre.
+  if (!(gainValue > 0.00002)) return;
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
@@ -70,6 +74,10 @@ function tone(
   type: OscillatorType = "triangle",
   slideTo?: number,
 ) {
+  // Un volume nul est un ordre de silence, pas une erreur : la console permet
+  // de descendre un son à zéro, et une rampe exponentielle ne peut pas
+  // atteindre le zéro — elle lève. On se tait plutôt que de rompre.
+  if (!(gainValue > 0.00002)) return;
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
@@ -141,6 +149,10 @@ function syllabe(
     souffle?: number;
   },
 ) {
+  // Un volume nul est un ordre de silence, pas une erreur : la console permet
+  // de descendre un son à zéro, et une rampe exponentielle ne peut pas
+  // atteindre le zéro — elle lève. On se tait plutôt que de rompre.
+  if (!(gainValue > 0.00002)) return;
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
@@ -246,81 +258,204 @@ function rire(
  * serrés, sous un souffle de carton. Les irrégularités sont voulues — une
  * grille parfaitement régulière sonnerait mécanique.
  */
-function riffle(at: number) {
+function riffle(at: number, g = 1, s = 1) {
   const n = 22;
   for (let i = 0; i < n; i += 1) {
     // Les cartes tombent d'abord lentement puis s'emballent : l'écart se
     // resserre à mesure que les moitiés se vident.
-    const t = at + 0.34 * Math.pow(i / n, 0.72) + Math.random() * 0.006;
-    noise(t, 0.018, 0.045 + Math.random() * 0.02, 3400, 1500, "bandpass");
+    const t = at + 0.34 * s * Math.pow(i / n, 0.72) + Math.random() * 0.006;
+    noise(t, 0.018, (0.045 + Math.random() * 0.02) * g, 3400, 1500, "bandpass");
   }
-  noise(at, 0.3, 0.045, 900, 2600, "bandpass");
+  noise(at, 0.3 * s, 0.045 * g, 900, 2600, "bandpass");
+}
+
+/* ---------- Réglages ---------- */
+
+/**
+ * Les onze sons du jeu, réglables depuis la console d'administration.
+ *
+ * Chacun se règle sur trois axes : le volume, la hauteur et la vitesse. Ce
+ * n'est pas un synthétiseur complet — on ne redessine pas un son depuis une
+ * page web — mais c'est ce qui permet d'adoucir un effet trop present, de
+ * rendre un rire plus grave ou de presser une distribution sans toucher au
+ * code ni redéployer.
+ */
+export const SOUND_IDS = [
+  "place",
+  "beat",
+  "collect",
+  "draw",
+  "sweep",
+  "shuffle",
+  "dealCard",
+  "snicker",
+  "chuckle",
+  "taunt",
+  "cheer",
+] as const;
+
+export type SoundId = (typeof SOUND_IDS)[number];
+
+/** Ce qu'un son doit dire de lui-même dans la console. */
+export const SOUND_LABELS: Record<SoundId, string> = {
+  place: "Carte posée",
+  beat: "Carte battue",
+  collect: "Pli ramassé",
+  draw: "Pioche",
+  sweep: "Atout 10 — tas raflé",
+  shuffle: "Battage du paquet",
+  dealCard: "Carte distribuée",
+  snicker: "Ricanement — bonne volée",
+  chuckle: "Rire — compte annoncé",
+  taunt: "Rire moqueur — tour perdu",
+  cheer: "Acclamations — tour gagné",
+};
+
+export interface SoundTuning {
+  /** Volume, 1 = valeur d'origine. */
+  gain: number;
+  /** Hauteur, 1 = valeur d'origine. */
+  pitch: number;
+  /** Vitesse, 1 = valeur d'origine ; au-dessus de 1, plus lent. */
+  speed: number;
+}
+
+export interface SoundSettings {
+  /** Volume général, appliqué par-dessus les réglages individuels. */
+  master: number;
+  sounds: Partial<Record<SoundId, Partial<SoundTuning>>>;
+}
+
+export const DEFAULT_SOUND_SETTINGS: SoundSettings = { master: 1, sounds: {} };
+
+let reglages: SoundSettings = DEFAULT_SOUND_SETTINGS;
+
+/**
+ * Applique des réglages venus de la base.
+ *
+ * Ils arrivent d'une colonne `jsonb` que seul un administrateur écrit, mais
+ * une valeur aberrante — négative, immense, absente — ne doit pas rendre le jeu
+ * muet ou assourdissant : chaque nombre est ramené dans une plage tenable.
+ */
+export function applySoundSettings(raw: unknown): void {
+  const borne = (v: unknown, min: number, max: number, defaut: number) =>
+    typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : defaut;
+  const o = (raw ?? {}) as { master?: unknown; sounds?: Record<string, unknown> };
+  const sounds: SoundSettings["sounds"] = {};
+  for (const id of SOUND_IDS) {
+    const t = (o.sounds?.[id] ?? {}) as Partial<SoundTuning>;
+    sounds[id] = {
+      gain: borne(t.gain, 0, 3, 1),
+      pitch: borne(t.pitch, 0.5, 2, 1),
+      speed: borne(t.speed, 0.5, 2, 1),
+    };
+  }
+  reglages = { master: borne(o.master, 0, 2, 1), sounds };
+}
+
+/** Les réglages en vigueur, tels que la console doit les afficher. */
+export function currentSoundSettings(): SoundSettings {
+  return { master: reglages.master, sounds: { ...reglages.sounds } };
+}
+
+/** Les trois facteurs d'un son : volume, hauteur, vitesse. */
+function reglage(id: SoundId) {
+  const t = reglages.sounds[id] ?? {};
+  return {
+    g: (t.gain ?? 1) * reglages.master,
+    p: t.pitch ?? 1,
+    s: t.speed ?? 1,
+  };
 }
 
 export const sfx = {
   /** Le paquet est battu : deux riffles, puis la coupe. */
   shuffle() {
-    riffle(0);
-    riffle(0.4);
-    noise(0.82, 0.17, 0.13, 700, 200, "lowpass");
-    tone(0.83, 130, 0.11, 0.045, "sine", 82);
+    const { g, s } = reglage("shuffle");
+    riffle(0, g, s);
+    riffle(0.4 * s, g, s);
+    noise(0.82 * s, 0.17 * s, 0.13 * g, 700, 200, "lowpass");
+    tone(0.83 * s, 130, 0.11 * s, 0.045 * g, "sine", 82);
   },
   /** Une carte glisse du paquet vers une main. */
   dealCard() {
-    noise(0, 0.07, 0.1, 3600, 1400, "bandpass");
-    tone(0.005, 240, 0.05, 0.03, "sine", 150);
+    const { g, p, s } = reglage("dealCard");
+    noise(0, 0.07 * s, 0.1 * g, 3600 * p, 1400 * p, "bandpass");
+    tone(0.005, 240 * p, 0.05 * s, 0.03 * g, "sine", 150 * p);
   },
   /** La carte quitte la main et se pose sur la table. */
   place() {
-    noise(0, 0.13, 0.16, 2600, 700);
-    tone(0.01, 190, 0.08, 0.05, "sine", 120);
+    const { g, p, s } = reglage("place");
+    noise(0, 0.13 * s, 0.16 * g, 2600 * p, 700 * p);
+    tone(0.01, 190 * p, 0.08 * s, 0.05 * g, "sine", 120 * p);
   },
   /** La seconde carte bat la première. */
   beat() {
-    noise(0, 0.16, 0.2, 3800, 900);
-    tone(0.02, 420, 0.16, 0.07, "triangle", 660);
-    tone(0.09, 660, 0.22, 0.05, "sine", 880);
+    const { g, p, s } = reglage("beat");
+    noise(0, 0.16 * s, 0.2 * g, 3800 * p, 900 * p);
+    tone(0.02, 420 * p, 0.16 * s, 0.07 * g, "triangle", 660 * p);
+    tone(0.09 * s, 660 * p, 0.22 * s, 0.05 * g, "sine", 880 * p);
   },
   /** Le pli est ramassé sur un tas. */
   collect() {
-    noise(0, 0.22, 0.14, 1500, 320, "lowpass");
-    tone(0.05, 150, 0.14, 0.045, "sine", 96);
+    const { g, p, s } = reglage("collect");
+    noise(0, 0.22 * s, 0.14 * g, 1500 * p, 320 * p, "lowpass");
+    tone(0.05 * s, 150 * p, 0.14 * s, 0.045 * g, "sine", 96 * p);
   },
   /** Une carte est tirée de la pioche. */
   draw() {
-    noise(0, 0.1, 0.1, 3200, 1200);
+    const { g, p, s } = reglage("draw");
+    noise(0, 0.1 * s, 0.1 * g, 3200 * p, 1200 * p);
   },
   /** Atout 10 : tout le tas adverse est raflé. */
   sweep() {
-    noise(0, 0.55, 0.22, 900, 4200, "bandpass");
-    noise(0.18, 0.45, 0.16, 2400, 400, "lowpass");
-    tone(0.02, 330, 0.5, 0.06, "triangle", 990);
-    tone(0.22, 494, 0.36, 0.05, "sine", 740);
-    tone(0.42, 740, 0.4, 0.045, "triangle", 988);
+    const { g, p, s } = reglage("sweep");
+    noise(0, 0.55 * s, 0.22 * g, 900 * p, 4200 * p, "bandpass");
+    noise(0.18 * s, 0.45 * s, 0.16 * g, 2400 * p, 400 * p, "lowpass");
+    tone(0.02, 330 * p, 0.5 * s, 0.06 * g, "triangle", 990 * p);
+    tone(0.22 * s, 494 * p, 0.36 * s, 0.05 * g, "sine", 740 * p);
+    tone(0.42 * s, 740 * p, 0.4 * s, 0.045 * g, "triangle", 988 * p);
   },
   /**
    * Ricanement bref, quand on prend une bonne à l'adversaire. Voix moyenne,
    * trois syllabes serrées : de quoi se moquer, pas de quoi triompher.
    */
   snicker() {
-    rire(0, { syllabes: 3, f0: 300, pas: 0.9, tempo: 0.15, voyelle: "e", gain: 0.19 });
+    const { g, p, s } = reglage("snicker");
+    rire(0, {
+      syllabes: 3,
+      f0: 300 * p,
+      pas: 0.9,
+      tempo: 0.15 * s,
+      voyelle: "e",
+      gain: 0.19 * g,
+    });
   },
   /** Rire clair et chantant : un compte vient d'être annoncé. */
   chuckle() {
+    const { g, p, s } = reglage("chuckle");
     rire(0, {
       syllabes: 4,
-      f0: 380,
+      f0: 380 * p,
       pas: 1.02,
-      tempo: 0.13,
+      tempo: 0.13 * s,
       voyelle: "e",
-      gain: 0.24,
+      gain: 0.24 * g,
       reprise: false,
     });
-    tone(0.03, 660, 0.26, 0.035, "triangle", 990);
+    tone(0.03, 660 * p, 0.26 * s, 0.035 * g, "triangle", 990 * p);
   },
   /** Rire moqueur : voix grave, syllabes lentes qui descendent. */
   taunt() {
-    rire(0, { syllabes: 5, f0: 210, pas: 0.9, tempo: 0.21, voyelle: "a", gain: 0.28 });
+    const { g, p, s } = reglage("taunt");
+    rire(0, {
+      syllabes: 5,
+      f0: 210 * p,
+      pas: 0.9,
+      tempo: 0.21 * s,
+      voyelle: "a",
+      gain: 0.28 * g,
+    });
   },
   /**
    * Acclamations : une foule, et non une note de victoire.
@@ -331,24 +466,25 @@ export const sfx = {
    * comme un effet ; celle-ci monte et retombe.
    */
   cheer() {
+    const { g, p, s } = reglage("cheer");
     for (let i = 0; i < 14; i += 1) {
-      const depart = Math.random() * 0.7;
+      const depart = Math.random() * 0.7 * s;
       const voyelle = (["a", "e", "o"] as const)[Math.floor(Math.random() * 3)]!;
       syllabe(depart, {
-        duree: 0.7 + Math.random() * 0.9,
-        f0: 190 + Math.random() * 230,
+        duree: (0.7 + Math.random() * 0.9) * s,
+        f0: (190 + Math.random() * 230) * p,
         voyelle,
-        gain: 0.045 + Math.random() * 0.035,
+        gain: (0.045 + Math.random() * 0.035) * g,
         chute: 0.9 + Math.random() * 0.16,
         souffle: 0.2,
       });
     }
     // Applaudissements : la densité culmine tôt, puis se clairsème.
     for (let i = 0; i < 80; i += 1) {
-      const t = Math.pow(Math.random(), 0.55) * 1.9;
-      noise(t, 0.035, 0.048 + Math.random() * 0.056, 2800, 1200, "bandpass");
+      const t = Math.pow(Math.random(), 0.55) * 1.9 * s;
+      noise(t, 0.035 * s, (0.048 + Math.random() * 0.056) * g, 2800, 1200, "bandpass");
     }
     // La rumeur de fond, qui lie le tout.
-    noise(0, 1.9, 0.088, 500, 1400, "bandpass");
+    noise(0, 1.9 * s, 0.088 * g, 500, 1400, "bandpass");
   },
 };

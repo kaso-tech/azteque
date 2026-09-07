@@ -34,6 +34,7 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
+import { amIAdmin } from "@/lib/azteque/admin";
 import {
   awardAiWin,
   claimDailyBonus,
@@ -103,6 +104,9 @@ function Azteque() {
   // suivent d'un appareil à l'autre, et c'est le serveur qui les met à jour.
   // Hors connexion, le navigateur continue de faire foi.
   const [account, setAccount] = useState<Profile | null>(null);
+  // Le lien vers la console n'est qu'une commodité : le serveur refuse de toute
+  // façon les opérations à qui n'administre pas.
+  const [isAdmin, setIsAdmin] = useState(false);
   const accountBound = account !== null;
   const [choosingTrump, setChoosingTrump] = useState(false);
   const [started, setStarted] = useState(false);
@@ -197,6 +201,7 @@ function Azteque() {
   // s'ajouter au solde du compte avant que celui-ci ne prenne le relais.
   useEffect(() => {
     let alive = true;
+    void amIAdmin().then((oui) => alive && setIsAdmin(oui));
     getMyProfile()
       .then(async (p) => {
         if (!alive || !p) return;
@@ -683,6 +688,14 @@ function Azteque() {
           >
             Jouer en ligne
           </Link>
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="w-full rounded-full border border-gold/25 px-8 py-2 text-center font-display text-xs font-semibold uppercase tracking-widest text-gold/70 transition-transform hover:scale-105"
+            >
+              Administration
+            </Link>
+          )}
           <Link
             to="/boutique"
             className="w-full rounded-full border border-gold/35 px-8 py-2.5 text-center font-display text-sm font-semibold text-gold/90 transition-transform hover:scale-105"

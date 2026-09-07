@@ -139,6 +139,12 @@ function RootComponent() {
   // Le courtier ramène sur la racine du site, alors que le joueur venait du
   // salon en ligne : on l'y renvoie une fois la session ouverte, plutôt que de
   // le laisser sur le menu sans indication de ce qui vient de se passer.
+  // Réglages du son décidés par l'administration : chargés une fois, sans
+  // bloquer quoi que ce soit — à défaut, les valeurs du code font foi.
+  useEffect(() => {
+    void import("@/lib/azteque/admin").then((m) => m.loadSoundSettings());
+  }, []);
+
   useEffect(() => {
     void import("@/lib/azteque/account").then(async (m) => {
       const handled = await m.completeOAuthRedirect().catch(() => false);
