@@ -489,22 +489,23 @@ export function unseenCards(state: GameState): Card[] {
 }
 
 /**
- * Probabilité que l'adversaire détienne au moins une carte du sous-ensemble
- * `matches` parmi les `unseen` cartes encore invisibles (loi hypergéométrique).
+ * Probabilité qu'un tirage de `take` cartes parmi les `unseen` encore
+ * invisibles contienne au moins une carte vérifiant `matches` (loi
+ * hypergéométrique).
  *
- * `handSize` doit être le nombre de cartes CACHÉES de sa main : les cartes
- * d'un compte posé face visible ne font pas partie du tirage, elles sont
- * déjà connues (et déjà retirées de `unseen`).
+ * `take` est le nombre de cartes CACHÉES de la main adverse : celles d'un
+ * compte posé face visible ne font pas partie du tirage, elles sont déjà
+ * connues (et déjà retirées de `unseen`).
  */
-function chanceOpponentHolds(unseen: Card[], handSize: number, matches: (c: Card) => boolean) {
+function chanceAtLeastOne(unseen: Card[], take: number, matches: (c: Card) => boolean) {
   const n = unseen.length;
-  if (n === 0 || handSize <= 0) return 0;
+  if (n === 0 || take <= 0) return 0;
   const hits = unseen.filter(matches).length;
   if (hits === 0) return 0;
   // P(aucune) = produit des (misses - i) / (n - i)
   let pNone = 1;
   const misses = n - hits;
-  for (let i = 0; i < handSize; i += 1) {
+  for (let i = 0; i < take; i += 1) {
     if (misses - i <= 0) return 1;
     pNone *= (misses - i) / (n - i);
   }
@@ -566,7 +567,7 @@ function oppHiddenCount(state: GameState): number {
  * suivi les cartes sorties. Avant cela, l'incertitude ne porte que sur le
  * partage entre cette main et le talon : quand il ne reste que deux cartes en
  * pioche, l'essentiel de la main adverse est donc déjà déductible, ce que
- * traduit la loi hypergéométrique de `chanceOpponentHolds`.
+ * traduit la loi hypergéométrique de `chanceAtLeastOne`.
  */
 function knownOppHand(state: GameState): Card[] | null {
   if (state.stock.length > 0) return null;
@@ -601,7 +602,7 @@ function readOpponent(state: GameState): OppModel {
  */
 function oppHas(m: OppModel, pred: (c: Card) => boolean): number {
   if (m.known) return m.known.some(pred) ? 1 : 0;
-  return chanceOpponentHolds(m.unseen, m.hidden, pred);
+  return chanceAtLeastOne(m.unseen, m.hidden, pred);
 }
 
 /* ---------- Valeur de la main (« la devanture ») ---------- */
@@ -964,6 +965,8 @@ interface SimState {
   stock: Card[];
   /** Bonnes déjà encaissées. */
   bonnes: [number, number];
+  /** Points de compte annoncés au cours de la recherche. */
+  melded: [number, number];
   trump: Suit | null;
   lead: { player: PlayerIndex; card: Card } | null;
   turn: PlayerIndex;
@@ -1037,6 +1040,42 @@ function dedupe(cards: Card[]): Card[] {
   return out;
 }
 
+/**
+ * Le compte que ce joueur annonce s'il remporte le pli, avant de piocher.
+ *
+ * C'était le point aveugle de la recherche : elle s'active au dernier pli
+ * encore annonçable — le plus cher du tour — et n'y comptait que les bonnes.
+ * Elle cassait donc un Roi et une Dame pour rafler une bonne à 1 point, quand
+ * le compte qu'ils formaient en vaut 4 ou 5.
+ */
+function simAnnounce(
+  hand: Card[],
+  trump: Suit | null,
+  room: MeldRoom,
+  used: Set<string>,
+): { pts: number; room: MeldRoom; used: Set<string> } {
+  let pts = 0;
+  let room2 = room;
+  let used2 = used;
+  for (const st of SUITS) {
+    if (room2[st] <= 0) continue;
+    const libre = (r: Rank) => hand.find((c) => c.suit === st && c.rank === r && !used2.has(c.id));
+    const k = libre("K");
+    const q = libre("Q");
+    if (!k || !q) continue;
+    const j = libre("J");
+    // Un compte à l'atout — ou avant que l'atout ne soit fixé — vaut plein.
+    pts += meldPoints(j ? "triple" : "simple", trump === null || st === trump);
+    if (room2 === room) room2 = { ...room };
+    if (used2 === used) used2 = new Set(used);
+    room2[st] -= 1;
+    used2.add(k.id);
+    used2.add(q.id);
+    if (j) used2.add(j.id);
+  }
+  return { pts, room: room2, used: used2 };
+}
+
 function simPlay(s: SimState, c: Card): SimState {
   const p = s.turn;
   const rest = s.hands[p].filter((x) => x !== c);
@@ -1064,6 +1103,20 @@ function simPlay(s: SimState, c: Card): SimState {
     bonnes[loser] = 0;
   }
 
+  // Le vainqueur annonce avant de piocher, tant qu'il reste du talon : c'est
+  // la règle, et c'est ce qui donne son prix au dernier pli annonçable.
+  const melded: [number, number] = [s.melded[0], s.melded[1]];
+  const room: [MeldRoom, MeldRoom] = [s.room[0], s.room[1]];
+  const used: [Set<string>, Set<string>] = [s.used[0], s.used[1]];
+  if (s.stock.length > 0) {
+    const a = simAnnounce(handsAfter[winner], s.trump, room[winner], used[winner]);
+    if (a.pts > 0) {
+      melded[winner] += a.pts;
+      room[winner] = a.room;
+      used[winner] = a.used;
+    }
+  }
+
   let stock = s.stock;
   const hands: [Card[], Card[]] = [handsAfter[0], handsAfter[1]];
   if (stock.length > 0) {
@@ -1074,12 +1127,12 @@ function simPlay(s: SimState, c: Card): SimState {
       stock = stock.slice(1);
     }
   }
-  return { ...s, hands, stock, bonnes, lead: null, turn: winner };
+  return { ...s, hands, stock, bonnes, melded, room, used, lead: null, turn: winner };
 }
 
 /** Évaluation d'une position, du point de vue de l'IA (joueur 1). */
 function simEval(s: SimState): number {
-  let v = s.bonnes[1] - s.bonnes[0];
+  let v = s.bonnes[1] - s.bonnes[0] + (s.melded[1] - s.melded[0]);
   const over = s.hands[0].length === 0 && s.hands[1].length === 0;
   const inHand = (p: PlayerIndex) => s.hands[p].filter(isBonne).length;
   // Une bonne encore en main n'est qu'à moitié acquise.
@@ -1183,6 +1236,7 @@ function determinize(state: GameState, unseen: Card[]): SimState {
     hands: [oppHand, [...state.hands[1]]],
     stock: pool.slice(need),
     bonnes: [state.gains[0].filter(isBonne).length, state.gains[1].filter(isBonne).length],
+    melded: [0, 0],
     trump: state.trump,
     lead: lead ? { player: lead.player, card: lead.card } : null,
     turn: 1,

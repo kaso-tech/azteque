@@ -221,7 +221,7 @@ export interface MatchResult {
  * `a` joue le siège 0 et `b` le siège 1, puis on inverse les sièges à chaque
  * tour pour neutraliser l'avantage éventuel du donneur.
  */
-function match(a: Level, b: Level, rounds: number, seed0 = 1): MatchResult {
+export function match(a: Level, b: Level, rounds: number, seed0 = 1): MatchResult {
   const res: MatchResult = {
     a,
     b,
@@ -316,4 +316,5 @@ function main() {
   }
 }
 
-main();
+// Importable depuis un script d'expérimentation sans déclencher la matrice.
+if (import.meta.main) main();
