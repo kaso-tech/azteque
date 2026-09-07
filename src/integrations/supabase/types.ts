@@ -176,6 +176,7 @@ export type Database = {
           daily_bonus_at: string
           id: string
           is_admin: boolean
+          local_tokens_total: number
           tokens: number
           updated_at: string
           username: string
@@ -189,6 +190,7 @@ export type Database = {
           daily_bonus_at?: string
           id: string
           is_admin?: boolean
+          local_tokens_total?: number
           tokens?: number
           updated_at?: string
           username: string
@@ -202,6 +204,7 @@ export type Database = {
           daily_bonus_at?: string
           id?: string
           is_admin?: boolean
+          local_tokens_total?: number
           tokens?: number
           updated_at?: string
           username?: string
