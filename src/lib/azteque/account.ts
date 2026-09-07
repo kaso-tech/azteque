@@ -15,8 +15,11 @@ import { START_RATING } from "@/lib/azteque/rank";
  * formes attendues sont décrites par les interfaces ci-dessous, et chaque
  * lecture les applique explicitement.
  */
-const anyTable = (name: string) =>
-  (supabase as unknown as { from: (t: string) => any }).from(name);
+// `any` est ici voulu : le nom de table est dynamique, et `ReturnType<typeof
+// supabase.from>` se fige sur une seule table une fois `Database` assez
+// fourni, ce qui casse tous les autres appels de cette fonction.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const anyTable = (name: string) => (supabase as unknown as { from: (t: string) => any }).from(name);
 
 const rpc = (name: string, args: Record<string, unknown>) =>
   (
