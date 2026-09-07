@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_SOUND_SETTINGS,
+  SOUND_EXTRAS,
   SOUND_IDS,
   SOUND_LABELS,
+  SOUND_RANGES,
+  SOUND_TUNING_LABELS,
   applySoundSettings,
   currentSoundSettings,
 } from "./sfx";
@@ -17,11 +20,27 @@ import {
 describe("réglages du son", () => {
   beforeEach(() => applySoundSettings(DEFAULT_SOUND_SETTINGS));
 
-  it("part des valeurs d'origine : tout à 1", () => {
+  it("part des valeurs d'origine", () => {
     const r = currentSoundSettings();
     expect(r.master).toBe(1);
     for (const id of SOUND_IDS) {
-      expect(r.sounds[id]).toEqual({ gain: 1, pitch: 1, speed: 1 });
+      expect(r.sounds[id]).toMatchObject({ gain: 1, pitch: 1, speed: 1 });
+    }
+    // Un curseur au repos ne doit rien changer au son d'avant la console.
+    expect(r.sounds.snicker).toMatchObject({ syllables: 3, vowel: 1 });
+    expect(r.sounds.cheer).toMatchObject({ voices: 14, claps: 80 });
+  });
+
+  it("ne propose que les réglages qui ont un sens pour chaque son", () => {
+    // Un bruit de carton n'a pas de syllabes ; une foule n'a pas de voyelle.
+    expect(SOUND_EXTRAS.place).toEqual([]);
+    expect(SOUND_EXTRAS.taunt).toContain("syllables");
+    expect(SOUND_EXTRAS.cheer).toEqual(["voices", "claps"]);
+    for (const id of SOUND_IDS) {
+      for (const axe of SOUND_EXTRAS[id]) {
+        expect(SOUND_RANGES[axe]).toBeTruthy();
+        expect(SOUND_TUNING_LABELS[axe]).toBeTruthy();
+      }
     }
   });
 
@@ -35,7 +54,7 @@ describe("réglages du son", () => {
     applySoundSettings({ master: 0.8, sounds: { snicker: { gain: 1.5, pitch: 0.9 } } });
     const r = currentSoundSettings();
     expect(r.master).toBe(0.8);
-    expect(r.sounds.snicker).toEqual({ gain: 1.5, pitch: 0.9, speed: 1 });
+    expect(r.sounds.snicker).toMatchObject({ gain: 1.5, pitch: 0.9, speed: 1 });
   });
 
   it("ramène les valeurs hors plage dans leurs bornes", () => {
@@ -45,7 +64,7 @@ describe("réglages du son", () => {
     });
     const r = currentSoundSettings();
     expect(r.master).toBe(2);
-    expect(r.sounds.taunt).toEqual({ gain: 0, pitch: 2, speed: 0.5 });
+    expect(r.sounds.taunt).toMatchObject({ gain: 0, pitch: 2, speed: 0.5 });
   });
 
   it("ignore ce qui n'est pas un nombre", () => {
@@ -55,7 +74,7 @@ describe("réglages du son", () => {
     } as unknown);
     const r = currentSoundSettings();
     expect(r.master).toBe(1);
-    expect(r.sounds.cheer).toEqual({ gain: 1, pitch: 1, speed: 1 });
+    expect(r.sounds.cheer).toMatchObject({ gain: 1, pitch: 1, speed: 1 });
   });
 
   it("survit à n'importe quoi", () => {
@@ -65,6 +84,16 @@ describe("réglages du son", () => {
       expect(r.master).toBe(1);
       expect(r.sounds.place).toEqual({ gain: 1, pitch: 1, speed: 1 });
     }
+  });
+
+  it("borne aussi les réglages propres aux voix", () => {
+    applySoundSettings({
+      master: 1,
+      sounds: { taunt: { syllables: 99, step: 5, vowel: 7 }, cheer: { voices: -3, claps: 9999 } },
+    });
+    const r = currentSoundSettings();
+    expect(r.sounds.taunt).toMatchObject({ syllables: 8, step: 1.25, vowel: 2 });
+    expect(r.sounds.cheer).toMatchObject({ voices: 2, claps: 200 });
   });
 
   it("ne garde rien d'un son inconnu", () => {

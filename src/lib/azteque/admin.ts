@@ -22,15 +22,48 @@ const anyTable = (name: string) =>
 export interface AdminPlayer {
   id: string;
   username: string;
+  first_name: string | null;
+  last_name: string | null;
+  /** Code ISO à deux lettres, choisi par le joueur. */
+  country: string | null;
   tokens: number;
   rating: number;
   rated_games: number;
+  /** Tours joués, tous champs confondus. */
+  rounds_played: number;
   avatar_kind: string;
   avatar_url: string | null;
   is_admin: boolean;
   banned: boolean;
   purchases: number;
+  /** Dernier passage dans le jeu ; sert à dire qui est en ligne. */
+  last_seen_at: string | null;
   created_at: string;
+}
+
+/** Au-delà de ce délai sans signe de vie, un joueur est réputé hors ligne. */
+export const EN_LIGNE_MS = 5 * 60 * 1000;
+
+export function estEnLigne(p: { last_seen_at: string | null }): boolean {
+  if (!p.last_seen_at) return false;
+  return Date.now() - new Date(p.last_seen_at).getTime() < EN_LIGNE_MS;
+}
+
+/**
+ * Signale que le joueur est là.
+ *
+ * Une présence en direct suppose une connexion ouverte, qu'une console
+ * consultée de loin n'a pas. Une trace horodatée se lit sur une colonne,
+ * survit à un rechargement et ne coûte qu'une écriture par ouverture.
+ */
+export async function touchLastSeen(): Promise<void> {
+  // Un échec n'a aucune conséquence : la présence est un agrément, pas une
+  // condition. On ne le remonte donc pas.
+  try {
+    await rpc("touch_last_seen");
+  } catch {
+    /* ignoré */
+  }
 }
 
 export interface AdminStats {
@@ -124,8 +157,8 @@ export async function adminListPlayers(query = "", limit = 50): Promise<AdminPla
   if (!colonneAbsente(error) && !fonctionAbsente(error)) throw error;
 
   const colonnes = [
+    "id, username, first_name, last_name, country, tokens, rating, rated_games, rounds_played, avatar_kind, avatar_url, is_admin, banned, last_seen_at, created_at",
     "id, username, tokens, rating, rated_games, avatar_kind, avatar_url, is_admin, banned, created_at",
-    "id, username, tokens, rating, rated_games, avatar_kind, avatar_url, created_at",
     "id, username, tokens, rating, created_at",
     "id, username, tokens",
   ];
@@ -142,14 +175,19 @@ export async function adminListPlayers(query = "", limit = 50): Promise<AdminPla
     return ((r.data as unknown as Partial<AdminPlayer>[]) ?? []).map((p) => ({
       id: String(p.id),
       username: p.username ?? "",
+      first_name: p.first_name ?? null,
+      last_name: p.last_name ?? null,
+      country: p.country ?? null,
       tokens: p.tokens ?? 0,
       rating: p.rating ?? 1000,
       rated_games: p.rated_games ?? 0,
+      rounds_played: p.rounds_played ?? 0,
       avatar_kind: p.avatar_kind ?? "google",
       avatar_url: p.avatar_url ?? null,
       is_admin: p.is_admin ?? false,
       banned: p.banned ?? false,
       purchases: 0,
+      last_seen_at: p.last_seen_at ?? null,
       created_at: p.created_at ?? "",
     }));
   }
@@ -219,6 +257,41 @@ export async function adminListItems(): Promise<AdminShopItem[]> {
     ...i,
     active: true,
   }));
+}
+
+/**
+ * Crée ou modifie un article de la boutique.
+ *
+ * Un identifiant nouveau crée, un identifiant connu modifie : la console n'a
+ * pas à distinguer les deux gestes, et le serveur non plus.
+ */
+export async function adminUpsertItem(item: {
+  id: string;
+  kind: string;
+  price: number;
+  active: boolean;
+  name: string;
+  hint: string;
+  data: Record<string, unknown>;
+  sort: number;
+}): Promise<void> {
+  const { error } = await rpc("admin_upsert_item", {
+    _id: item.id,
+    _kind: item.kind,
+    _price: Math.round(item.price),
+    _active: item.active,
+    _name: item.name,
+    _hint: item.hint,
+    _data: item.data,
+    _sort: Math.round(item.sort),
+  });
+  if (error) throw error;
+}
+
+/** Supprime un article. Refusé s'il a déjà été acheté. */
+export async function adminDeleteItem(id: string): Promise<void> {
+  const { error } = await rpc("admin_delete_item", { _id: id });
+  if (error) throw error;
 }
 
 export async function adminSetItem(id: string, price: number, active: boolean): Promise<void> {

@@ -3,7 +3,7 @@ import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
 import { Sticker, isSticker } from "@/components/azteque/stickers";
-import { ownedPhrases, ownedStickers } from "@/lib/azteque/shop";
+import { ownedPhrases, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
 
 const QUICK_PHRASES = [
   "Bien joué !",
@@ -41,8 +41,9 @@ const bulle =
 export function MatchChat({ matchId, seat, myName, owned }: Props) {
   const vide = useMemo(() => new Set<string>(), []);
   const acquis = owned ?? vide;
-  const mesStickers = useMemo(() => ownedStickers(acquis), [acquis]);
-  const mesPhrases = useMemo(() => ownedPhrases(acquis), [acquis]);
+  const catalogue = useCatalogue();
+  const mesStickers = useMemo(() => ownedStickers(acquis, catalogue), [acquis, catalogue]);
+  const mesPhrases = useMemo(() => ownedPhrases(acquis, catalogue), [acquis, catalogue]);
   const [open, setOpen] = useState(false);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
@@ -168,7 +169,7 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
                   onClick={() => send(s.name, null, s.id)}
                   className="rounded-lg border border-gold/40 p-1"
                 >
-                  <Sticker id={s.id} className="h-8 w-8" />
+                  <Sticker id={s.art ?? s.id} className="h-8 w-8" />
                 </button>
               ))}
             </div>

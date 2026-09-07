@@ -1,14 +1,16 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
 /**
  * La boutique.
  *
- * Ce fichier décrit ce qui est en vente : l'identifiant, le nom, ce que
- * l'article montre ou dit. Les prix, eux, sont tenus par la base
- * (`supabase/migrations/20260907140000_boutique.sql`) : c'est elle qui débite
- * les jetons, et un prix que le client annoncerait ne vaudrait rien. Les deux
- * listes doivent donc concorder, ce qu'un test vérifie en lisant la migration.
+ * Le catalogue vit en base, où la console d'administration le modifie et
+ * l'étend. Le tableau ci-dessous n'est plus la source : c'est la version
+ * d'origine, celle que la migration installe, et le recours quand la base ne
+ * répond pas — mieux vaut une boutique figée qu'une boutique vide.
  *
- * Le prix figure quand même ici pour être affiché avant l'achat — mais il n'est
- * qu'une copie, et c'est la base qui tranche.
+ * Les prix affichés restent une copie : c'est la base qui débite, et
+ * `buy_item` relit le prix qu'elle tient.
  */
 
 export type ShopKind = "avatar" | "sticker" | "messages";
@@ -20,23 +22,25 @@ export interface ShopItem {
   /** Ce que l'article apporte, en une ligne. */
   hint: string;
   price: number;
+  active: boolean;
+  /** Le dessin emprunté au jeu, pour un avatar ou un sticker. */
+  art?: string | undefined;
+  /** Les phrases mises à disposition, pour un lot de messages. */
+  phrases?: string[] | undefined;
+  sort: number;
 }
 
-export interface MessagePack extends ShopItem {
-  kind: "messages";
-  /** Les phrases que le lot met à disposition dans la discussion. */
-  phrases: string[];
-}
-
-/* ---------- Avatars ---------- */
-
-export const SHOP_AVATARS: ShopItem[] = [
+/** Le catalogue tel que la migration l'installe. */
+export const FALLBACK_ITEMS: ShopItem[] = [
   {
     id: "av_marchand",
     kind: "avatar",
     name: "Le Marchand",
     hint: "Chapeau du grand marché",
     price: 500,
+    active: true,
+    art: "av_marchand",
+    sort: 10,
   },
   {
     id: "av_reine",
@@ -44,6 +48,9 @@ export const SHOP_AVATARS: ShopItem[] = [
     name: "La Reine du marché",
     hint: "Foulard haut et collier d'or",
     price: 750,
+    active: true,
+    art: "av_reine",
+    sort: 20,
   },
   {
     id: "av_griot",
@@ -51,6 +58,9 @@ export const SHOP_AVATARS: ShopItem[] = [
     name: "Le Griot",
     hint: "Celui qui connaît toutes les parties",
     price: 1000,
+    active: true,
+    art: "av_griot",
+    sort: 30,
   },
   {
     id: "av_elegante",
@@ -58,6 +68,9 @@ export const SHOP_AVATARS: ShopItem[] = [
     name: "L'Élégante",
     hint: "Tresses longues et grands anneaux",
     price: 1500,
+    active: true,
+    art: "av_elegante",
+    sort: 40,
   },
   {
     id: "av_roi",
@@ -65,35 +78,78 @@ export const SHOP_AVATARS: ShopItem[] = [
     name: "Le Roi Aztèque",
     hint: "La couronne, rien de moins",
     price: 2500,
+    active: true,
+    art: "av_roi",
+    sort: 50,
   },
-];
-
-/* ---------- Stickers ---------- */
-
-export const SHOP_STICKERS: ShopItem[] = [
-  { id: "st_bravo", kind: "sticker", name: "Bravo", hint: "Applaudir un beau coup", price: 200 },
+  {
+    id: "st_bravo",
+    kind: "sticker",
+    name: "Bravo",
+    hint: "Applaudir un beau coup",
+    price: 200,
+    active: true,
+    art: "st_bravo",
+    sort: 60,
+  },
   {
     id: "st_rire",
     kind: "sticker",
     name: "Éclat de rire",
     hint: "Rire du malheur d'autrui",
     price: 300,
+    active: true,
+    art: "st_rire",
+    sort: 70,
   },
-  { id: "st_pitie", kind: "sticker", name: "Grâce", hint: "Rendre les armes", price: 300 },
-  { id: "st_atout", kind: "sticker", name: "Atout", hint: "Annoncer la couleur", price: 500 },
-  { id: "st_feu", kind: "sticker", name: "En feu", hint: "Trois tours d'affilée", price: 700 },
-  { id: "st_couronne", kind: "sticker", name: "Couronne", hint: "Le champ est à vous", price: 900 },
-];
-
-/* ---------- Lots de messages ---------- */
-
-export const SHOP_MESSAGES: MessagePack[] = [
+  {
+    id: "st_pitie",
+    kind: "sticker",
+    name: "Grâce",
+    hint: "Rendre les armes",
+    price: 300,
+    active: true,
+    art: "st_pitie",
+    sort: 80,
+  },
+  {
+    id: "st_atout",
+    kind: "sticker",
+    name: "Atout",
+    hint: "Annoncer la couleur",
+    price: 500,
+    active: true,
+    art: "st_atout",
+    sort: 90,
+  },
+  {
+    id: "st_feu",
+    kind: "sticker",
+    name: "En feu",
+    hint: "Trois tours d'affilée",
+    price: 700,
+    active: true,
+    art: "st_feu",
+    sort: 100,
+  },
+  {
+    id: "st_couronne",
+    kind: "sticker",
+    name: "Couronne",
+    hint: "Le champ est à vous",
+    price: 900,
+    active: true,
+    art: "st_couronne",
+    sort: 110,
+  },
   {
     id: "ms_salutations",
     kind: "messages",
     name: "Salutations",
     hint: "Ouvrir et fermer une partie comme il faut",
     price: 400,
+    active: true,
+    sort: 120,
     phrases: [
       "Bonjour, bonne partie à vous !",
       "Que le meilleur gagne.",
@@ -108,6 +164,8 @@ export const SHOP_MESSAGES: MessagePack[] = [
     name: "Moqueries",
     hint: "Piquer sans méchanceté",
     price: 600,
+    active: true,
+    sort: 130,
     phrases: [
       "Tu comptais tes cartes ou tes doigts ?",
       "L'atout t'a vu venir de loin.",
@@ -122,6 +180,8 @@ export const SHOP_MESSAGES: MessagePack[] = [
     name: "Défis",
     hint: "Mettre la pression avant le coup",
     price: 800,
+    active: true,
+    sort: 140,
     phrases: [
       "Double la mise, si tu l'oses.",
       "Ce tour est déjà joué dans ma tête.",
@@ -132,18 +192,103 @@ export const SHOP_MESSAGES: MessagePack[] = [
   },
 ];
 
-export const SHOP_ITEMS: ShopItem[] = [...SHOP_AVATARS, ...SHOP_STICKERS, ...SHOP_MESSAGES];
+let catalogue: ShopItem[] = FALLBACK_ITEMS;
+let chargement: Promise<ShopItem[]> | null = null;
+const abonnes = new Set<(items: ShopItem[]) => void>();
+
+interface Ligne {
+  id: string;
+  kind: string;
+  name: string | null;
+  hint: string | null;
+  price: number;
+  active?: boolean;
+  data?: { art?: string; phrases?: string[] } | null;
+  sort?: number;
+}
+
+function depuisLaBase(rows: Ligne[]): ShopItem[] {
+  return rows
+    .map((r) => ({
+      id: r.id,
+      kind: (["avatar", "sticker", "messages"].includes(r.kind) ? r.kind : "sticker") as ShopKind,
+      name: r.name ?? r.id,
+      hint: r.hint ?? "",
+      price: r.price,
+      active: r.active ?? true,
+      art: r.data?.art,
+      phrases: r.data?.phrases,
+      sort: r.sort ?? 0,
+    }))
+    .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
+}
+
+/**
+ * Charge le catalogue, une seule fois par session.
+ *
+ * Une base muette — table absente, migration en retard, réseau coupé — laisse
+ * la version d'origine en place : la boutique s'affiche toujours, avec les
+ * articles et les prix du code, et c'est de toute façon la base qui tranchera
+ * au moment de débiter.
+ */
+export async function loadCatalogue(force = false): Promise<ShopItem[]> {
+  if (chargement && !force) return chargement;
+  chargement = (async () => {
+    try {
+      const { data, error } = await (
+        supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+      )
+        .from("shop_items")
+        .select("id, kind, name, hint, price, active, data, sort");
+      if (error || !data || (data as unknown[]).length === 0) return catalogue;
+      catalogue = depuisLaBase(data as unknown as Ligne[]);
+      abonnes.forEach((f) => f(catalogue));
+      return catalogue;
+    } catch {
+      return catalogue;
+    }
+  })();
+  return chargement;
+}
+
+/** Le catalogue en mémoire, sans attendre. */
+export function shopItems(): ShopItem[] {
+  return catalogue;
+}
 
 export function shopItem(id: string): ShopItem | undefined {
-  return SHOP_ITEMS.find((i) => i.id === id);
+  return catalogue.find((i) => i.id === id);
+}
+
+/** Le catalogue, chargé au premier rendu et tenu à jour. */
+export function useCatalogue(): ShopItem[] {
+  const [items, setItems] = useState<ShopItem[]>(catalogue);
+  useEffect(() => {
+    abonnes.add(setItems);
+    void loadCatalogue().then(setItems);
+    return () => {
+      abonnes.delete(setItems);
+    };
+  }, []);
+  return items;
+}
+
+/** Les articles d'une nature, ceux en vente d'abord. */
+export function itemsOfKind(items: ShopItem[], kind: ShopKind): ShopItem[] {
+  return items.filter((i) => i.kind === kind);
 }
 
 /** Les phrases débloquées par les lots possédés. */
-export function ownedPhrases(owned: ReadonlySet<string>): string[] {
-  return SHOP_MESSAGES.filter((p) => owned.has(p.id)).flatMap((p) => p.phrases);
+export function ownedPhrases(owned: ReadonlySet<string>, items: ShopItem[] = catalogue): string[] {
+  return items
+    .filter((i) => i.kind === "messages" && owned.has(i.id))
+    .flatMap((i) => i.phrases ?? []);
 }
 
 /** Les stickers possédés, dans l'ordre du catalogue. */
-export function ownedStickers(owned: ReadonlySet<string>): ShopItem[] {
-  return SHOP_STICKERS.filter((s) => owned.has(s.id));
+export function ownedStickers(
+  owned: ReadonlySet<string>,
+  items: ShopItem[] = catalogue,
+): ShopItem[] {
+  return items.filter((i) => i.kind === "sticker" && owned.has(i.id));
 }

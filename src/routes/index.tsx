@@ -34,13 +34,14 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
-import { amIAdmin } from "@/lib/azteque/admin";
+import { amIAdmin, touchLastSeen } from "@/lib/azteque/admin";
 import {
   awardAiWin,
   claimDailyBonus,
   claimLocalTokens,
   getMyProfile,
   syncGooglePhoto,
+  syncGoogleIdentity,
   type Profile,
 } from "@/lib/azteque/account";
 import {
@@ -209,7 +210,10 @@ function Azteque() {
         setPlayerName(p.username);
         // La photo Google change d'adresse quand le joueur la remplace : on la
         // recopie, faute de quoi les autres afficheraient l'ancienne.
-        void syncGooglePhoto(p).then((f) => alive && setAccount(f));
+        void syncGooglePhoto(p)
+          .then((f) => syncGoogleIdentity(f))
+          .then((f) => alive && setAccount(f));
+        void touchLastSeen();
         if (askedForName.current) {
           askedForName.current = false;
           setShowPlayerProfile(false);

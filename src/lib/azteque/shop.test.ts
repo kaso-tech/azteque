@@ -1,13 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  SHOP_AVATARS,
-  SHOP_ITEMS,
-  SHOP_MESSAGES,
-  SHOP_STICKERS,
-  ownedPhrases,
-  ownedStickers,
-} from "./shop";
+import { FALLBACK_ITEMS, itemsOfKind, ownedPhrases, ownedStickers } from "./shop";
 
 /**
  * Le catalogue est écrit deux fois : ici pour les dessins et les libellés, en
@@ -17,6 +10,13 @@ import {
  * la migration.
  */
 const migration = readFileSync("supabase/migrations/20260907140000_boutique.sql", "utf8");
+
+// Le catalogue vit désormais en base ; ces constantes en sont la version
+// d'origine, celle que la migration installe et que le code sert de recours.
+const SHOP_ITEMS = FALLBACK_ITEMS;
+const SHOP_AVATARS = itemsOfKind(FALLBACK_ITEMS, "avatar");
+const SHOP_STICKERS = itemsOfKind(FALLBACK_ITEMS, "sticker");
+const SHOP_MESSAGES = itemsOfKind(FALLBACK_ITEMS, "messages");
 
 /** Les triplets du INSERT du catalogue. */
 function bareme(): Map<string, { kind: string; price: number }> {
@@ -59,22 +59,24 @@ describe("catalogue de la boutique", () => {
       expect(lot.phrases).toHaveLength(5);
       expect(new Set(lot.phrases).size).toBe(5);
     }
-    const toutes = SHOP_MESSAGES.flatMap((l) => l.phrases);
+    const toutes = SHOP_MESSAGES.flatMap((l) => l.phrases ?? []);
     expect(new Set(toutes).size).toBe(toutes.length);
   });
 
   it("ne débloque que ce qui est possédé", () => {
-    expect(ownedPhrases(new Set())).toEqual([]);
-    expect(ownedStickers(new Set())).toEqual([]);
+    expect(ownedPhrases(new Set(), FALLBACK_ITEMS)).toEqual([]);
+    expect(ownedStickers(new Set(), FALLBACK_ITEMS)).toEqual([]);
     const achats = new Set(["ms_moqueries", "st_feu"]);
     expect(ownedPhrases(achats)).toEqual(
       SHOP_MESSAGES.find((m) => m.id === "ms_moqueries")!.phrases,
     );
-    expect(ownedStickers(achats).map((s) => s.id)).toEqual(["st_feu"]);
+    expect(ownedStickers(achats, FALLBACK_ITEMS).map((s) => s.id)).toEqual(["st_feu"]);
   });
 
   it("garde les stickers dans l'ordre du catalogue, quel que soit l'ordre des achats", () => {
     const achats = new Set(SHOP_STICKERS.map((s) => s.id));
-    expect(ownedStickers(achats).map((s) => s.id)).toEqual(SHOP_STICKERS.map((s) => s.id));
+    expect(ownedStickers(achats, FALLBACK_ITEMS).map((s) => s.id)).toEqual(
+      SHOP_STICKERS.map((s) => s.id),
+    );
   });
 });

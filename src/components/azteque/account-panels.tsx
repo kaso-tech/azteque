@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RankBadge } from "@/components/azteque/rank";
 import { AVATAR_CHOICES, PlayerAvatar } from "@/components/azteque/avatar";
-import { SHOP_AVATARS } from "@/lib/azteque/shop";
+import { itemsOfKind, useCatalogue } from "@/lib/azteque/shop";
 import {
   USERNAME_RULE,
   describeError,
   isUsernameFree,
+  PAYS_PROPOSES,
+  updateIdentity,
   listPurchases,
   setAvatarKind,
   updateUsername,
@@ -124,8 +126,27 @@ export function AccountIdentity({
   onChange: (p: Profile) => void;
 }) {
   const [name, setName] = useState(profile.username);
+  const [prenom, setPrenom] = useState(profile.first_name ?? "");
+  const [nom, setNom] = useState(profile.last_name ?? "");
+  const [pays, setPays] = useState(profile.country ?? "");
+  const [busyIdentite, setBusyIdentite] = useState(false);
+  const identiteModifiee =
+    prenom !== (profile.first_name ?? "") ||
+    nom !== (profile.last_name ?? "") ||
+    pays !== (profile.country ?? "");
+
+  const enregistrerIdentite = () => {
+    if (busyIdentite) return;
+    setBusyIdentite(true);
+    setError(null);
+    updateIdentity({ first_name: prenom, last_name: nom, country: pays || null })
+      .then(onChange)
+      .catch((e: unknown) => setError(describeError(e, "Enregistrement impossible.")))
+      .finally(() => setBusyIdentite(false));
+  };
   // Les avatars achetés rejoignent les deux libres dans le choix.
   const [owned, setOwned] = useState<string[]>([]);
+  const catalogue = useCatalogue();
   useEffect(() => {
     listPurchases()
       .then(setOwned)
@@ -185,10 +206,9 @@ export function AccountIdentity({
   const aucunePhoto = !profile.avatar_url;
   const choix = [
     ...AVATAR_CHOICES,
-    ...SHOP_AVATARS.filter((a) => owned.includes(a.id)).map((a) => ({
-      kind: a.id,
-      label: a.name,
-    })),
+    ...itemsOfKind(catalogue, "avatar")
+      .filter((a) => owned.includes(a.id))
+      .map((a) => ({ kind: a.art ?? a.id, label: a.name })),
   ];
 
   return (
@@ -232,6 +252,50 @@ export function AccountIdentity({
         </Link>
         .
       </p>
+
+      <p className="mt-6 text-sm text-foreground">Identité</p>
+      <p className="text-xs text-muted-foreground">
+        Facultative, et connue de vous seul : elle ne s'affiche pas aux autres joueurs.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <input
+          value={prenom}
+          onChange={(e) => setPrenom(e.target.value)}
+          placeholder="Prénom"
+          maxLength={60}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-gold"
+        />
+        <input
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          placeholder="Nom"
+          maxLength={60}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-gold"
+        />
+      </div>
+      <select
+        value={pays}
+        onChange={(e) => setPays(e.target.value)}
+        aria-label="Pays"
+        className="mt-2 h-10 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus:border-gold"
+      >
+        <option value="">Pays — non précisé</option>
+        {PAYS_PROPOSES.map((p) => (
+          <option key={p.code} value={p.code}>
+            {p.nom}
+          </option>
+        ))}
+      </select>
+      {identiteModifiee && (
+        <Button
+          size="sm"
+          className="mt-2 font-semibold"
+          disabled={busyIdentite}
+          onClick={enregistrerIdentite}
+        >
+          {busyIdentite ? "…" : "Enregistrer l'identité"}
+        </Button>
+      )}
 
       <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
         Nom d'utilisateur

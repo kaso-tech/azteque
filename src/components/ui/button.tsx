@@ -12,10 +12,14 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive:
           "bg-destructive-solid text-destructive-foreground shadow-sm hover:bg-destructive-solid/90",
+        // Le survol passait par `accent`, qui vaut un rouge franc dans cette
+        // palette : un bouton neutre virait au rouge sous la souris et se
+        // lisait comme un danger. Il s'éclaircit désormais, sans changer de
+        // sens.
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-background shadow-sm hover:border-gold/50 hover:bg-secondary",
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost: "hover:bg-secondary",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

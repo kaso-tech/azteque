@@ -10,50 +10,57 @@ projet, que l'agent n'a pas.
 
 Fichiers, dans cet ordre :
 
-1. `supabase/migrations/20260906200000_accounts_friends_invites.sql`
-2. `supabase/migrations/20260906230000_sync_offline_tokens.sql`
-3. `supabase/migrations/20260906240000_player_ranks.sql`
-4. `supabase/migrations/20260907090000_daily_bonus.sql`
-5. `supabase/migrations/20260907120000_avatars_and_rename.sql`
-6. `supabase/migrations/20260907140000_boutique.sql`
+1. `20260906200000_accounts_friends_invites.sql` — comptes, amis, invitations
+2. `20260906230000_sync_offline_tokens.sql` — report des jetons hors connexion
+3. `20260906240000_player_ranks.sql` — cote et grades
+4. `20260907090000_daily_bonus.sql` — cadeau du jour, barème des victoires IA
+5. `20260907120000_avatars_and_rename.sql` — avatars, pseudo modifiable
+6. `20260907140000_boutique.sql` — boutique et achats
+7. `20260907160000_administration.sql` — console d'administration
+8. `20260907190000_console_complete.sql` — fiches détaillées, catalogue en base
 
-La seconde doit passer **après** `20260906224310_...`, la copie de la première
+Tous sont dans `supabase/migrations/` et écrits pour être rejoués sans risque :
+`IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP POLICY IF EXISTS`. Les relancer ne
+casse rien.
+
+Le second doit passer **après** `20260906224310_...`, la copie du premier
 appliquée par Lovable : celle-ci recrée l'ancienne fonction
 `claim_local_tokens`, et l'ordre des noms de fichiers est ce qui l'en empêche.
 
-Il crée les tables `profiles`, `friendships`, `game_invites`, ajoute trois
-colonnes de résultat à `matches` (`winner_id`, `finished_at`, `settled_at`) et
-quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
-`CREATE OR REPLACE`, `DROP POLICY IF EXISTS`. Le relancer ne casse rien.
-
 ### Prompt à donner à l'agent Lovable
 
-> Applique la migration SQL du fichier
-> `supabase/migrations/20260906200000_accounts_friends_invites.sql` sur la base
-> de ce projet, telle quelle, sans la modifier. Elle crée les tables
-> `profiles`, `friendships` et `game_invites`, ajoute les colonnes
-> `winner_id`, `finished_at` et `settled_at` à la table `matches`, et crée les
-> fonctions `accept_game_invite`, `claim_local_tokens`, `settle_match` et
-> `award_ai_win`. Elle ajoute aussi `game_invites` à la publication temps réel
-> `supabase_realtime`. Applique ensuite, toujours telle quelle, la migration
-> `supabase/migrations/20260906230000_sync_offline_tokens.sql`, qui ajoute la
-> colonne `local_tokens_total` à `profiles` et remplace la fonction
-> `claim_local_tokens`. Applique enfin
-> `supabase/migrations/20260906240000_player_ranks.sql`, qui ajoute les
-> colonnes `rating`, `peak_rating` et `rated_games` à `profiles`, les colonnes
-> `rating_delta_host` et `rating_delta_guest` à `matches`, crée les fonctions
-> `elo_k`, `rating_floor` et `apply_match_rating`, et remplace `settle_match`.
-> Applique pour finir `supabase/migrations/20260907090000_daily_bonus.sql`, qui
-> ajoute la colonne `daily_bonus_at` à `profiles`, crée la fonction
-> `claim_daily_bonus` et met à jour le barème de `award_ai_win`. Applique
-> enfin `supabase/migrations/20260907120000_avatars_and_rename.sql`, qui ajoute
-> les colonnes `avatar_kind` et `avatar_url` à `profiles` avec leurs contraintes
-> et étend le droit d'écriture du client à ces deux colonnes. Applique en
-> dernier `supabase/migrations/20260907140000_boutique.sql`, qui crée les tables
-> `shop_items` et `purchases`, la fonction `buy_item` et le déclencheur
-> `profiles_avatar_owned`.
-> Ensuite, régénère le fichier de types TypeScript
-> `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
+> Applique sur la base de ce projet, telles quelles et sans les modifier, les
+> migrations SQL suivantes, dans cet ordre — celles qui sont déjà passées
+> peuvent être relancées sans risque :
+>
+> 1. `supabase/migrations/20260906200000_accounts_friends_invites.sql` — crée
+>    `profiles`, `friendships`, `game_invites`, ajoute `winner_id`,
+>    `finished_at` et `settled_at` à `matches`, et les fonctions
+>    `accept_game_invite`, `claim_local_tokens`, `settle_match`, `award_ai_win`.
+> 2. `supabase/migrations/20260906230000_sync_offline_tokens.sql` — ajoute
+>    `local_tokens_total` à `profiles`, remplace `claim_local_tokens`.
+> 3. `supabase/migrations/20260906240000_player_ranks.sql` — ajoute `rating`,
+>    `peak_rating`, `rated_games` à `profiles`, `rating_delta_host` et
+>    `rating_delta_guest` à `matches`, crée `elo_k`, `rating_floor`,
+>    `apply_match_rating`, remplace `settle_match`.
+> 4. `supabase/migrations/20260907090000_daily_bonus.sql` — ajoute
+>    `daily_bonus_at` à `profiles`, crée `claim_daily_bonus`, met à jour
+>    `award_ai_win`.
+> 5. `supabase/migrations/20260907120000_avatars_and_rename.sql` — ajoute
+>    `avatar_kind` et `avatar_url` à `profiles`.
+> 6. `supabase/migrations/20260907140000_boutique.sql` — crée `shop_items`,
+>    `purchases`, `buy_item` et le déclencheur `profiles_avatar_owned`.
+> 7. `supabase/migrations/20260907160000_administration.sql` — ajoute `is_admin`
+>    et `banned` à `profiles`, `active` à `shop_items`, crée `admin_log`,
+>    `app_settings` et les fonctions d'administration.
+> 8. `supabase/migrations/20260907190000_console_complete.sql` — ajoute
+>    `first_name`, `last_name`, `country`, `rounds_played` et `last_seen_at` à
+>    `profiles`, `name`, `hint`, `data` et `sort` à `shop_items`, crée
+>    `touch_last_seen`, `admin_upsert_item` et `admin_delete_item`.
+>
+> Régénère ensuite le fichier de types TypeScript
+> `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables et
+> colonnes.
 
 ## 2. Activer la connexion Google
 
@@ -128,6 +135,72 @@ La réponse JSON liste les fournisseurs actifs. Il doit s'y trouver :
 
 Si `google` y vaut `false`, c'est bien ce projet-là qu'il faut configurer —
 quelle que soit la console où l'activation a déjà été faite.
+
+## La console d'administration
+
+Elle vit à l'adresse `/admin`, et un lien n'apparaît au menu que pour les
+administrateurs. Ce lien n'est qu'une commodité : **le droit ne vient pas de
+l'interface**. Chaque opération appelle une procédure serveur qui vérifie
+elle-même que l'appelant administre, et le droit d'administrer ne s'écrit pas
+depuis le client. Cacher un bouton n'a jamais empêché personne d'appeler ce
+qu'il déclenche.
+
+### Se désigner premier administrateur
+
+Le premier administrateur ne peut pas être nommé depuis la console — il n'y en
+a aucun pour le faire. Une fois connecté au moins une fois avec le compte
+voulu, exécuter ceci dans l'éditeur SQL du projet Supabase :
+
+```sql
+UPDATE public.profiles SET is_admin = true WHERE lower(username) = 'votre_pseudo';
+```
+
+La page `/admin` affiche d'ailleurs cette requête toute prête, avec le pseudo du
+compte connecté déjà dedans. Les suivants se nomment depuis la console. On ne
+peut ni se révoquer, ni se suspendre soi-même : ce serait fermer la porte de
+l'intérieur, et il pourrait ne rester personne pour la rouvrir.
+
+### Ce qu'elle permet
+
+- **Joueurs** — la fiche complète : pseudo, nom et prénom, pays, grade et cote,
+  jetons, tours joués, champs classés, achats, statut en ligne ou hors ligne, et
+  date d'inscription. La recherche porte aussi sur le nom et le prénom. De là :
+  **envoyer ou retirer des jetons** avec un motif, suspendre ou rétablir, nommer
+  ou révoquer un administrateur.
+- **Boutique** — le catalogue entier est modifiable et extensible : nom,
+  description, prix, mise en vente, ordre d'affichage, et selon la nature les
+  phrases d'un lot ou le dessin emprunté au jeu. On crée un avatar, un sticker
+  ou un lot de messages du même geste qu'on en modifie un. Un article retiré
+  reste acquis à ceux qui l'ont déjà ; il ne se supprime que s'il n'a jamais été
+  acheté. Les dessins, eux, restent dans le code — on ne dessine pas un avatar
+  depuis une page web — et un article nouveau choisit parmi ceux qui existent.
+- **Sons** — les onze sons du jeu, réglables en volume, hauteur et vitesse, et,
+  pour les rires, en nombre de syllabes, descente et voyelle ; pour les
+  acclamations, en nombre de voix et densité d'applaudissements. Un bouton
+  d'écoute, un volume général. Enregistré, le réglage vaut pour tous les joueurs
+  à leur prochaine ouverture.
+- **Journal** — toute action laisse une trace horodatée avec son motif. Une
+  console qui distribue des jetons sans mémoire est une console qu'on ne peut
+  pas auditer.
+
+Un compte suspendu ne peut plus créer de table, ni acheter, ni gagner de jetons
+contre l'IA ; les règles sont appliquées par la base, pas par l'écran.
+
+## Identité du joueur
+
+Outre son pseudo, un joueur peut renseigner son **prénom, son nom et son pays**
+depuis son profil. Le prénom et le nom sont repris de Google la première fois,
+puisqu'il les transmet, et ne sont plus touchés ensuite : un joueur qui corrige
+son nom ne doit pas le voir revenir. Ces champs ne s'affichent pas aux autres
+joueurs ; ils ne servent qu'à la console.
+
+Le **statut en ligne** se lit sur une trace horodatée (`last_seen_at`), écrite à
+chaque ouverture du jeu : en ligne signifie « vu il y a moins de cinq minutes ».
+Une présence en direct supposerait une connexion ouverte, qu'une console
+consultée de loin n'a pas.
+
+Les **tours joués** sont comptés au règlement de chaque champ, qui sait combien
+de tours il a duré — plutôt qu'une écriture à chaque fin de tour.
 
 ## Les jetons
 
@@ -281,6 +354,10 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
 10. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
     plus jusqu'au lendemain, y compris après rechargement ou dans un second
     onglet.
-11. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
+11. Se désigner administrateur par la requête ci-dessus, ouvrir `/admin`,
+    envoyer des jetons à un compte d'essai et vérifier la trace au journal ;
+    suspendre ce compte et constater qu'il ne peut plus créer de table ; créer
+    un lot de messages et le retrouver en boutique.
+12. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
     affichée sous le score — puis le grade mis à jour dans le salon et sur le
     profil. L'adversaire doit voir la variation opposée.

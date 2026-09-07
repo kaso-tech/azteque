@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/components/azteque/avatar";
 import { Sticker } from "@/components/azteque/stickers";
-import { SHOP_AVATARS, SHOP_MESSAGES, SHOP_STICKERS, type ShopItem } from "@/lib/azteque/shop";
+import { itemsOfKind, useCatalogue, type ShopItem } from "@/lib/azteque/shop";
 import {
   buyItem,
   currentUserId,
@@ -38,6 +38,11 @@ function Boutique() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const catalogue = useCatalogue();
+  // Un article retiré de la vente reste visible à qui l'a acheté, et disparaît
+  // pour les autres : c'est ce que « retirer » veut dire.
+  const visibles = (k: "avatar" | "sticker" | "messages") =>
+    itemsOfKind(catalogue, k).filter((i) => i.active || owned.has(i.id));
 
   const charger = useCallback(async () => {
     const id = await currentUserId().catch(() => null);
@@ -183,8 +188,11 @@ function Boutique() {
           Le visage que les autres joueurs voient à côté de votre nom.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {SHOP_AVATARS.map((a) =>
-            carte(a, <PlayerAvatar className="h-16 w-16" profile={{ avatar_kind: a.id }} />),
+          {visibles("avatar").map((a) =>
+            carte(
+              a,
+              <PlayerAvatar className="h-16 w-16" profile={{ avatar_kind: a.art ?? a.id }} />,
+            ),
           )}
         </div>
       </section>
@@ -195,7 +203,9 @@ function Boutique() {
           À envoyer dans la discussion, pendant la partie.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {SHOP_STICKERS.map((s) => carte(s, <Sticker id={s.id} className="h-16 w-16" />))}
+          {visibles("sticker").map((s) =>
+            carte(s, <Sticker id={s.art ?? s.id} className="h-16 w-16" />),
+          )}
         </div>
       </section>
 
@@ -205,14 +215,14 @@ function Boutique() {
           Cinq phrases prêtes à envoyer, d'un seul geste, sans lâcher ses cartes.
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {SHOP_MESSAGES.map((m) =>
+          {visibles("messages").map((m) =>
             carte(
               m,
               <span className="text-3xl" aria-hidden="true">
                 💬
               </span>,
               <ul className="w-full space-y-0.5 text-left text-[0.68rem] text-muted-foreground">
-                {m.phrases.map((p) => (
+                {(m.phrases ?? []).map((p) => (
                   <li key={p} className="truncate">
                     « {p} »
                   </li>

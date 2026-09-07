@@ -40,6 +40,10 @@ export interface PublicProfile {
 }
 
 export interface Profile extends PublicProfile {
+  first_name: string | null;
+  last_name: string | null;
+  /** Code ISO à deux lettres, choisi par le joueur. */
+  country: string | null;
   tokens: number;
   claimed_local_tokens: boolean;
   /** Meilleure cote jamais atteinte : un grade perdu reste un grade obtenu. */
@@ -531,6 +535,78 @@ export async function updateUsername(username: string): Promise<Profile> {
     throw error;
   }
   return data as unknown as Profile;
+}
+
+/**
+ * Les pays proposés au joueur.
+ *
+ * Une liste courte plutôt qu'un annuaire mondial : elle couvre la région où le
+ * jeu se joue, et « Autre » évite d'obliger qui n'y figure pas à mentir.
+ */
+export const PAYS_PROPOSES: { code: string; nom: string }[] = [
+  { code: "CI", nom: "Côte d'Ivoire" },
+  { code: "TG", nom: "Togo" },
+  { code: "BJ", nom: "Bénin" },
+  { code: "BF", nom: "Burkina Faso" },
+  { code: "GH", nom: "Ghana" },
+  { code: "ML", nom: "Mali" },
+  { code: "NE", nom: "Niger" },
+  { code: "NG", nom: "Nigéria" },
+  { code: "SN", nom: "Sénégal" },
+  { code: "GN", nom: "Guinée" },
+  { code: "CM", nom: "Cameroun" },
+  { code: "FR", nom: "France" },
+  { code: "BE", nom: "Belgique" },
+  { code: "CA", nom: "Canada" },
+  { code: "US", nom: "États-Unis" },
+];
+
+/** Enregistre l'état civil et le pays. Chaque champ est facultatif. */
+export async function updateIdentity(champs: {
+  first_name?: string | null;
+  last_name?: string | null;
+  country?: string | null;
+}): Promise<Profile> {
+  const id = await currentUserId();
+  if (!id) throw new Error("Connectez-vous d'abord.");
+  const propre = (v: string | null | undefined) => {
+    const t = (v ?? "").trim().slice(0, 60);
+    return t === "" ? null : t;
+  };
+  const { data, error } = await anyTable("profiles")
+    .update({
+      first_name: propre(champs.first_name),
+      last_name: propre(champs.last_name),
+      country: champs.country ? champs.country.toUpperCase().slice(0, 2) : null,
+    } as never)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as unknown as Profile;
+}
+
+/**
+ * Reprend de Google ce qu'il transmet du nom, une seule fois.
+ *
+ * Le fournisseur donne le prénom et le nom séparément ; les recopier évite de
+ * les redemander. On ne touche qu'aux champs encore vides : un joueur qui a
+ * corrigé son nom ne doit pas le voir revenir.
+ */
+export async function syncGoogleIdentity(profile: Profile): Promise<Profile> {
+  if (profile.first_name || profile.last_name) return profile;
+  const { data } = await withTimeout(supabase.auth.getSession(), 3500, {
+    data: { session: null },
+  } as Awaited<ReturnType<typeof supabase.auth.getSession>>);
+  const meta = data.session?.user?.user_metadata as Record<string, unknown> | undefined;
+  const prenom = typeof meta?.["given_name"] === "string" ? meta["given_name"] : null;
+  const nom = typeof meta?.["family_name"] === "string" ? meta["family_name"] : null;
+  if (!prenom && !nom) return profile;
+  return updateIdentity({
+    first_name: prenom,
+    last_name: nom,
+    country: profile.country,
+  }).catch(() => profile);
 }
 
 /* ---------- Boutique ---------- */

@@ -5,17 +5,22 @@ import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/components/azteque/avatar";
 import { Sticker } from "@/components/azteque/stickers";
 import { RankBadge } from "@/components/azteque/rank";
+import { rankOf } from "@/lib/azteque/rank";
 import { describeError } from "@/lib/azteque/account";
-import { shopItem } from "@/lib/azteque/shop";
+import { loadCatalogue, useCatalogue, type ShopItem, type ShopKind } from "@/lib/azteque/shop";
 import {
   DEFAULT_SOUND_SETTINGS,
+  SOUND_EXTRAS,
   SOUND_IDS,
   SOUND_LABELS,
+  SOUND_RANGES,
+  SOUND_TUNING_LABELS,
   currentSoundSettings,
   sfx,
   applySoundSettings,
   type SoundId,
   type SoundSettings,
+  type SoundTuning,
 } from "@/lib/azteque/sfx";
 import {
   adminGrantTokens,
@@ -26,6 +31,9 @@ import {
   adminSetAdmin,
   adminSetBanned,
   adminSetItem,
+  adminUpsertItem,
+  adminDeleteItem,
+  estEnLigne,
   adminAccess,
   adminStats,
   type AdminAccess,
@@ -221,6 +229,35 @@ function PorteFermee({ acces }: { acces: Exclude<AdminAccess, { state: "admin" }
 
 /* ---------- Joueurs ---------- */
 
+/** Le peu de pays qu'on nomme en toutes lettres ; les autres gardent leur code. */
+const PAYS: Record<string, string> = {
+  CI: "Côte d'Ivoire",
+  TG: "Togo",
+  BJ: "Bénin",
+  BF: "Burkina Faso",
+  GH: "Ghana",
+  ML: "Mali",
+  NE: "Niger",
+  NG: "Nigéria",
+  SN: "Sénégal",
+  CM: "Cameroun",
+  GN: "Guinée",
+  FR: "France",
+  BE: "Belgique",
+  CA: "Canada",
+  US: "États-Unis",
+};
+
+/** « Vu il y a… », ou l'aveu qu'on ne l'a jamais vu. */
+function vuIlYA(iso: string | null): string {
+  if (!iso) return "jamais vu";
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 60) return `vu il y a ${minutes} min`;
+  const heures = Math.floor(minutes / 60);
+  if (heures < 24) return `vu il y a ${heures} h`;
+  return `vu il y a ${Math.floor(heures / 24)} j`;
+}
+
 function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) {
   const [query, setQuery] = useState("");
   const [liste, setListe] = useState<AdminPlayer[]>([]);
@@ -271,21 +308,38 @@ function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) {
               onClick={() => setOuvert(ouvert === j.id ? null : j.id)}
               className="flex w-full items-center gap-3 px-3 py-2 text-left"
             >
-              <PlayerAvatar className="h-9 w-9" profile={j} />
+              <PlayerAvatar className="h-10 w-10" profile={j} />
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2">
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      estEnLigne(j)
+                        ? "bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153_/_0.8)]"
+                        : "bg-muted-foreground/40",
+                    )}
+                    aria-label={estEnLigne(j) ? "En ligne" : "Hors ligne"}
+                  />
                   <span className="truncate text-sm font-semibold text-foreground">
                     {j.username}
                   </span>
                   {j.is_admin && <span className="text-[0.62rem] text-gold">ADMIN</span>}
                   {j.banned && <span className="text-[0.62rem] text-destructive">SUSPENDU</span>}
                 </span>
+                <span className="block truncate text-[0.68rem] text-muted-foreground">
+                  {[j.first_name, j.last_name].filter(Boolean).join(" ") ||
+                    "Identité non renseignée"}
+                  {j.country ? ` · ${PAYS[j.country] ?? j.country}` : ""}
+                </span>
                 <RankBadge rating={j.rating} />
               </span>
               <span className="shrink-0 text-right">
                 <span className="block font-display text-sm text-gold">🪙 {j.tokens}</span>
                 <span className="block text-[0.62rem] text-muted-foreground">
-                  {j.rated_games} parties · {j.purchases} achats
+                  {j.rounds_played} tours · {j.rated_games} champs
+                </span>
+                <span className="block text-[0.62rem] text-muted-foreground">
+                  {j.purchases} achats · {estEnLigne(j) ? "en ligne" : vuIlYA(j.last_seen_at)}
                 </span>
               </span>
             </button>
@@ -340,9 +394,28 @@ function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) {
                     {j.is_admin ? "Retirer l'administration" : "Nommer administrateur"}
                   </Button>
                 </div>
-                <p className="text-[0.66rem] text-muted-foreground">
-                  Inscrit le {new Date(j.created_at).toLocaleDateString("fr")} · cote {j.rating}
-                </p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[0.68rem] sm:grid-cols-3">
+                  {[
+                    ["Nom d'utilisateur", j.username],
+                    ["Nom et prénom", [j.first_name, j.last_name].filter(Boolean).join(" ") || "—"],
+                    ["Pays", j.country ? (PAYS[j.country] ?? j.country) : "—"],
+                    ["Niveau", `${rankOf(j.rating).name} (${j.rating})`],
+                    ["Jetons", String(j.tokens)],
+                    ["Tours joués", String(j.rounds_played)],
+                    ["Champs classés", String(j.rated_games)],
+                    ["Achats", String(j.purchases)],
+                    ["Statut", estEnLigne(j) ? "En ligne" : vuIlYA(j.last_seen_at)],
+                    [
+                      "Inscrit le",
+                      j.created_at ? new Date(j.created_at).toLocaleDateString("fr") : "—",
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-muted-foreground">{k}</dt>
+                      <dd className="truncate text-foreground">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             )}
           </li>
@@ -354,93 +427,297 @@ function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) {
 
 /* ---------- Boutique ---------- */
 
+/** Les dessins que le jeu sait rendre : un article nouveau leur emprunte. */
+const DESSINS_AVATAR = ["av_marchand", "av_reine", "av_griot", "av_elegante", "av_roi"];
+const DESSINS_STICKER = ["st_bravo", "st_rire", "st_pitie", "st_atout", "st_feu", "st_couronne"];
+
+interface Brouillon {
+  id: string;
+  kind: ShopKind;
+  name: string;
+  hint: string;
+  price: string;
+  active: boolean;
+  art: string;
+  phrases: string;
+  sort: string;
+  nouveau: boolean;
+}
+
+function brouillonDe(i: ShopItem): Brouillon {
+  return {
+    id: i.id,
+    kind: i.kind,
+    name: i.name,
+    hint: i.hint,
+    price: String(i.price),
+    active: i.active,
+    art: i.art ?? "",
+    phrases: (i.phrases ?? []).join("\n"),
+    sort: String(i.sort),
+    nouveau: false,
+  };
+}
+
+function brouillonNeuf(kind: ShopKind, sort: number): Brouillon {
+  return {
+    id: "",
+    kind,
+    name: "",
+    hint: "",
+    price: "500",
+    active: true,
+    art: kind === "avatar" ? DESSINS_AVATAR[0]! : kind === "sticker" ? DESSINS_STICKER[0]! : "",
+    phrases: "",
+    sort: String(sort),
+    nouveau: true,
+  };
+}
+
+/**
+ * Le catalogue, modifiable et extensible.
+ *
+ * Tout y est éditable : le nom, la description, le prix, la mise en vente,
+ * l'ordre, et selon la nature les phrases d'un lot ou le dessin emprunté au
+ * jeu. Un article nouveau se crée du même geste — le serveur ne distingue pas
+ * la création de la modification.
+ *
+ * Les dessins, eux, restent dans le code : on ne dessine pas un avatar depuis
+ * une page web. Un article nouveau choisit donc parmi ceux qui existent, ce qui
+ * suffit à composer des variantes et des éditions.
+ */
 function Boutique({ onErreur }: { onErreur: (e: string | null) => void }) {
-  const [items, setItems] = useState<AdminShopItem[]>([]);
-  const [prix, setPrix] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  const catalogue = useCatalogue();
+  const [brouillon, setBrouillon] = useState<Brouillon | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const charger = useCallback(() => {
-    adminListItems()
-      .then((l) => {
-        const ordre = ["avatar", "sticker", "messages"];
-        setItems([...l].sort((a, b) => ordre.indexOf(a.kind) - ordre.indexOf(b.kind)));
-        setPrix(Object.fromEntries(l.map((i) => [i.id, String(i.price)])));
-      })
-      .catch((e: unknown) => onErreur(describeError(e, "Catalogue indisponible.")));
-  }, [onErreur]);
+  const rafraichir = () => void loadCatalogue(true);
 
-  useEffect(charger, [charger]);
-
-  const enregistrer = (item: AdminShopItem, actif: boolean) => {
-    const p = Number(prix[item.id] ?? item.price);
-    if (!Number.isFinite(p) || p < 0) return;
-    setBusy(item.id);
+  const enregistrer = () => {
+    if (!brouillon || busy) return;
+    const phrases = brouillon.phrases
+      .split("\n")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (brouillon.kind === "messages" && phrases.length === 0) {
+      onErreur("Un lot de messages doit contenir au moins une phrase.");
+      return;
+    }
+    setBusy(true);
     onErreur(null);
-    adminSetItem(item.id, p, actif)
-      .then(charger)
-      .catch((e: unknown) => onErreur(describeError(e, "Modification impossible.")))
-      .finally(() => setBusy(null));
+    adminUpsertItem({
+      id: brouillon.id.trim(),
+      kind: brouillon.kind,
+      price: Number(brouillon.price) || 0,
+      active: brouillon.active,
+      name: brouillon.name.trim(),
+      hint: brouillon.hint.trim(),
+      data: brouillon.kind === "messages" ? { phrases } : { art: brouillon.art },
+      sort: Number(brouillon.sort) || 0,
+    })
+      .then(() => {
+        rafraichir();
+        setBrouillon(null);
+      })
+      .catch((e: unknown) => onErreur(describeError(e, "Enregistrement impossible.")))
+      .finally(() => setBusy(false));
   };
 
+  const supprimer = (id: string) => {
+    setBusy(true);
+    onErreur(null);
+    adminDeleteItem(id)
+      .then(() => {
+        rafraichir();
+        setBrouillon(null);
+      })
+      .catch((e: unknown) => onErreur(describeError(e, "Suppression impossible.")))
+      .finally(() => setBusy(false));
+  };
+
+  const champ = (
+    label: string,
+    valeur: string,
+    onChange: (v: string) => void,
+    props: React.InputHTMLAttributes<HTMLInputElement> = {},
+  ) => (
+    <label className="block text-[0.68rem] text-muted-foreground">
+      {label}
+      <input
+        value={valeur}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-0.5 h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+        {...props}
+      />
+    </label>
+  );
+
+  const apercu = (b: Brouillon) =>
+    b.kind === "messages" ? (
+      <span className="text-2xl">💬</span>
+    ) : b.kind === "avatar" ? (
+      <PlayerAvatar className="h-12 w-12" profile={{ avatar_kind: b.art }} />
+    ) : (
+      <Sticker id={b.art} className="h-11 w-11" />
+    );
+
   return (
-    <section className="panel space-y-2 px-4 py-4">
+    <section className="panel space-y-3 px-4 py-4">
       <p className="text-xs text-muted-foreground">
-        Le prix vit ici, pas dans l'application : c'est cette valeur qui débite. Un article retiré
-        de la vente reste acquis à ceux qui l'ont déjà.
+        Le catalogue vit en base : c'est ce prix-là qui débite. Un article retiré de la vente reste
+        acquis à ceux qui l'ont déjà ; il ne se supprime que s'il n'a jamais été acheté.
       </p>
-      <ul className="space-y-2">
-        {items.map((i) => {
-          const info = shopItem(i.id);
-          return (
-            <li
-              key={i.id}
-              className={cn(
-                "flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2",
-                i.active ? "border-border" : "border-destructive/40 bg-destructive/5",
+
+      <div className="flex flex-wrap gap-2">
+        {(["avatar", "sticker", "messages"] as const).map((k) => (
+          <Button
+            key={k}
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setBrouillon(brouillonNeuf(k, Math.max(0, ...catalogue.map((i) => i.sort)) + 10))
+            }
+          >
+            + {k === "avatar" ? "Avatar" : k === "sticker" ? "Sticker" : "Lot de messages"}
+          </Button>
+        ))}
+      </div>
+
+      {brouillon && (
+        <div className="space-y-2 rounded-lg border border-gold/50 bg-gold/5 p-3">
+          <div className="flex items-center gap-3">
+            {apercu(brouillon)}
+            <p className="font-display text-lg text-gold">
+              {brouillon.nouveau ? "Nouvel article" : brouillon.id}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {brouillon.nouveau &&
+              champ("Identifiant (minuscules, chiffres, souligné)", brouillon.id, (v) =>
+                setBrouillon({ ...brouillon, id: v }),
               )}
-            >
-              <span className="grid h-10 w-10 shrink-0 place-items-center">
-                {i.kind === "avatar" ? (
-                  <PlayerAvatar className="h-10 w-10" profile={{ avatar_kind: i.id }} />
-                ) : i.kind === "sticker" ? (
-                  <Sticker id={i.id} className="h-9 w-9" />
-                ) : (
-                  <span className="text-2xl">💬</span>
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-foreground">
-                  {info?.name ?? i.id}
-                </span>
-                <span className="text-[0.66rem] text-muted-foreground">{i.id}</span>
-              </span>
-              <input
-                value={prix[i.id] ?? String(i.price)}
-                onChange={(e) => setPrix((p) => ({ ...p, [i.id]: e.target.value }))}
-                inputMode="numeric"
-                className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm"
-                aria-label={`Prix de ${info?.name ?? i.id}`}
+            {champ("Nom", brouillon.name, (v) => setBrouillon({ ...brouillon, name: v }))}
+            {champ("Description", brouillon.hint, (v) => setBrouillon({ ...brouillon, hint: v }))}
+            {champ("Prix", brouillon.price, (v) => setBrouillon({ ...brouillon, price: v }), {
+              inputMode: "numeric",
+            })}
+            {champ("Ordre d'affichage", brouillon.sort, (v) =>
+              setBrouillon({ ...brouillon, sort: v }),
+            )}
+          </div>
+
+          {brouillon.kind === "messages" ? (
+            <label className="block text-[0.68rem] text-muted-foreground">
+              Phrases, une par ligne
+              <textarea
+                value={brouillon.phrases}
+                onChange={(e) => setBrouillon({ ...brouillon, phrases: e.target.value })}
+                rows={6}
+                className="mt-0.5 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
               />
-              <Button size="sm" disabled={busy === i.id} onClick={() => enregistrer(i, i.active)}>
-                Enregistrer
-              </Button>
+            </label>
+          ) : (
+            <div>
+              <p className="text-[0.68rem] text-muted-foreground">Dessin</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {(brouillon.kind === "avatar" ? DESSINS_AVATAR : DESSINS_STICKER).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setBrouillon({ ...brouillon, art: a })}
+                    className={cn(
+                      "rounded-lg p-1",
+                      brouillon.art === a ? "ring-1 ring-gold" : "hover:bg-secondary",
+                    )}
+                  >
+                    {brouillon.kind === "avatar" ? (
+                      <PlayerAvatar className="h-10 w-10" profile={{ avatar_kind: a }} />
+                    ) : (
+                      <Sticker id={a} className="h-9 w-9" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={busy} onClick={enregistrer} className="font-semibold">
+              {busy ? "…" : "Enregistrer"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBrouillon({ ...brouillon, active: !brouillon.active })}
+            >
+              {brouillon.active ? "En vente" : "Retiré"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setBrouillon(null)}>
+              Annuler
+            </Button>
+            {!brouillon.nouveau && (
               <Button
                 size="sm"
                 variant="outline"
-                disabled={busy === i.id}
-                onClick={() => enregistrer(i, !i.active)}
+                disabled={busy}
+                onClick={() => supprimer(brouillon.id)}
+                className="text-destructive"
               >
-                {i.active ? "Retirer" : "Remettre"}
+                Supprimer
               </Button>
-            </li>
-          );
-        })}
+            )}
+          </div>
+        </div>
+      )}
+
+      <ul className="space-y-2">
+        {catalogue.map((i) => (
+          <li
+            key={i.id}
+            className={cn(
+              "flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2",
+              i.active ? "border-border" : "border-destructive/40 bg-destructive/5",
+            )}
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center">
+              {i.kind === "avatar" ? (
+                <PlayerAvatar className="h-10 w-10" profile={{ avatar_kind: i.art ?? i.id }} />
+              ) : i.kind === "sticker" ? (
+                <Sticker id={i.art ?? i.id} className="h-9 w-9" />
+              ) : (
+                <span className="text-2xl">💬</span>
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-foreground">{i.name}</span>
+              <span className="block truncate text-[0.66rem] text-muted-foreground">
+                {i.id} · {i.hint}
+                {i.kind === "messages" ? ` · ${(i.phrases ?? []).length} phrases` : ""}
+              </span>
+            </span>
+            <span className="shrink-0 font-display text-sm text-gold">🪙 {i.price}</span>
+            <Button size="sm" variant="outline" onClick={() => setBrouillon(brouillonDe(i))}>
+              Modifier
+            </Button>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
 /* ---------- Sons ---------- */
+
+const VOYELLES_LABELS = ["a", "e", "o"];
+
+/** Ce que valent les réglages propres à chaque son quand nul n'y a touché. */
+const DEFAUTS_AFFICHES: Partial<Record<SoundId, Partial<SoundTuning>>> = {
+  snicker: { syllables: 3, step: 0.9, vowel: 1 },
+  chuckle: { syllables: 4, step: 1.02, vowel: 1 },
+  taunt: { syllables: 5, step: 0.9, vowel: 0 },
+  cheer: { voices: 14, claps: 80 },
+};
 
 function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const [reglages, setReglages] = useState<SoundSettings>(() => currentSoundSettings());
@@ -453,14 +730,10 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
     sfx[id]();
   };
 
-  const valeur = (id: SoundId, axe: keyof NonNullable<SoundSettings["sounds"][SoundId]>) =>
-    reglages.sounds[id]?.[axe] ?? 1;
+  const valeur = (id: SoundId, axe: keyof SoundTuning) =>
+    reglages.sounds[id]?.[axe] ?? DEFAUTS_AFFICHES[id]?.[axe] ?? 1;
 
-  const regler = (
-    id: SoundId,
-    axe: keyof NonNullable<SoundSettings["sounds"][SoundId]>,
-    v: number,
-  ) =>
+  const regler = (id: SoundId, axe: keyof SoundTuning, v: number) =>
     setReglages((r) => ({
       ...r,
       sounds: { ...r.sounds, [id]: { ...(r.sounds[id] ?? {}), [axe]: v } },
@@ -483,20 +756,24 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
     v: number,
     min: number,
     max: number,
+    pas: number,
     onChange: (v: number) => void,
+    libelles?: string[],
   ) => (
     <label className="flex items-center gap-2 text-[0.68rem] text-muted-foreground">
-      <span className="w-14 shrink-0">{label}</span>
+      <span className="w-24 shrink-0">{label}</span>
       <input
         type="range"
         min={min}
         max={max}
-        step={0.05}
+        step={pas}
         value={v}
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-1.5 min-w-0 flex-1 accent-[var(--gold)]"
       />
-      <span className="w-9 shrink-0 text-right tabular-nums text-foreground">{v.toFixed(2)}</span>
+      <span className="w-12 shrink-0 text-right tabular-nums text-foreground">
+        {libelles ? (libelles[Math.round(v)] ?? v) : pas >= 1 ? Math.round(v) : v.toFixed(2)}
+      </span>
     </label>
   );
 
@@ -504,7 +781,9 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
     <section className="panel space-y-4 px-4 py-4">
       <div>
         <p className="text-sm text-foreground">Volume général</p>
-        {curseur("Tous", reglages.master, 0, 2, (v) => setReglages((r) => ({ ...r, master: v })))}
+        {curseur("Tous", reglages.master, 0, 2, 0.05, (v) =>
+          setReglages((r) => ({ ...r, master: v })),
+        )}
         <p className="mt-1 text-xs text-muted-foreground">
           Chaque son se règle sur trois axes : le volume, la hauteur et la vitesse. 1,00 est la
           valeur d'origine. Les réglages valent pour tous les joueurs dès l'enregistrement.
@@ -521,9 +800,24 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
               </Button>
             </div>
             <div className="mt-1.5 space-y-1">
-              {curseur("Volume", valeur(id, "gain"), 0, 3, (v) => regler(id, "gain", v))}
-              {curseur("Hauteur", valeur(id, "pitch"), 0.5, 2, (v) => regler(id, "pitch", v))}
-              {curseur("Vitesse", valeur(id, "speed"), 0.5, 2, (v) => regler(id, "speed", v))}
+              {(["gain", "pitch", "speed", ...SOUND_EXTRAS[id]] as (keyof SoundTuning)[]).map(
+                (axe) => {
+                  const b = SOUND_RANGES[axe];
+                  return (
+                    <div key={axe}>
+                      {curseur(
+                        SOUND_TUNING_LABELS[axe],
+                        valeur(id, axe),
+                        b.min,
+                        b.max,
+                        b.step,
+                        (v) => regler(id, axe, v),
+                        axe === "vowel" ? VOYELLES_LABELS : undefined,
+                      )}
+                    </div>
+                  );
+                },
+              )}
             </div>
           </li>
         ))}

@@ -318,7 +318,59 @@ export interface SoundTuning {
   pitch: number;
   /** Vitesse, 1 = valeur d'origine ; au-dessus de 1, plus lent. */
   speed: number;
+  /** Rires : nombre de syllabes. */
+  syllables: number;
+  /** Rires : rapport de hauteur d'une syllabe à la suivante. */
+  step: number;
+  /** Rires : la voyelle prononcée, 0 pour « a », 1 pour « e », 2 pour « o ». */
+  vowel: number;
+  /** Acclamations : nombre de voix dans la foule. */
+  voices: number;
+  /** Acclamations : densité des applaudissements. */
+  claps: number;
 }
+
+/**
+ * Ce que chaque son laisse régler au-delà du volume, de la hauteur et de la
+ * vitesse. Un bruit de carton n'a pas de syllabes ; une foule n'a pas de
+ * voyelle. La console n'affiche que ce qui a du sens.
+ */
+export const SOUND_EXTRAS: Record<SoundId, (keyof SoundTuning)[]> = {
+  place: [],
+  beat: [],
+  collect: [],
+  draw: [],
+  sweep: [],
+  shuffle: [],
+  dealCard: [],
+  snicker: ["syllables", "step", "vowel"],
+  chuckle: ["syllables", "step", "vowel"],
+  taunt: ["syllables", "step", "vowel"],
+  cheer: ["voices", "claps"],
+};
+
+/** Bornes de chaque réglage : au-delà, le son cesse d'être un son. */
+export const SOUND_RANGES: Record<keyof SoundTuning, { min: number; max: number; step: number }> = {
+  gain: { min: 0, max: 3, step: 0.05 },
+  pitch: { min: 0.5, max: 2, step: 0.05 },
+  speed: { min: 0.5, max: 2, step: 0.05 },
+  syllables: { min: 1, max: 8, step: 1 },
+  step: { min: 0.75, max: 1.25, step: 0.01 },
+  vowel: { min: 0, max: 2, step: 1 },
+  voices: { min: 2, max: 30, step: 1 },
+  claps: { min: 0, max: 200, step: 5 },
+};
+
+export const SOUND_TUNING_LABELS: Record<keyof SoundTuning, string> = {
+  gain: "Volume",
+  pitch: "Hauteur",
+  speed: "Vitesse",
+  syllables: "Syllabes",
+  step: "Descente",
+  vowel: "Voyelle",
+  voices: "Voix",
+  claps: "Applaudissements",
+};
 
 export interface SoundSettings {
   /** Volume général, appliqué par-dessus les réglages individuels. */
@@ -344,14 +396,41 @@ export function applySoundSettings(raw: unknown): void {
   const sounds: SoundSettings["sounds"] = {};
   for (const id of SOUND_IDS) {
     const t = (o.sounds?.[id] ?? {}) as Partial<SoundTuning>;
-    sounds[id] = {
+    const defauts = DEFAUTS_PAR_SON[id];
+    const regle: Partial<SoundTuning> = {
       gain: borne(t.gain, 0, 3, 1),
       pitch: borne(t.pitch, 0.5, 2, 1),
       speed: borne(t.speed, 0.5, 2, 1),
     };
+    for (const clef of SOUND_EXTRAS[id]) {
+      const b = SOUND_RANGES[clef];
+      regle[clef] = borne(t[clef], b.min, b.max, defauts[clef] ?? 1);
+    }
+    sounds[id] = regle;
   }
   reglages = { master: borne(o.master, 0, 2, 1), sounds };
 }
+
+/**
+ * Les valeurs d'origine des réglages propres à chaque son.
+ *
+ * Elles doivent suivre ce que fait la synthèse : un curseur laissé au repos ne
+ * doit rien changer au son que le jeu produisait avant que la console
+ * n'existe.
+ */
+const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
+  place: {},
+  beat: {},
+  collect: {},
+  draw: {},
+  sweep: {},
+  shuffle: {},
+  dealCard: {},
+  snicker: { syllables: 3, step: 0.9, vowel: 1 },
+  chuckle: { syllables: 4, step: 1.02, vowel: 1 },
+  taunt: { syllables: 5, step: 0.9, vowel: 0 },
+  cheer: { voices: 14, claps: 80 },
+};
 
 /** Les réglages en vigueur, tels que la console doit les afficher. */
 export function currentSoundSettings(): SoundSettings {
@@ -361,10 +440,17 @@ export function currentSoundSettings(): SoundSettings {
 /** Les trois facteurs d'un son : volume, hauteur, vitesse. */
 function reglage(id: SoundId) {
   const t = reglages.sounds[id] ?? {};
+  const d = DEFAUTS_PAR_SON[id];
+  const VOYELLE = ["a", "e", "o"] as const;
   return {
     g: (t.gain ?? 1) * reglages.master,
     p: t.pitch ?? 1,
     s: t.speed ?? 1,
+    syllabes: Math.round(t.syllables ?? d.syllables ?? 3),
+    pas: t.step ?? d.step ?? 0.93,
+    voyelle: VOYELLE[Math.round(t.vowel ?? d.vowel ?? 0)] ?? "a",
+    voix: Math.round(t.voices ?? d.voices ?? 14),
+    claps: Math.round(t.claps ?? d.claps ?? 80),
   };
 }
 
@@ -421,25 +507,18 @@ export const sfx = {
    * trois syllabes serrées : de quoi se moquer, pas de quoi triompher.
    */
   snicker() {
-    const { g, p, s } = reglage("snicker");
-    rire(0, {
-      syllabes: 3,
-      f0: 300 * p,
-      pas: 0.9,
-      tempo: 0.15 * s,
-      voyelle: "e",
-      gain: 0.19 * g,
-    });
+    const { g, p, s, syllabes, pas, voyelle } = reglage("snicker");
+    rire(0, { syllabes, f0: 300 * p, pas, tempo: 0.15 * s, voyelle, gain: 0.19 * g });
   },
   /** Rire clair et chantant : un compte vient d'être annoncé. */
   chuckle() {
-    const { g, p, s } = reglage("chuckle");
+    const { g, p, s, syllabes, pas, voyelle } = reglage("chuckle");
     rire(0, {
-      syllabes: 4,
+      syllabes,
       f0: 380 * p,
-      pas: 1.02,
+      pas,
       tempo: 0.13 * s,
-      voyelle: "e",
+      voyelle,
       gain: 0.24 * g,
       reprise: false,
     });
@@ -447,15 +526,8 @@ export const sfx = {
   },
   /** Rire moqueur : voix grave, syllabes lentes qui descendent. */
   taunt() {
-    const { g, p, s } = reglage("taunt");
-    rire(0, {
-      syllabes: 5,
-      f0: 210 * p,
-      pas: 0.9,
-      tempo: 0.21 * s,
-      voyelle: "a",
-      gain: 0.28 * g,
-    });
+    const { g, p, s, syllabes, pas, voyelle } = reglage("taunt");
+    rire(0, { syllabes, f0: 210 * p, pas, tempo: 0.21 * s, voyelle, gain: 0.28 * g });
   },
   /**
    * Acclamations : une foule, et non une note de victoire.
@@ -466,8 +538,8 @@ export const sfx = {
    * comme un effet ; celle-ci monte et retombe.
    */
   cheer() {
-    const { g, p, s } = reglage("cheer");
-    for (let i = 0; i < 14; i += 1) {
+    const { g, p, s, voix, claps } = reglage("cheer");
+    for (let i = 0; i < voix; i += 1) {
       const depart = Math.random() * 0.7 * s;
       const voyelle = (["a", "e", "o"] as const)[Math.floor(Math.random() * 3)]!;
       syllabe(depart, {
@@ -480,7 +552,7 @@ export const sfx = {
       });
     }
     // Applaudissements : la densité culmine tôt, puis se clairsème.
-    for (let i = 0; i < 80; i += 1) {
+    for (let i = 0; i < claps; i += 1) {
       const t = Math.pow(Math.random(), 0.55) * 1.9 * s;
       noise(t, 0.035 * s, (0.048 + Math.random() * 0.056) * g, 2800, 1200, "bandpass");
     }
