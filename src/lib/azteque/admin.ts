@@ -147,10 +147,31 @@ export interface AdminShopItem {
   active: boolean;
 }
 
+/** Vrai quand la base ignore une colonne demandée : migration en retard. */
+function colonneAbsente(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code ?? "";
+  return code === "PGRST204" || code === "42703";
+}
+
+/**
+ * Le catalogue tel que la base le tient.
+ *
+ * `active` vient de la migration d'administration : si elle n'est pas encore
+ * passée, on relit sans elle plutôt que de rendre l'onglet inutilisable. Tout
+ * est alors réputé en vente, ce qui est le cas puisque le retrait n'existe pas
+ * encore.
+ */
 export async function adminListItems(): Promise<AdminShopItem[]> {
-  const { data, error } = await anyTable("shop_items").select("id, kind, price, active");
-  if (error) throw error;
-  return (data as unknown as AdminShopItem[]) ?? [];
+  const complet = await anyTable("shop_items").select("id, kind, price, active");
+  if (!complet.error) return (complet.data as unknown as AdminShopItem[]) ?? [];
+  if (!colonneAbsente(complet.error)) throw complet.error;
+
+  const reduit = await anyTable("shop_items").select("id, kind, price");
+  if (reduit.error) throw reduit.error;
+  return ((reduit.data as unknown as Omit<AdminShopItem, "active">[]) ?? []).map((i) => ({
+    ...i,
+    active: true,
+  }));
 }
 
 export async function adminSetItem(id: string, price: number, active: boolean): Promise<void> {

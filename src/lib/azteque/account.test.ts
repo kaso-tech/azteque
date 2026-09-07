@@ -68,7 +68,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-const { isUsernameFree, searchPlayers, describeError } = await import("./account");
+const { isUsernameFree, searchPlayers, describeError, nomDeColonne } = await import("./account");
 
 beforeEach(() => {
   base.colonnes = new Set(TOUTES);
@@ -142,6 +142,25 @@ describe("lecture des profils quand la base est en retard", () => {
   });
 });
 
+describe("lecture du nom de colonne dans un message d'erreur", () => {
+  // Trois formulations selon qui répond : PostgREST consultant son cache, le
+  // moteur, et sa variante qualifiée. N'en reconnaître qu'une revient à ne rien
+  // dire dans les deux autres cas — c'est ce qui a rendu une panne illisible.
+  it.each([
+    ["Could not find the 'avatar_kind' column of 'profiles' in the schema cache", "avatar_kind"],
+    ['column "banned" does not exist', "banned"],
+    ["column p.is_admin does not exist", "is_admin"],
+    ["column profiles.rating does not exist", "rating"],
+  ])("reconnaît %s", (message, attendu) => {
+    expect(nomDeColonne(message)).toBe(attendu);
+  });
+
+  it("ne prétend rien quand le message ne dit pas de colonne", () => {
+    expect(nomDeColonne("permission denied")).toBe("");
+    expect(nomDeColonne("")).toBe("");
+  });
+});
+
 describe("message d'une colonne manquante", () => {
   it("nomme la colonne et le fichier de migration à appliquer", () => {
     const message = describeError(
@@ -158,5 +177,19 @@ describe("message d'une colonne manquante", () => {
   it("reste utile pour une colonne qu'il ne connaît pas", () => {
     const message = describeError({ code: "42703", message: "column x does not exist" }, "Échec.");
     expect(message).toContain("migration");
+  });
+
+  it("reproduit toujours le message du serveur", () => {
+    // Le remplacer par une phrase vague nous aveugle : sans lui, une panne
+    // dont la lecture se trompe devient impossible à diagnostiquer.
+    const brut = "column p.quelque_chose does not exist";
+    expect(describeError({ code: "42703", message: brut }, "Échec.")).toContain(brut);
+    const fonction = "Could not find the function public.is_admin";
+    expect(describeError({ code: "PGRST202", message: fonction }, "Échec.")).toContain(fonction);
+  });
+
+  it("nomme le fichier pour une colonne d'administration", () => {
+    const m = describeError({ code: "42703", message: "column p.is_admin does not exist" }, "x");
+    expect(m).toContain("20260907160000_administration.sql");
   });
 });

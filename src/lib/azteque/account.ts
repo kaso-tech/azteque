@@ -104,7 +104,33 @@ const MIGRATION_PAR_COLONNE: Record<string, string> = {
   daily_bonus_at: "20260907090000_daily_bonus.sql",
   avatar_kind: "20260907120000_avatars_and_rename.sql",
   avatar_url: "20260907120000_avatars_and_rename.sql",
+  is_admin: "20260907160000_administration.sql",
+  banned: "20260907160000_administration.sql",
+  active: "20260907160000_administration.sql",
 };
+
+/**
+ * Extrait le nom de la colonne d'un message d'erreur.
+ *
+ * Trois formulations selon qui répond : PostgREST consultant son cache de
+ * schéma (« Could not find the 'x' column of 'y' »), le moteur lui-même
+ * (« column "x" does not exist ») et sa variante qualifiée (« column t.x does
+ * not exist »). N'en reconnaître qu'une revient à ne rien dire dans les deux
+ * autres cas.
+ */
+export function nomDeColonne(message: string): string {
+  const formes = [
+    /'([a-z_]+)' column/i,
+    /column "([a-z_]+)"/i,
+    /column [a-z_]+\.([a-z_]+)/i,
+    /colonne « ([a-z_]+) »/i,
+  ];
+  for (const f of formes) {
+    const m = f.exec(message);
+    if (m?.[1]) return m[1];
+  }
+  return "";
+}
 
 export function describeError(e: unknown, fallback: string): string {
   if (e instanceof Error && e.message) return e.message;
@@ -120,16 +146,25 @@ export function describeError(e: unknown, fallback: string): string {
       );
     }
     if (code === "PGRST204" || code === "42703") {
-      // Le nom de la colonne dit quelle migration manque : autant l'indiquer
-      // plutôt que de laisser chercher.
-      const colonne = /'([a-z_]+)' column/.exec(o.message ?? "")?.[1] ?? "";
+      const colonne = nomDeColonne(o.message ?? "");
       const fichier = MIGRATION_PAR_COLONNE[colonne];
       return (
-        `La base ne connaît pas encore la colonne « ${colonne || "demandée"} ». ` +
+        (colonne
+          ? `La base ne connaît pas la colonne « ${colonne} ». `
+          : "La base ne connaît pas une colonne demandée. ") +
         (fichier
-          ? `Appliquez la migration ${fichier} sur le projet Supabase, `
-          : "Une migration reste à appliquer sur le projet Supabase, ") +
-        "puis rechargez. Voir docs/mise-en-service-comptes.md."
+          ? `Appliquez la migration ${fichier} sur le projet Supabase, puis rechargez. `
+          : "Une migration reste à appliquer sur le projet Supabase, puis rechargez. ") +
+        // Le message du serveur est reproduit tel quel : quand la lecture
+        // ci-dessus se trompe, c'est lui qui permet de comprendre, et le
+        // remplacer par une phrase vague nous aveugle tous les deux.
+        `(${o.message ?? code})`
+      );
+    }
+    if (code === "PGRST202" || code === "42883") {
+      return (
+        "La base ne connaît pas encore cette fonction : une migration reste à " +
+        `appliquer sur le projet Supabase. (${o.message ?? code})`
       );
     }
     if (code === "42501" || code === "PGRST301") {
