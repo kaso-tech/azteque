@@ -92,6 +92,19 @@ normalement. À défaut, redémarrer l'API du projet depuis la console Supabase.
 Pour savoir laquelle des deux, ouvrir l'éditeur de tables du projet : si
 `profiles` n'y figure pas, c'est la cause 1.
 
+## Si l'application dit « La base ne connaît pas encore la colonne… »
+
+C'est le code PostgREST `PGRST204` (ou `42703`) : la table existe, mais pas la
+colonne demandée. Une migration reste à appliquer — le message nomme le fichier.
+
+Les migrations de ce dépôt sont appliquées à part, depuis la console du projet :
+le code déployé peut donc tourner en avance sur la base. Pour que cet écart ne
+casse rien de plus que nécessaire, la lecture des profils redemande sans les
+colonnes manquantes : la recherche de joueurs, la liste d'amis et les
+invitations continuent de fonctionner, sans image ni grade, jusqu'à ce que la
+migration passe. Seule l'action qui a besoin de la colonne — changer d'avatar,
+par exemple — reste refusée, avec le nom du fichier à appliquer.
+
 ## Vérifier que Google est bien activé sur LE BON projet
 
 L'erreur `{"code":400,"error_code":"validation_failed","msg":"Unsupported

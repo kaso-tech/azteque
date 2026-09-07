@@ -87,6 +87,25 @@ export const USERNAME_RULE = /^[A-Za-z0-9_-]{3,20}$/;
  * actionnable, car ils désignent presque toujours un défaut de mise en service
  * plutôt qu'un défaut du code.
  */
+/**
+ * Quelle migration apporte quelle colonne.
+ *
+ * Les migrations sont appliquées à part, par la console du projet : le code
+ * tourne parfois en avance sur la base, et le message d'erreur doit alors dire
+ * lequel des fichiers reste à passer.
+ */
+const MIGRATION_PAR_COLONNE: Record<string, string> = {
+  local_tokens_total: "20260906230000_sync_offline_tokens.sql",
+  rating: "20260906240000_player_ranks.sql",
+  peak_rating: "20260906240000_player_ranks.sql",
+  rated_games: "20260906240000_player_ranks.sql",
+  rating_delta_host: "20260906240000_player_ranks.sql",
+  rating_delta_guest: "20260906240000_player_ranks.sql",
+  daily_bonus_at: "20260907090000_daily_bonus.sql",
+  avatar_kind: "20260907120000_avatars_and_rename.sql",
+  avatar_url: "20260907120000_avatars_and_rename.sql",
+};
+
 export function describeError(e: unknown, fallback: string): string {
   if (e instanceof Error && e.message) return e.message;
   if (typeof e === "string" && e) return e;
@@ -98,6 +117,19 @@ export function describeError(e: unknown, fallback: string): string {
         "Les tables des comptes sont introuvables sur ce projet Supabase. " +
         "La migration n'y a pas été appliquée, ou le cache de schéma n'a pas " +
         "encore été rechargé. Voir docs/mise-en-service-comptes.md."
+      );
+    }
+    if (code === "PGRST204" || code === "42703") {
+      // Le nom de la colonne dit quelle migration manque : autant l'indiquer
+      // plutôt que de laisser chercher.
+      const colonne = /'([a-z_]+)' column/.exec(o.message ?? "")?.[1] ?? "";
+      const fichier = MIGRATION_PAR_COLONNE[colonne];
+      return (
+        `La base ne connaît pas encore la colonne « ${colonne || "demandée"} ». ` +
+        (fichier
+          ? `Appliquez la migration ${fichier} sur le projet Supabase, `
+          : "Une migration reste à appliquer sur le projet Supabase, ") +
+        "puis rechargez. Voir docs/mise-en-service-comptes.md."
       );
     }
     if (code === "42501" || code === "PGRST301") {
@@ -314,6 +346,60 @@ export async function createProfile(username: string): Promise<Profile> {
   return data as unknown as Profile;
 }
 
+/* ---------- Lecture des profils ---------- */
+
+/**
+ * Vrai quand la base ignore une colonne demandée.
+ *
+ * C'est le symptôme d'une migration pas encore appliquée. PostgREST le dit de
+ * deux façons selon qu'il consulte son cache de schéma ou qu'il laisse le
+ * moteur répondre.
+ */
+function isMissingColumn(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code ?? "";
+  return code === "PGRST204" || code === "42703";
+}
+
+/**
+ * Colonnes publiques d'un profil, de la plus complète à la plus réduite.
+ *
+ * Les migrations de ce dépôt sont appliquées à part, par la console du projet :
+ * le code peut donc tourner en avance sur la base. Une colonne d'agrément
+ * manquante ne doit pas emporter la recherche de joueurs, la liste d'amis et
+ * les invitations avec elle — on redemande alors sans elle, et les valeurs par
+ * défaut prennent le relais jusqu'à ce que la migration passe.
+ */
+const PROFILE_COLUMNS = [
+  "id, username, rating, avatar_kind, avatar_url",
+  "id, username, rating",
+  "id, username",
+] as const;
+
+interface Reponse {
+  data: unknown;
+  error: { code?: string; message?: string } | null;
+}
+
+async function readProfiles(query: (cols: string) => PromiseLike<Reponse>): Promise<Reponse> {
+  let last: Reponse = { data: null, error: null };
+  for (const cols of PROFILE_COLUMNS) {
+    last = await query(cols);
+    if (!last.error || !isMissingColumn(last.error)) return last;
+  }
+  return last;
+}
+
+/** Complète un profil lu partiellement, migration en retard. */
+function asPublic(row: Partial<PublicProfile> & { id: string; username: string }): PublicProfile {
+  return {
+    id: row.id,
+    username: row.username,
+    rating: row.rating ?? START_RATING,
+    avatar_kind: row.avatar_kind ?? "google",
+    avatar_url: row.avatar_url ?? null,
+  };
+}
+
 /* ---------- Pseudo et avatar ---------- */
 
 /**
@@ -527,22 +613,27 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
   const q = query.trim();
   if (q.length < 2) return [];
   const me = await currentUserId();
-  const { data, error } = await anyTable("profiles")
-    .select("id, username, rating, avatar_kind, avatar_url")
-    .ilike("username", `%${q}%`)
-    .limit(limit + 1);
+  const { data, error } = await readProfiles((cols) =>
+    anyTable("profiles")
+      .select(cols)
+      .ilike("username", `%${q}%`)
+      .limit(limit + 1),
+  );
   if (error) throw error;
-  return ((data as unknown as PublicProfile[]) ?? []).filter((p) => p.id !== me).slice(0, limit);
+  return ((data as PublicProfile[] | null) ?? [])
+    .map(asPublic)
+    .filter((p) => p.id !== me)
+    .slice(0, limit);
 }
 
 /** Profil public d'un joueur, pour afficher son grade à côté de son nom. */
 export async function getPublicProfile(id: string): Promise<PublicProfile | null> {
-  const { data, error } = await anyTable("profiles")
-    .select("id, username, rating, avatar_kind, avatar_url")
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await readProfiles((cols) =>
+    anyTable("profiles").select(cols).eq("id", id).maybeSingle(),
+  );
   if (error) throw error;
-  return (data as unknown as PublicProfile | null) ?? null;
+  const row = data as (PublicProfile & { id: string; username: string }) | null;
+  return row ? asPublic(row) : null;
 }
 
 interface FriendshipRow {
@@ -563,12 +654,12 @@ export async function listFriends(): Promise<Friend[]> {
   if (rows.length === 0) return [];
 
   const others = rows.map((r) => (r.requester_id === me ? r.addressee_id : r.requester_id));
-  const { data: profiles, error: pErr } = await anyTable("profiles")
-    .select("id, username, rating, avatar_kind, avatar_url")
-    .in("id", others);
+  const { data: profiles, error: pErr } = await readProfiles((cols) =>
+    anyTable("profiles").select(cols).in("id", others),
+  );
   if (pErr) throw pErr;
   const known = new Map(
-    ((profiles as unknown as PublicProfile[]) ?? []).map((p) => [p.id, p] as const),
+    ((profiles as PublicProfile[] | null) ?? []).map((p) => [p.id, asPublic(p)] as const),
   );
 
   return rows.map((r) => {
@@ -657,11 +748,13 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
   const invites = (data as unknown as GameInvite[]) ?? [];
   if (invites.length === 0) return [];
 
-  const { data: profiles } = await anyTable("profiles")
-    .select("id, username, rating, avatar_kind, avatar_url")
-    .in("id", [...new Set(invites.map((i) => i.from_id))]);
+  const { data: profiles } = await readProfiles((cols) =>
+    anyTable("profiles")
+      .select(cols)
+      .in("id", [...new Set(invites.map((i) => i.from_id))]),
+  );
   const known = new Map(
-    ((profiles as unknown as PublicProfile[]) ?? []).map((p) => [p.id, p] as const),
+    ((profiles as PublicProfile[] | null) ?? []).map((p) => [p.id, asPublic(p)] as const),
   );
   return invites.map((i) => ({
     ...i,
