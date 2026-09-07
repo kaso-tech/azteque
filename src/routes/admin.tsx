@@ -18,11 +18,15 @@ import {
   currentSoundSettings,
   sfx,
   applySoundSettings,
+  clearSample,
+  hasSample,
+  registerSample,
   type SoundId,
   type SoundSettings,
   type SoundTuning,
 } from "@/lib/azteque/sfx";
 import {
+  adminClearSoundFile,
   adminGrantTokens,
   adminListItems,
   adminListPlayers,
@@ -31,16 +35,20 @@ import {
   adminSetAdmin,
   adminSetBanned,
   adminSetItem,
+  adminSetSoundFile,
   adminUpsertItem,
   adminDeleteItem,
   estEnLigne,
   adminAccess,
   adminStats,
+  listSoundFiles,
+  SON_MAX_OCTETS,
   type AdminAccess,
   type AdminLogEntry,
   type AdminPlayer,
   type AdminShopItem,
   type AdminStats,
+  type SoundFileInfo,
 } from "@/lib/azteque/admin";
 
 export const Route = createFileRoute("/admin")({
@@ -719,15 +727,111 @@ const DEFAUTS_AFFICHES: Partial<Record<SoundId, Partial<SoundTuning>>> = {
   cheer: { voices: 14, claps: 80 },
 };
 
+/**
+ * Le type d'un fichier, quand le navigateur ne le dit pas.
+ *
+ * Certains navigateurs remettent une chaîne vide pour un fichier glissé depuis
+ * un dossier ; la base, elle, exige un type qui commence par « audio/ ». On le
+ * déduit du nom plutôt que de refuser un son parfaitement lisible.
+ */
+const MIMES: Record<string, string> = {
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/ogg",
+  webm: "audio/webm",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  flac: "audio/flac",
+};
+
+function typeDuFichier(f: File): string {
+  if (f.type.startsWith("audio/")) return f.type;
+  const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+  return MIMES[ext] ?? "audio/mpeg";
+}
+
+function poids(octets: number): string {
+  return octets >= 1024 * 1024
+    ? `${(octets / (1024 * 1024)).toFixed(1)} Mo`
+    : `${Math.max(1, Math.round(octets / 1024))} ko`;
+}
+
 function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const [reglages, setReglages] = useState<SoundSettings>(() => currentSoundSettings());
   const [busy, setBusy] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
+  const [fichiers, setFichiers] = useState<Record<string, SoundFileInfo>>({});
+  const [occupe, setOccupe] = useState<SoundId | null>(null);
+
+  // Ce qui est déjà installé : la console doit dire ce qu'on entend, pas ce
+  // que le code produirait. Une table absente n'est pas une panne — la
+  // migration des sons locaux n'est peut-être pas encore passée.
+  useEffect(() => {
+    listSoundFiles()
+      .then((l) => setFichiers(Object.fromEntries(l.map((f) => [f.id, f]))))
+      .catch(() => setFichiers({}));
+  }, []);
 
   // L'aperçu doit s'entendre tel qu'il sera : on applique avant de jouer.
   const ecouter = (id: SoundId) => {
     applySoundSettings(reglages);
     sfx[id]();
+  };
+
+  /**
+   * Installe un fichier à la place d'un son.
+   *
+   * Il est décodé d'abord, envoyé ensuite : un fichier que le navigateur
+   * n'ouvre pas deviendrait un silence chez tous les joueurs, et l'on ne
+   * s'en apercevrait qu'en jouant.
+   */
+  const televerser = async (id: SoundId, f: File) => {
+    onErreur(null);
+    setOccupe(id);
+    try {
+      if (f.size > SON_MAX_OCTETS) {
+        throw new Error(
+          `« ${f.name} » pèse ${poids(f.size)} : ${poids(SON_MAX_OCTETS)} au maximum, ` +
+            "puisque chaque joueur le télécharge à l'ouverture.",
+        );
+      }
+      const octets = await f.arrayBuffer();
+      await registerSample(id, octets);
+      const mime = typeDuFichier(f);
+      await adminSetSoundFile(id, mime, f.name, octets);
+      setFichiers((x) => ({
+        ...x,
+        [id]: { id, mime, name: f.name, bytes: f.size, updated_at: new Date().toISOString() },
+      }));
+      sfx[id]();
+    } catch (e: unknown) {
+      // Le son revient à sa synthèse : mieux vaut l'ancien effet qu'un silence.
+      clearSample(id);
+      setFichiers((x) => {
+        const { [id]: _, ...reste } = x;
+        return reste;
+      });
+      onErreur(describeError(e, "Installation impossible."));
+    } finally {
+      setOccupe(null);
+    }
+  };
+
+  const retirer = (id: SoundId) => {
+    onErreur(null);
+    setOccupe(id);
+    adminClearSoundFile(id)
+      .then(() => {
+        clearSample(id);
+        setFichiers((x) => {
+          const { [id]: _, ...reste } = x;
+          return reste;
+        });
+      })
+      .catch((e: unknown) => onErreur(describeError(e, "Retrait impossible.")))
+      .finally(() => setOccupe(null));
   };
 
   const valeur = (id: SoundId, axe: keyof SoundTuning) =>
@@ -788,20 +892,75 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
           Chaque son se règle sur trois axes : le volume, la hauteur et la vitesse. 1,00 est la
           valeur d'origine. Les réglages valent pour tous les joueurs dès l'enregistrement.
         </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Chaque son peut aussi être remplacé par un fichier local — un vrai rire, de vraies
+          acclamations. Le fichier s'installe aussitôt, sans passer par « Enregistrer », et le
+          retirer rend au son sa synthèse. {poids(SON_MAX_OCTETS)} au maximum : ce sont des effets
+          d'une ou deux secondes, que chaque joueur télécharge à l'ouverture.
+        </p>
       </div>
 
       <ul className="space-y-3">
-        {SOUND_IDS.map((id) => (
-          <li key={id} className="rounded-lg border border-border px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">{SOUND_LABELS[id]}</p>
-              <Button size="sm" variant="outline" onClick={() => ecouter(id)}>
-                ▶ Écouter
-              </Button>
-            </div>
-            <div className="mt-1.5 space-y-1">
-              {(["gain", "pitch", "speed", ...SOUND_EXTRAS[id]] as (keyof SoundTuning)[]).map(
-                (axe) => {
+        {SOUND_IDS.map((id) => {
+          const fichier = fichiers[id];
+          const axes: (keyof SoundTuning)[] = fichier
+            ? ["gain", "pitch", "speed"]
+            : ["gain", "pitch", "speed", ...SOUND_EXTRAS[id]];
+          return (
+            <li key={id} className="rounded-lg border border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{SOUND_LABELS[id]}</p>
+                <Button size="sm" variant="outline" onClick={() => ecouter(id)}>
+                  ▶ Écouter
+                </Button>
+              </div>
+
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <label
+                  className={cn(
+                    "cursor-pointer rounded-full border border-gold/50 px-3 py-1 text-[0.68rem] text-gold",
+                    occupe === id && "pointer-events-none opacity-60",
+                  )}
+                >
+                  {occupe === id ? "…" : fichier ? "Remplacer le fichier" : "Choisir un fichier"}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      // Le champ est vidé pour que reprendre le même fichier
+                      // après une erreur relance bien l'installation.
+                      e.target.value = "";
+                      if (f) void televerser(id, f);
+                    }}
+                  />
+                </label>
+                {fichier ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={occupe === id}
+                    onClick={() => retirer(id)}
+                    className="h-7 px-2 text-[0.68rem]"
+                  >
+                    Retirer
+                  </Button>
+                ) : (
+                  <span className="text-[0.68rem] text-muted-foreground">Son synthétisé</span>
+                )}
+              </div>
+              {fichier && (
+                <p className="mt-1 truncate text-[0.68rem] text-muted-foreground">
+                  🎵 {fichier.name || fichier.id} · {poids(fichier.bytes)}
+                  {/* Le fichier est en base mais pas dans cette page : elle a
+                      été ouverte avant qu'il n'y soit. */}
+                  {!hasSample(id) && " · rechargez la page pour l'entendre"}
+                </p>
+              )}
+
+              <div className="mt-1.5 space-y-1">
+                {axes.map((axe) => {
                   const b = SOUND_RANGES[axe];
                   return (
                     <div key={axe}>
@@ -816,11 +975,11 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
                       )}
                     </div>
                   );
-                },
-              )}
-            </div>
-          </li>
-        ))}
+                })}
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       <div className="flex flex-wrap items-center gap-2">

@@ -131,6 +131,12 @@ GRANT EXECUTE ON FUNCTION public.admin_set_setting(text, jsonb) TO authenticated
 -- parties, achats, état. Passe par une fonction plutôt que par une lecture
 -- directe, parce qu'elle agrège des tables que le client n'a pas le droit de
 -- lire pour autrui.
+-- Une console plus récente élargit cette liste. Rejouer cette migration après
+-- elle — sur un projet neuf, où les fichiers repassent tous dans l'ordre —
+-- se heurterait sinon à « cannot change return type of existing function » :
+-- un CREATE OR REPLACE ne sait pas changer les colonnes rendues.
+DROP FUNCTION IF EXISTS public.admin_list_players(text, int);
+
 CREATE OR REPLACE FUNCTION public.admin_list_players(_query text DEFAULT '', _limit int DEFAULT 50)
 RETURNS TABLE (
   id uuid,

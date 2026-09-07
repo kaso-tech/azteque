@@ -7,8 +7,15 @@ export function setSoundEnabled(on: boolean) {
   enabled = on;
 }
 
-function audio(): AudioContext | null {
-  if (typeof window === "undefined" || !enabled) return null;
+/**
+ * Le contexte audio, créé au besoin.
+ *
+ * Séparé de `audio()` parce que décoder un fichier n'est pas le jouer : la
+ * console doit pouvoir vérifier qu'un son téléversé s'ouvre, même chez un
+ * administrateur qui a coupé le son du jeu.
+ */
+function creerContexte(): AudioContext | null {
+  if (typeof window === "undefined") return null;
   try {
     if (!ctx) {
       const Ctor =
@@ -22,6 +29,10 @@ function audio(): AudioContext | null {
   } catch {
     return null;
   }
+}
+
+function audio(): AudioContext | null {
+  return enabled ? creerContexte() : null;
 }
 
 /** Bruit filtré : le frottement du carton (pose, ramassage, pioche). */
@@ -454,9 +465,82 @@ function reglage(id: SoundId) {
   };
 }
 
+/* ---------- Sons locaux ---------- */
+
+/*
+ * Un son du jeu peut être remplacé par un vrai enregistrement, installé depuis
+ * la console. Le fichier décodé s'ajoute ici ; à partir de là, la synthèse
+ * correspondante ne joue plus. Le retirer suffit à la faire revenir — rien
+ * n'est perdu, puisqu'elle n'a jamais été qu'un peu de code.
+ */
+const echantillons = new Map<SoundId, AudioBuffer>();
+
+/** Vrai si cette chaîne nomme un son du jeu. */
+export function isSoundId(v: string): v is SoundId {
+  return (SOUND_IDS as readonly string[]).includes(v);
+}
+
+/**
+ * Installe un fichier à la place d'un son synthétisé.
+ *
+ * Le décodage sert aussi de contrôle : un fichier que le navigateur ne sait
+ * pas ouvrir lève ici, avant d'être envoyé à la base et de rendre le son muet
+ * chez tout le monde.
+ */
+export async function registerSample(id: SoundId, bytes: ArrayBuffer): Promise<void> {
+  const ac = creerContexte();
+  if (!ac) throw new Error("Ce navigateur ne sait pas lire de son.");
+  // `decodeAudioData` vide le tampon qu'on lui passe : on lui en donne une
+  // copie, pour que l'appelant puisse encore l'envoyer à la base.
+  const buffer = await ac.decodeAudioData(bytes.slice(0)).catch(() => {
+    // Le navigateur dit « Unable to decode audio data » : exact, en anglais,
+    // et sans dire quoi faire.
+    throw new Error("Ce fichier ne s'ouvre pas comme un son. Essayez un MP3, un WAV ou un OGG.");
+  });
+  echantillons.set(id, buffer);
+}
+
+/** Rend un son à sa synthèse. */
+export function clearSample(id: SoundId): void {
+  echantillons.delete(id);
+}
+
+/** Vrai si ce son est joué depuis un fichier. */
+export function hasSample(id: SoundId): boolean {
+  return echantillons.has(id);
+}
+
+/**
+ * Joue le fichier installé pour ce son, s'il y en a un.
+ *
+ * Renvoie vrai dès qu'un fichier existe, y compris quand le son est coupé :
+ * ce qui a été remplacé reste remplacé, et la synthèse ne doit jamais prendre
+ * le relais dans le dos de l'administrateur.
+ */
+function echantillon(id: SoundId): boolean {
+  const buffer = echantillons.get(id);
+  if (!buffer) return false;
+  const ac = audio();
+  if (!ac) return true;
+  const { g, p, s } = reglage(id);
+  if (!(g > 0)) return true;
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  // Un enregistrement n'a qu'une commande pour la hauteur et la vitesse : le
+  // relire plus vite le rend plus aigu. Les deux curseurs se combinent donc,
+  // au lieu d'agir séparément comme sur la synthèse.
+  src.playbackRate.value = Math.min(4, Math.max(0.25, p / s));
+  const gain = ac.createGain();
+  gain.gain.value = Math.min(4, g);
+  src.connect(gain).connect(ac.destination);
+  src.start(ac.currentTime);
+  return true;
+}
+
 export const sfx = {
   /** Le paquet est battu : deux riffles, puis la coupe. */
   shuffle() {
+    if (echantillon("shuffle")) return;
     const { g, s } = reglage("shuffle");
     riffle(0, g, s);
     riffle(0.4 * s, g, s);
@@ -465,18 +549,21 @@ export const sfx = {
   },
   /** Une carte glisse du paquet vers une main. */
   dealCard() {
+    if (echantillon("dealCard")) return;
     const { g, p, s } = reglage("dealCard");
     noise(0, 0.07 * s, 0.1 * g, 3600 * p, 1400 * p, "bandpass");
     tone(0.005, 240 * p, 0.05 * s, 0.03 * g, "sine", 150 * p);
   },
   /** La carte quitte la main et se pose sur la table. */
   place() {
+    if (echantillon("place")) return;
     const { g, p, s } = reglage("place");
     noise(0, 0.13 * s, 0.16 * g, 2600 * p, 700 * p);
     tone(0.01, 190 * p, 0.08 * s, 0.05 * g, "sine", 120 * p);
   },
   /** La seconde carte bat la première. */
   beat() {
+    if (echantillon("beat")) return;
     const { g, p, s } = reglage("beat");
     noise(0, 0.16 * s, 0.2 * g, 3800 * p, 900 * p);
     tone(0.02, 420 * p, 0.16 * s, 0.07 * g, "triangle", 660 * p);
@@ -484,17 +571,20 @@ export const sfx = {
   },
   /** Le pli est ramassé sur un tas. */
   collect() {
+    if (echantillon("collect")) return;
     const { g, p, s } = reglage("collect");
     noise(0, 0.22 * s, 0.14 * g, 1500 * p, 320 * p, "lowpass");
     tone(0.05 * s, 150 * p, 0.14 * s, 0.045 * g, "sine", 96 * p);
   },
   /** Une carte est tirée de la pioche. */
   draw() {
+    if (echantillon("draw")) return;
     const { g, p, s } = reglage("draw");
     noise(0, 0.1 * s, 0.1 * g, 3200 * p, 1200 * p);
   },
   /** Atout 10 : tout le tas adverse est raflé. */
   sweep() {
+    if (echantillon("sweep")) return;
     const { g, p, s } = reglage("sweep");
     noise(0, 0.55 * s, 0.22 * g, 900 * p, 4200 * p, "bandpass");
     noise(0.18 * s, 0.45 * s, 0.16 * g, 2400 * p, 400 * p, "lowpass");
@@ -507,11 +597,13 @@ export const sfx = {
    * trois syllabes serrées : de quoi se moquer, pas de quoi triompher.
    */
   snicker() {
+    if (echantillon("snicker")) return;
     const { g, p, s, syllabes, pas, voyelle } = reglage("snicker");
     rire(0, { syllabes, f0: 300 * p, pas, tempo: 0.15 * s, voyelle, gain: 0.19 * g });
   },
   /** Rire clair et chantant : un compte vient d'être annoncé. */
   chuckle() {
+    if (echantillon("chuckle")) return;
     const { g, p, s, syllabes, pas, voyelle } = reglage("chuckle");
     rire(0, {
       syllabes,
@@ -526,6 +618,7 @@ export const sfx = {
   },
   /** Rire moqueur : voix grave, syllabes lentes qui descendent. */
   taunt() {
+    if (echantillon("taunt")) return;
     const { g, p, s, syllabes, pas, voyelle } = reglage("taunt");
     rire(0, { syllabes, f0: 210 * p, pas, tempo: 0.21 * s, voyelle, gain: 0.28 * g });
   },
@@ -538,6 +631,7 @@ export const sfx = {
    * comme un effet ; celle-ci monte et retombe.
    */
   cheer() {
+    if (echantillon("cheer")) return;
     const { g, p, s, voix, claps } = reglage("cheer");
     for (let i = 0; i < voix; i += 1) {
       const depart = Math.random() * 0.7 * s;

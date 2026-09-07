@@ -18,6 +18,7 @@ Fichiers, dans cet ordre :
 6. `20260907140000_boutique.sql` — boutique et achats
 7. `20260907160000_administration.sql` — console d'administration
 8. `20260907190000_console_complete.sql` — fiches détaillées, catalogue en base
+9. `20260907220000_sons_locaux.sql` — sons remplaçables par des fichiers
 
 Tous sont dans `supabase/migrations/` et écrits pour être rejoués sans risque :
 `IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP POLICY IF EXISTS`. Les relancer ne
@@ -57,6 +58,8 @@ appliquée par Lovable : celle-ci recrée l'ancienne fonction
 >    `first_name`, `last_name`, `country`, `rounds_played` et `last_seen_at` à
 >    `profiles`, `name`, `hint`, `data` et `sort` à `shop_items`, crée
 >    `touch_last_seen`, `admin_upsert_item` et `admin_delete_item`.
+> 9. `supabase/migrations/20260907220000_sons_locaux.sql` — crée `sound_files`,
+>    `admin_set_sound_file` et `admin_clear_sound_file`.
 >
 > Régénère ensuite le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables et
@@ -178,7 +181,12 @@ l'intérieur, et il pourrait ne rester personne pour la rouvrir.
   pour les rires, en nombre de syllabes, descente et voyelle ; pour les
   acclamations, en nombre de voix et densité d'applaudissements. Un bouton
   d'écoute, un volume général. Enregistré, le réglage vaut pour tous les joueurs
-  à leur prochaine ouverture.
+  à leur prochaine ouverture. Chaque son peut aussi être **remplacé par un
+  fichier local** — un vrai rire, de vraies acclamations : le fichier s'installe
+  aussitôt, sans passer par « Enregistrer », et le retirer rend au son sa
+  synthèse. 700 ko au maximum, puisque chaque joueur les télécharge à
+  l'ouverture ; un fichier que le navigateur n'ouvre pas est refusé sur place,
+  avant d'atteindre la base.
 - **Journal** — toute action laisse une trace horodatée avec son motif. Une
   console qui distribue des jetons sans mémoire est une console qu'on ne peut
   pas auditer.

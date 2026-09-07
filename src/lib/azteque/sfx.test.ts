@@ -7,7 +7,12 @@ import {
   SOUND_RANGES,
   SOUND_TUNING_LABELS,
   applySoundSettings,
+  clearSample,
   currentSoundSettings,
+  hasSample,
+  isSoundId,
+  registerSample,
+  sfx,
 } from "./sfx";
 
 /**
@@ -99,5 +104,40 @@ describe("réglages du son", () => {
   it("ne garde rien d'un son inconnu", () => {
     applySoundSettings({ master: 1, sounds: { inexistant: { gain: 3 } } } as unknown);
     expect(Object.keys(currentSoundSettings().sounds).sort()).toEqual([...SOUND_IDS].sort());
+  });
+});
+
+/**
+ * Les sons locaux.
+ *
+ * Un son du jeu peut être remplacé par un vrai enregistrement, installé depuis
+ * la console. Ce qui compte ici : qu'un fichier illisible ne s'installe pas —
+ * il rendrait le son muet chez tous les joueurs — et qu'aucune de ces
+ * bascules ne fasse tomber le jeu, qui doit continuer de sonner même sans
+ * appareil audio.
+ */
+describe("sons locaux", () => {
+  it("reconnaît les sons du jeu, et eux seuls", () => {
+    for (const id of SOUND_IDS) expect(isSoundId(id)).toBe(true);
+    for (const autre of ["", "Place", "inexistant", "__proto__"]) {
+      expect(isSoundId(autre)).toBe(false);
+    }
+  });
+
+  it("refuse d'installer un fichier là où rien ne peut le lire", async () => {
+    // Sans appareil audio — un rendu serveur, un test — le décodage échoue.
+    // Il doit échouer bruyamment : la console s'en sert pour ne pas envoyer à
+    // la base un fichier qu'elle n'a pas su ouvrir.
+    await expect(registerSample("cheer", new ArrayBuffer(8))).rejects.toThrow();
+    expect(hasSample("cheer")).toBe(false);
+  });
+
+  it("retirer un son qui n'a pas de fichier ne fait rien de fâcheux", () => {
+    clearSample("taunt");
+    expect(hasSample("taunt")).toBe(false);
+  });
+
+  it("joue sans appareil audio plutôt que de tomber", () => {
+    for (const id of SOUND_IDS) expect(() => sfx[id]()).not.toThrow();
   });
 });

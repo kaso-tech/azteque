@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import { applySoundSettings, type SoundSettings } from "@/lib/azteque/sfx";
+import {
+  applySoundSettings,
+  clearSample,
+  isSoundId,
+  registerSample,
+  type SoundSettings,
+} from "@/lib/azteque/sfx";
 
 /**
  * Administration.
@@ -317,11 +323,12 @@ export async function adminLog(limit = 50): Promise<AdminLogEntry[]> {
 const CLE_SONS = "sounds";
 
 /**
- * Charge les réglages du son et les applique.
+ * Charge les réglages du son, puis les fichiers qui en remplacent certains.
  *
- * Appelée à l'ouverture, pour tout le monde : la table est lisible sans compte,
- * puisque le jeu contre l'IA n'en demande pas. Un échec — table absente, réseau
- * coupé — laisse les valeurs d'origine, qui sont celles du code.
+ * Appelée à l'ouverture, pour tout le monde : les deux tables sont lisibles
+ * sans compte, puisque le jeu contre l'IA n'en demande pas. Un échec — table
+ * absente, réseau coupé — laisse les valeurs d'origine, qui sont celles du
+ * code, et la synthèse à sa place.
  */
 export async function loadSoundSettings(): Promise<void> {
   try {
@@ -329,11 +336,11 @@ export async function loadSoundSettings(): Promise<void> {
       .select("value")
       .eq("key", CLE_SONS)
       .maybeSingle();
-    if (error || !data) return;
-    applySoundSettings((data as unknown as { value: unknown }).value);
+    if (!error && data) applySoundSettings((data as unknown as { value: unknown }).value);
   } catch {
     /* les valeurs du code font foi */
   }
+  await loadSoundFiles();
 }
 
 export async function adminSaveSoundSettings(settings: SoundSettings): Promise<void> {
@@ -343,4 +350,96 @@ export async function adminSaveSoundSettings(settings: SoundSettings): Promise<v
   });
   if (error) throw error;
   applySoundSettings(settings);
+}
+
+/* ---------- Sons locaux ---------- */
+
+/**
+ * La taille au-delà de laquelle un fichier cesse d'être un effet.
+ *
+ * Chaque joueur télécharge ces sons à l'ouverture : ce qui est confortable
+ * pour l'administrateur qui téléverse ne l'est pas pour celui qui joue en
+ * bord de réseau. La base refuse de son côté au même seuil.
+ */
+export const SON_MAX_OCTETS = 700 * 1024;
+
+export interface SoundFileInfo {
+  id: string;
+  mime: string;
+  name: string;
+  bytes: number;
+  updated_at: string;
+}
+
+/** Octets → base64, par tranches : `btoa` sur un grand tableau déborde la pile. */
+export function versBase64(bytes: ArrayBuffer): string {
+  const octets = new Uint8Array(bytes);
+  const pas = 0x8000;
+  let s = "";
+  for (let i = 0; i < octets.length; i += pas) {
+    s += String.fromCharCode(...octets.subarray(i, i + pas));
+  }
+  return btoa(s);
+}
+
+/** Base64 → octets. */
+export function depuisBase64(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const octets = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) octets[i] = bin.charCodeAt(i);
+  return octets.buffer;
+}
+
+/**
+ * Installe les sons remplacés par un fichier.
+ *
+ * Lue sans compte, comme les réglages : le jeu contre l'IA doit s'entendre
+ * pareil. Un échec — table absente, migration en retard, réseau coupé — laisse
+ * la synthèse en place, et un fichier illisible n'emporte que lui-même.
+ */
+export async function loadSoundFiles(): Promise<void> {
+  try {
+    const { data, error } = await anyTable("sound_files").select("id, data");
+    if (error || !data) return;
+    await Promise.all(
+      (data as unknown as { id: string; data: string }[]).map(async (l) => {
+        if (!isSoundId(l.id)) return;
+        try {
+          await registerSample(l.id, depuisBase64(l.data));
+        } catch {
+          clearSample(l.id);
+        }
+      }),
+    );
+  } catch {
+    /* la synthèse reste en place */
+  }
+}
+
+/** Ce qui est installé, sans les octets : de quoi renseigner la console. */
+export async function listSoundFiles(): Promise<SoundFileInfo[]> {
+  const { data, error } = await anyTable("sound_files").select("id, mime, name, bytes, updated_at");
+  if (error) throw error;
+  return (data as unknown as SoundFileInfo[]) ?? [];
+}
+
+export async function adminSetSoundFile(
+  id: string,
+  mime: string,
+  name: string,
+  bytes: ArrayBuffer,
+): Promise<void> {
+  const { error } = await rpc("admin_set_sound_file", {
+    _id: id,
+    _mime: mime,
+    _name: name,
+    _bytes: bytes.byteLength,
+    _data: versBase64(bytes),
+  });
+  if (error) throw error;
+}
+
+export async function adminClearSoundFile(id: string): Promise<void> {
+  const { error } = await rpc("admin_clear_sound_file", { _id: id });
+  if (error) throw error;
 }

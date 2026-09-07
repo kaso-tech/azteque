@@ -54,7 +54,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-const { adminAccess, adminListPlayers, amIAdmin } = await import("./admin");
+const { adminAccess, adminListPlayers, amIAdmin, depuisBase64, loadSoundFiles, versBase64 } =
+  await import("./admin");
 
 beforeEach(() => {
   base.session = { id: "u1", is_anonymous: false };
@@ -157,5 +158,34 @@ describe("liste des joueurs quand la base est en retard", () => {
   it("ne masque pas une erreur d'un autre ordre", async () => {
     base.rpc = { data: null, error: { code: "42501" } };
     await expect(adminListPlayers()).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+/**
+ * Les fichiers de sons voyagent en base64 : la base les garde dans une colonne
+ * texte, sans seau de stockage à configurer. Le codage doit rendre exactement
+ * les octets qu'on lui a donnés, y compris sur un fichier assez gros pour que
+ * `btoa` déborde la pile si on le lui passe d'un bloc.
+ */
+describe("sons locaux", () => {
+  it("rend les octets qu'on lui a confiés", () => {
+    const octets = new Uint8Array(200000);
+    for (let i = 0; i < octets.length; i += 1) octets[i] = (i * 7) % 256;
+    const rendu = new Uint8Array(depuisBase64(versBase64(octets.buffer)));
+    expect(rendu.length).toBe(octets.length);
+    expect(rendu).toEqual(octets);
+  });
+
+  it("code aussi le vide et les longueurs qui ne tombent pas juste", () => {
+    for (const taille of [0, 1, 2, 3, 4, 5]) {
+      const octets = new Uint8Array(taille).fill(0xab);
+      expect(new Uint8Array(depuisBase64(versBase64(octets.buffer)))).toEqual(octets);
+    }
+  });
+
+  it("laisse la synthèse en place quand la base ne répond rien", async () => {
+    // La migration des sons locaux n'est peut-être pas encore passée : le jeu
+    // doit s'ouvrir quand même, avec les sons du code.
+    await expect(loadSoundFiles()).resolves.toBeUndefined();
   });
 });
