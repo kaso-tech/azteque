@@ -751,7 +751,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
 /** Profil public d'un joueur, pour afficher son grade à côté de son nom. */
 export async function getPublicProfile(id: string): Promise<PublicProfile | null> {
   const { data, error } = await readProfiles((cols) =>
-    anyTable("profiles").select(cols).eq("id", id).maybeSingle(),
+    anyTable("public_profiles").select(cols).eq("id", id).maybeSingle(),
   );
   if (error) throw error;
   const row = data as (PublicProfile & { id: string; username: string }) | null;
