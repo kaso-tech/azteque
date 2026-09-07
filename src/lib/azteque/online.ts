@@ -129,7 +129,18 @@ export interface NextRoundReady {
 // serveur avant d'écrire quoi que ce soit. La colonne est protégée en base
 // par un déclencheur (migration protect_match_mutable_columns).
 
-export function subscribeMatch(id: string, onChange: (row: MatchRow) => void) {
+/**
+ * Abonnement temps réel aux évolutions d'une partie.
+ *
+ * `onStatus` signale si le canal est effectivement établi : sur une connexion
+ * faible il tombe régulièrement, et l'appelant doit alors se rabattre sur une
+ * relecture périodique (voir useMatchSync.ts).
+ */
+export function subscribeMatch(
+  id: string,
+  onChange: (row: MatchRow) => void,
+  onStatus?: (live: boolean) => void,
+) {
   const channel = supabase
     .channel(`match-${id}`)
     .on(
@@ -137,11 +148,15 @@ export function subscribeMatch(id: string, onChange: (row: MatchRow) => void) {
       { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${id}` },
       (payload) => onChange(payload.new as unknown as MatchRow),
     )
-    .subscribe();
+    .subscribe((status) => {
+      onStatus?.(status === "SUBSCRIBED");
+    });
   return () => {
+    onStatus?.(false);
     void supabase.removeChannel(channel);
   };
 }
+
 
 export interface ChatMessage {
   id: string;
