@@ -78,22 +78,23 @@ vi.mock("@/integrations/supabase/client", () => ({
           base.seau = base.seau.filter((o) => !paths.includes(o.name));
           return Promise.resolve({ error: null });
         },
-        getPublicUrl: (path: string) => ({ data: { publicUrl: `https://exemple.test/${path}` } }),
+        // Le seau est privé : `loadSoundFiles` télécharge chaque fichier par
+        // le SDK plutôt que par une adresse publique. Une réponse minimale
+        // suffit ici : ce test ne juge pas le décodage audio, déjà couvert
+        // ailleurs (sfx.samples.test.ts).
+        download: (path: string) => {
+          if (!base.seau.some((o) => o.name === path)) {
+            return Promise.resolve({ data: null, error: { message: "introuvable" } });
+          }
+          return Promise.resolve({
+            data: { arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) },
+            error: null,
+          });
+        },
       }),
     },
   },
 }));
-
-// `loadSoundFiles` récupère chaque fichier par une requête HTTP ordinaire —
-// c'est tout l'intérêt de servir les sons par URL publique plutôt que par
-// une colonne de la base. Une réponse minimale suffit ici : ce test ne juge
-// pas le décodage audio, déjà couvert ailleurs (sfx.samples.test.ts).
-vi.stubGlobal(
-  "fetch",
-  vi.fn(() =>
-    Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) }),
-  ),
-);
 
 const {
   adminAccess,
