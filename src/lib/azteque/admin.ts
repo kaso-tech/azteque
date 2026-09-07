@@ -24,7 +24,7 @@ const rpc = (name: string, args: Record<string, unknown> = {}) =>
   ).rpc(name, args);
 
 const anyTable = (name: string) =>
-  (supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }).from(name);
+  (supabase as unknown as { from: (t: string) => any }).from(name);
 
 export interface AdminPlayer {
   id: string;
