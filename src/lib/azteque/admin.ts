@@ -53,11 +53,54 @@ export interface AdminLogEntry {
   at: string;
 }
 
+/**
+ * Pourquoi la console s'ouvre, ou pourquoi elle reste fermée.
+ *
+ * Trois situations très différentes menaient au même écran : ne pas être
+ * connecté, ne pas être administrateur, et une base où la migration
+ * d'administration n'est pas encore passée. La première demande de se
+ * connecter, la deuxième une requête SQL, la troisième une migration — les
+ * confondre laisse chercher longtemps.
+ */
+export type AdminAccess =
+  | { state: "admin" }
+  | { state: "anonymous" }
+  | { state: "not-admin"; username: string }
+  | { state: "missing-migration" };
+
+export async function adminAccess(): Promise<AdminAccess> {
+  const { data: session } = await supabase.auth.getSession();
+  const user = session.session?.user;
+  if (!user || user.is_anonymous) return { state: "anonymous" };
+
+  const { data, error } = await rpc("is_admin");
+  if (error) {
+    // PGRST202 : la fonction n'est pas dans le cache de schéma. 42883 : le
+    // moteur ne la connaît pas. Les deux disent la même chose — la migration
+    // d'administration n'a pas été appliquée.
+    const code = (error as { code?: string }).code ?? "";
+    if (code === "PGRST202" || code === "42883") return { state: "missing-migration" };
+    return { state: "anonymous" };
+  }
+  if (data === true) return { state: "admin" };
+
+  // Le pseudo sert à composer la requête qui sacre le premier administrateur :
+  // c'est la seule chose à faire, autant la donner toute prête.
+  const { data: profil } = await anyTable("profiles")
+    .select("username")
+    .eq("id", user.id)
+    .maybeSingle();
+  return {
+    state: "not-admin",
+    username: (profil as unknown as { username?: string } | null)?.username ?? "",
+  };
+}
+
 /** Vrai si le compte connecté administre. La base seule en décide. */
 export async function amIAdmin(): Promise<boolean> {
-  const { data, error } = await rpc("is_admin");
-  if (error) return false;
-  return data === true;
+  return (
+    (await adminAccess().catch(() => ({ state: "anonymous" }) as AdminAccess)).state === "admin"
+  );
 }
 
 export async function adminStats(): Promise<AdminStats | null> {

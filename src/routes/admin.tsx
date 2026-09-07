@@ -26,8 +26,9 @@ import {
   adminSetAdmin,
   adminSetBanned,
   adminSetItem,
+  adminAccess,
   adminStats,
-  amIAdmin,
+  type AdminAccess,
   type AdminLogEntry,
   type AdminPlayer,
   type AdminShopItem,
@@ -42,22 +43,22 @@ export const Route = createFileRoute("/admin")({
 type Onglet = "joueurs" | "boutique" | "sons" | "journal";
 
 function Administration() {
-  const [etat, setEtat] = useState<"chargement" | "refuse" | "prete">("chargement");
+  const [acces, setAcces] = useState<AdminAccess | null>(null);
   const [onglet, setOnglet] = useState<Onglet>("joueurs");
   const [erreur, setErreur] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
 
   useEffect(() => {
-    amIAdmin()
-      .then((oui) => {
-        setEtat(oui ? "prete" : "refuse");
-        if (oui) {
+    adminAccess()
+      .then((a) => {
+        setAcces(a);
+        if (a.state === "admin") {
           adminStats()
             .then(setStats)
             .catch(() => setStats(null));
         }
       })
-      .catch(() => setEtat("refuse"));
+      .catch(() => setAcces({ state: "anonymous" }));
   }, []);
 
   const coque = (contenu: React.ReactNode) => (
@@ -73,20 +74,11 @@ function Administration() {
     </main>
   );
 
-  if (etat === "chargement") {
+  if (!acces) {
     return coque(<p className="mt-10 text-center text-sm text-muted-foreground">Vérification…</p>);
   }
 
-  if (etat === "refuse") {
-    return coque(
-      <div className="panel mt-6 px-6 py-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          Cette console est réservée aux administrateurs. Le serveur refuse de toute façon les
-          opérations : ce message ne fait que vous éviter une porte fermée.
-        </p>
-      </div>,
-    );
-  }
+  if (acces.state !== "admin") return coque(<PorteFermee acces={acces} />);
 
   const onglets: { id: Onglet; label: string }[] = [
     { id: "joueurs", label: "Joueurs" },
@@ -141,6 +133,89 @@ function Administration() {
       {onglet === "sons" && <Sons onErreur={setErreur} />}
       {onglet === "journal" && <Journal onErreur={setErreur} />}
     </>,
+  );
+}
+
+/**
+ * L'écran de porte fermée.
+ *
+ * Il ne se contente pas de refuser : il dit laquelle des trois causes
+ * s'applique et ce qu'elle demande. Un refus qui n'explique rien fait chercher
+ * du côté du code ce qui se règle en une requête.
+ */
+function PorteFermee({ acces }: { acces: Exclude<AdminAccess, { state: "admin" }> }) {
+  const [copie, setCopie] = useState(false);
+  const requete =
+    acces.state === "not-admin" && acces.username
+      ? `UPDATE public.profiles SET is_admin = true WHERE lower(username) = '${acces.username.toLowerCase()}';`
+      : "UPDATE public.profiles SET is_admin = true WHERE lower(username) = 'votre_pseudo';";
+
+  if (acces.state === "anonymous") {
+    return (
+      <div className="panel mt-6 space-y-3 px-6 py-6 text-center">
+        <h2 className="gold-text font-display text-xl">Connectez-vous d'abord</h2>
+        <p className="text-sm text-muted-foreground">
+          La console reconnaît les administrateurs à leur compte. Sans session ouverte, elle ne peut
+          rien vérifier.
+        </p>
+        <Link
+          to="/online"
+          className="inline-block rounded-full border border-gold/50 px-6 py-2 font-display text-sm font-semibold text-gold"
+        >
+          Se connecter
+        </Link>
+      </div>
+    );
+  }
+
+  if (acces.state === "missing-migration") {
+    return (
+      <div className="panel mt-6 space-y-3 px-6 py-6 text-left">
+        <h2 className="gold-text text-center font-display text-xl">Migration à appliquer</h2>
+        <p className="text-sm text-muted-foreground">
+          La base ne connaît pas encore les fonctions d'administration : le fichier
+          <span className="text-foreground">
+            {" "}
+            supabase/migrations/20260907160000_administration.sql{" "}
+          </span>
+          n'a pas été appliqué sur ce projet Supabase. Appliquez-le, puis rechargez cette page.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Le pas suivant sera de vous désigner administrateur ; cette page vous donnera alors la
+          requête à exécuter.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel mt-6 space-y-3 px-6 py-6 text-left">
+      <h2 className="gold-text text-center font-display text-xl">Il vous manque le droit</h2>
+      <p className="text-sm text-muted-foreground">
+        Votre compte existe bien{acces.username ? ` — ${acces.username} — ` : " "}mais il n'est pas
+        administrateur. Le premier administrateur ne peut pas être nommé depuis cette console : il
+        n'y en a aucun pour le faire. Exécutez ceci dans l'éditeur SQL de votre projet Supabase,
+        puis rechargez :
+      </p>
+      <pre className="overflow-x-auto rounded-md border border-border bg-background px-3 py-2 text-[0.7rem] text-foreground">
+        {requete}
+      </pre>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          void navigator.clipboard?.writeText(requete).then(() => {
+            setCopie(true);
+            setTimeout(() => setCopie(false), 2000);
+          });
+        }}
+      >
+        {copie ? "✓ Copié" : "Copier la requête"}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Les administrateurs suivants se nomment depuis la console, sans SQL.
+      </p>
+    </div>
   );
 }
 
