@@ -12,12 +12,19 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS avatar_kind text NOT NULL DEFAULT 'google',
   ADD COLUMN IF NOT EXISTS avatar_url text;
 
+-- Cette contrainte est provisoire : la migration de la boutique la remplace par
+-- un déclencheur, qui sait aussi reconnaître les avatars achetés.
+--
+-- Toute erreur est donc absorbée, et pas seulement le doublon. Sur une base où
+-- un joueur porte déjà un avatar acheté, l'ajout est refusé — la valeur ne
+-- figure pas dans la liste — et il emporterait sinon toute la migration avec
+-- lui, alors que la règle qui compte arrive juste après.
 DO $$
 BEGIN
   ALTER TABLE public.profiles
     ADD CONSTRAINT profiles_avatar_kind_valid
     CHECK (avatar_kind IN ('google', 'homme', 'femme'));
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 -- La photo est chargée par le navigateur des AUTRES joueurs : une adresse
