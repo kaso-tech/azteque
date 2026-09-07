@@ -41,6 +41,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-solid: var(--destructive-solid);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -63,38 +64,39 @@
 
 :root {
   /* Le vert du tapis et toutes les surfaces qui s'y posent ont été éclaircis
-     d'un même pas (environ +0,055 de clarté oklch). Les écarts entre elles
+     de deux pas égaux (environ +0,11 de clarté oklch en tout). Les écarts entre elles
      sont conservés : c'est ce qui fait tenir la hiérarchie entre la table, les
      panneaux et les pastilles posées dessus. */
   --radius: 0.75rem;
-  --background: oklch(0.245 0.04 165);
+  --background: oklch(0.3 0.045 165);
   --foreground: oklch(0.96 0.015 90);
-  --card: oklch(0.295 0.045 165);
+  --card: oklch(0.35 0.05 165);
   --card-foreground: oklch(0.96 0.015 90);
-  --popover: oklch(0.275 0.042 165);
+  --popover: oklch(0.33 0.047 165);
   --popover-foreground: oklch(0.96 0.015 90);
   --primary: oklch(0.78 0.14 82);
   --primary-foreground: oklch(0.2 0.04 90);
-  --secondary: oklch(0.35 0.05 165);
+  --secondary: oklch(0.405 0.055 165);
   --secondary-foreground: oklch(0.95 0.015 90);
-  --muted: oklch(0.325 0.04 165);
+  --muted: oklch(0.38 0.045 165);
   --muted-foreground: oklch(0.75 0.03 120);
   --accent: oklch(0.55 0.16 25);
   --accent-foreground: oklch(0.97 0.01 90);
-  --destructive: oklch(0.58 0.2 27);
+  --destructive: oklch(0.75 0.2 27);
+  --destructive-solid: oklch(0.55 0.2 27);
   --destructive-foreground: oklch(0.98 0.005 90);
-  --border: oklch(0.41 0.055 150);
-  --input: oklch(0.37 0.05 160);
+  --border: oklch(0.465 0.06 150);
+  --input: oklch(0.425 0.055 160);
   --ring: oklch(0.78 0.14 82);
-  --felt: oklch(0.375 0.082 158);
-  --felt-deep: oklch(0.255 0.058 162);
-  --gold: oklch(0.82 0.15 84);
-  --gold-soft: oklch(0.68 0.11 80);
+  --felt: oklch(0.43 0.088 158);
+  --felt-deep: oklch(0.31 0.065 162);
+  --gold: oklch(0.87 0.145 84);
+  --gold-soft: oklch(0.74 0.12 80);
   --card-face: oklch(0.97 0.012 90);
   --card-ink: oklch(0.22 0.02 60);
   --card-red: oklch(0.53 0.21 27);
   --gradient-felt: radial-gradient(ellipse at 50% 15%, var(--felt), var(--felt-deep) 70%);
-  --gradient-gold: linear-gradient(135deg, oklch(0.88 0.13 88), oklch(0.66 0.12 62));
+  --gradient-gold: linear-gradient(135deg, oklch(0.92 0.12 88), oklch(0.73 0.13 62));
   --shadow-table: 0 24px 60px -18px oklch(0 0 0 / 0.7);
   --shadow-card: 0 8px 18px -6px oklch(0 0 0 / 0.55);
   --chart-1: oklch(0.78 0.14 82);
@@ -102,13 +104,13 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.275 0.042 165);
+  --sidebar: oklch(0.33 0.047 165);
   --sidebar-foreground: oklch(0.96 0.015 90);
   --sidebar-primary: oklch(0.78 0.14 82);
   --sidebar-primary-foreground: oklch(0.2 0.04 90);
-  --sidebar-accent: oklch(0.35 0.05 165);
+  --sidebar-accent: oklch(0.405 0.055 165);
   --sidebar-accent-foreground: oklch(0.95 0.015 90);
-  --sidebar-border: oklch(0.41 0.055 150);
+  --sidebar-border: oklch(0.465 0.06 150);
   --sidebar-ring: oklch(0.78 0.14 82);
   --font-display: "Cinzel", serif;
   --font-body: "Outfit", system-ui, sans-serif;

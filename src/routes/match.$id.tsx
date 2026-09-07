@@ -801,7 +801,7 @@ function OnlineTable() {
             <button
               type="button"
               onClick={() => setConfirmQuit(true)}
-              className="rounded-full border border-destructive/50 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-destructive"
+              className="rounded-full border border-destructive/50 bg-felt-deep/95 px-3 py-1 text-[0.68rem] font-semibold text-destructive"
             >
               Quitter la table
             </button>
@@ -946,7 +946,7 @@ function OnlineTable() {
                   declareForfeit("quit");
                   navigate({ to: "/online" });
                 }}
-                className="rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground"
+                className="rounded-full bg-destructive-solid px-5 py-2 text-sm font-semibold text-destructive-foreground"
               >
                 Quitter
               </button>
