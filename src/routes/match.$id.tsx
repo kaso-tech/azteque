@@ -822,11 +822,22 @@ function OnlineTable() {
           </div>
         </div>
 
+        {(sync.offline || sync.stale || retrying || sending > 0) && (
+          <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-gold/50 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-gold">
+            {sync.offline
+              ? "Hors ligne · reprise automatique"
+              : retrying || sync.stale
+                ? "Connexion lente · nouvelle tentative…"
+                : "Envoi…"}
+          </span>
+        )}
+
         {offlineLeft !== null && (
           <span className="absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-destructive/60 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-destructive">
             {oppName} est hors ligne · {offlineLeft}s
           </span>
         )}
+
 
         {state.trump && (
           <span className="absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
