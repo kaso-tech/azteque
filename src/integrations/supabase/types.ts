@@ -123,6 +123,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_kind: string
+          avatar_url: string | null
           claimed_local_tokens: boolean
           created_at: string
           daily_bonus_at: string
@@ -132,6 +134,8 @@ export type Database = {
           username: string
         }
         Insert: {
+          avatar_kind?: string
+          avatar_url?: string | null
           claimed_local_tokens?: boolean
           created_at?: string
           daily_bonus_at?: string
@@ -141,6 +145,8 @@ export type Database = {
           username: string
         }
         Update: {
+          avatar_kind?: string
+          avatar_url?: string | null
           claimed_local_tokens?: boolean
           created_at?: string
           daily_bonus_at?: string
