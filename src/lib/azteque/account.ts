@@ -1,3 +1,4 @@
+import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setTokens } from "@/lib/azteque/tokens";
 import { START_RATING } from "@/lib/azteque/rank";
@@ -507,9 +508,19 @@ export async function isUsernameFree(username: string): Promise<boolean> {
   // laisser le joueur devant un « Vérification… » sans fin : c'est un confort,
   // pas une condition.
   const { data, error } = await withTimeout(
-    anyTable("profiles").select("id").ilike("username", name).limit(2),
+    (async () => supabase.from("profiles").select("id").ilike("username", name).limit(2))(),
     6000,
-    { data: null, error: { message: "Vérification interrompue" } } as never,
+    {
+      data: null,
+      error: {
+        message: "Vérification interrompue",
+        details: "",
+        hint: "",
+        code: "timeout",
+        name: "PostgrestError",
+        toJSON: () => ({}),
+      } as PostgrestError,
+    },
   );
   if (error) throw error;
   const rows = (data as unknown as { id: string }[]) ?? [];
