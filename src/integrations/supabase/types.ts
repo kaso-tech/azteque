@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          at: string
+          details: Json
+          id: number
+          target: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          id?: number
+          target?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          id?: number
+          target?: string | null
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       friendships: {
         Row: {
           addressee_id: string
@@ -125,10 +170,12 @@ export type Database = {
         Row: {
           avatar_kind: string
           avatar_url: string | null
+          banned: boolean
           claimed_local_tokens: boolean
           created_at: string
           daily_bonus_at: string
           id: string
+          is_admin: boolean
           tokens: number
           updated_at: string
           username: string
@@ -136,10 +183,12 @@ export type Database = {
         Insert: {
           avatar_kind?: string
           avatar_url?: string | null
+          banned?: boolean
           claimed_local_tokens?: boolean
           created_at?: string
           daily_bonus_at?: string
           id: string
+          is_admin?: boolean
           tokens?: number
           updated_at?: string
           username: string
@@ -147,10 +196,12 @@ export type Database = {
         Update: {
           avatar_kind?: string
           avatar_url?: string | null
+          banned?: boolean
           claimed_local_tokens?: boolean
           created_at?: string
           daily_bonus_at?: string
           id?: string
+          is_admin?: boolean
           tokens?: number
           updated_at?: string
           username?: string
@@ -185,16 +236,19 @@ export type Database = {
       }
       shop_items: {
         Row: {
+          active: boolean
           id: string
           kind: string
           price: number
         }
         Insert: {
+          active?: boolean
           id: string
           kind: string
           price: number
         }
         Update: {
+          active?: boolean
           id?: string
           kind?: string
           price?: number
@@ -231,10 +285,48 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_grant_tokens: {
+        Args: { _amount: number; _reason?: string; _user: string }
+        Returns: number
+      }
+      admin_list_players: {
+        Args: { _limit?: number; _query?: string }
+        Returns: {
+          avatar_kind: string
+          avatar_url: string
+          banned: boolean
+          created_at: string
+          id: string
+          is_admin: boolean
+          purchases: number
+          rated_games: number
+          rating: number
+          tokens: number
+          username: string
+        }[]
+      }
+      admin_set_admin: {
+        Args: { _is_admin: boolean; _user: string }
+        Returns: undefined
+      }
+      admin_set_banned: {
+        Args: { _banned: boolean; _user: string }
+        Returns: undefined
+      }
+      admin_set_item: {
+        Args: { _active: boolean; _item_id: string; _price: number }
+        Returns: undefined
+      }
+      admin_set_setting: {
+        Args: { _key: string; _value: Json }
+        Returns: undefined
+      }
+      admin_stats: { Args: never; Returns: Json }
       award_ai_win: { Args: { _difficulty: string }; Returns: number }
       buy_item: { Args: { _item_id: string }; Returns: Json }
       claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
+      is_admin: { Args: never; Returns: boolean }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
         Returns: {
@@ -260,6 +352,11 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      log_admin: {
+        Args: { _action: string; _details: Json; _target: string }
+        Returns: undefined
+      }
+      require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
     }
     Enums: {
