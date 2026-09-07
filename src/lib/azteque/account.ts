@@ -425,11 +425,6 @@ async function readProfiles(query: (cols: string) => PromiseLike<Reponse>): Prom
   for (const cols of PROFILE_COLUMNS) {
     last = await query(cols);
     if (!last.error || !isMissingColumn(last.error)) return last;
-    // La vue public_profiles n'existe peut-être pas encore en base : on
-    // retombe alors sur la table profiles, qui reste accessible en lecture
-    // personnelle ou admin.
-    last = await query(cols.replace("public_profiles", "profiles"));
-    if (!last.error || !isMissingColumn(last.error)) return last;
   }
   return last;
 }
