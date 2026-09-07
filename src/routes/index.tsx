@@ -32,6 +32,7 @@ import {
   TurnBar,
 } from "@/components/azteque/table";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
+import { InstallPrompt } from "@/components/azteque/install-prompt";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
 import { amIAdmin, touchLastSeen } from "@/lib/azteque/admin";
@@ -774,6 +775,8 @@ function Azteque() {
             onClose={() => setShowPlayerProfile(false)}
           />
         )}
+        {/* Comme le cadeau du jour : seulement quand la table est libre. */}
+        {!showBonus && !showPlayerProfile && !showRules && <InstallPrompt />}
       </main>
     );
   }

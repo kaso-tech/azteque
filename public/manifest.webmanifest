@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Aztèque — Jeu de cartes traditionnel",
+  "short_name": "Aztèque",
+  "description": "Jeu de cartes traditionnel d'Afrique de l'Ouest : posez vos cartes, annoncez vos comptes, créez l'atout, seul contre l'IA ou en ligne face à un ami.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12352a",
+  "theme_color": "#12352a",
+  "categories": ["games"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

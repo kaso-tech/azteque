@@ -91,6 +91,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      // Couleur de la barre du navigateur (Android) et du dos de l'écran de
+      // lancement (iOS, avec les balises apple-* ci-dessous) : le même vert
+      // que la table de jeu, pour qu'aucune bordure blanche ne trahisse le
+      // passage du navigateur à l'application installée.
+      { name: "theme-color", content: "#12352a" },
+      // iOS ignore le fichier manifest pour l'installation : ces trois
+      // balises sont ce qui le fait ouvrir Aztèque en plein écran, sans
+      // barre d'adresse, une fois ajouté à l'écran d'accueil.
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "Aztèque" },
+      { name: "mobile-web-app-capable", content: "yes" },
     ],
     links: [
       {
@@ -107,6 +119,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
       { rel: "icon", href: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -153,6 +166,17 @@ function RootComponent() {
       }
     });
   }, [router]);
+
+  // Rend l'application installable (icône, plein écran, hors ligne partiel).
+  // Un échec ici — navigateur trop ancien, contexte non sécurisé — laisse
+  // simplement l'application fonctionner comme une page web ordinaire.
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* pas grave : seule l'installation en est privée */
+      });
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
