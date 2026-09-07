@@ -736,7 +736,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
   if (q.length < 2) return [];
   const me = await currentUserId();
   const { data, error } = await readProfiles((cols) =>
-    anyTable("profiles")
+    anyTable("public_profiles")
       .select(cols)
       .ilike("username", `%${q}%`)
       .limit(limit + 1),
