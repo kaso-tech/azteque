@@ -297,8 +297,79 @@
   animation: turn-countdown var(--turn-duration, 30s) linear forwards;
 }
 
+/* ---- Cérémonie de la donne ---- */
+
+/* Le paquet se pose sur la table. */
+@keyframes deck-settle {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Une moitié du paquet : elle s'écarte, revient s'imbriquer dans l'autre,
+   recommence, puis se soulève pour la coupe. Le décalage est exprimé en
+   pourcentage de la carte, pour rester juste à toutes les tailles. */
+@keyframes riffle {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  12% {
+    transform: translate3d(var(--riffle-x), -6%, 0) rotate(var(--riffle-r));
+  }
+  30% {
+    transform: translate3d(calc(var(--riffle-x) * 0.18), 0, 0) rotate(0deg);
+  }
+  44% {
+    transform: translate3d(calc(var(--riffle-x) * 0.86), -5%, 0) rotate(var(--riffle-r));
+  }
+  60% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  76% {
+    transform: translate3d(calc(var(--riffle-x) * 0.3), -22%, 0) rotate(calc(var(--riffle-r) * 0.4));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+/* Une carte quitte le paquet et rejoint sa place dans la main. */
+@keyframes deal-fly {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.88);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--dr)) scale(1);
+  }
+}
+
+@utility animate-deck-settle {
+  animation: deck-settle 260ms ease-out both;
+}
+
+@utility animate-riffle {
+  animation: riffle var(--riffle-duration, 900ms) cubic-bezier(0.4, 0, 0.3, 1) both;
+}
+
+@utility animate-deal-fly {
+  animation: deal-fly 430ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-deal,
+  .animate-deck-settle,
+  .animate-riffle,
+  .animate-deal-fly,
   .animate-trick,
   .animate-slot-fill,
   .animate-slot-wait,

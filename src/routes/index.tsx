@@ -49,6 +49,7 @@ import {
 } from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
+import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
@@ -331,6 +332,11 @@ function Azteque() {
 
   const canRedeal = freshRound && !redealDone && hasMainBlanche(state, 0);
 
+  // Battage et distribution : le temps qu'ils durent, l'ordinateur ne joue pas
+  // et le compte à rebours ne court pas — le joueur regarde, il ne réfléchit
+  // pas encore.
+  const dealing = useDealCeremony(state, started);
+
   const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
     setState(newRound(dealer, won));
     // Les comptes annoncés valent pour le tour écoulé : la nouvelle donne
@@ -343,7 +349,7 @@ function Azteque() {
 
   // Main blanche de l'ordinateur
   useEffect(() => {
-    if (!started || !freshRound || aiRedealChecked.current === roundKey) return;
+    if (!started || !freshRound || dealing || aiRedealChecked.current === roundKey) return;
     aiRedealChecked.current = roundKey;
     if (aiWantsRedeal(state, settings.difficulty)) {
       const t = setTimeout(() => {
@@ -357,7 +363,7 @@ function Azteque() {
       return () => clearTimeout(t);
     }
     return;
-  }, [started, freshRound, roundKey, state, settings.difficulty]);
+  }, [started, freshRound, dealing, roundKey, state, settings.difficulty]);
 
   // Résolution du pli : ramassage animé puis pioche, avec de petites pauses
   useEffect(() => {
@@ -497,6 +503,7 @@ function Azteque() {
   useEffect(() => {
     if (state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2) return;
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
+    if (dealing) return;
     const t = setTimeout(() => {
       setState((s) => {
         if (s.phase !== "playing" || s.turn !== 1 || s.trick.length >= 2) return s;
@@ -507,7 +514,7 @@ function Azteque() {
       });
     }, 750);
     return () => clearTimeout(t);
-  }, [state, settings.difficulty]);
+  }, [state, settings.difficulty, dealing]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
@@ -525,6 +532,7 @@ function Azteque() {
 
   // Compte à rebours du tour : dépasser le délai fait perdre le champ
   const myTurnActive =
+    !dealing &&
     state.phase === "playing" &&
     state.trick.length < 2 &&
     (state.turn === 0 || meldDecisionPending) &&
@@ -657,7 +665,7 @@ function Azteque() {
             onClick={() => setStarted(true)}
             className="w-full rounded-full bg-[image:var(--gradient-gold)] px-8 py-3 text-center font-display text-sm font-semibold text-primary-foreground shadow-[var(--shadow-table)] transition-transform hover:scale-105"
           >
-            Commencer une partie
+            Jouer contre l'IA
           </button>
           <Link
             to="/online"
@@ -1056,6 +1064,7 @@ function Azteque() {
         </div>
       )}
 
+      {dealing && <DealCeremony />}
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
       {showPlayerProfile && (
         <PlayerProfilePanel

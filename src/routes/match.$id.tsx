@@ -39,6 +39,7 @@ import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
 import { getMyProfile, getPublicProfile, headToHead, type HeadToHead } from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
+import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -448,8 +449,16 @@ function OnlineTable() {
     [runAction],
   );
 
+  // Battage et distribution. Chaque joueur regarde la sienne, et le compte à
+  // rebours ne court pour personne pendant ce temps : le délai s'ajoute
+  // toujours au temps de réflexion, il n'en retire jamais. C'est l'observateur
+  // qui déclare le dépassement de son adversaire, donc c'est bien lui qui doit
+  // suspendre son propre décompte.
+  const dealing = useDealCeremony(state, !!state);
+
   // Le compte à rebours redémarre à chaque changement de tour
   const oppMustAct =
+    !dealing &&
     !!state &&
     state.phase === "playing" &&
     state.turn === opp &&
@@ -462,6 +471,7 @@ function OnlineTable() {
 
   // Barre de temps du joueur local
   const myMustAct =
+    !dealing &&
     !!state &&
     state.phase === "playing" &&
     state.turn === me &&
@@ -994,6 +1004,8 @@ function OnlineTable() {
       ))}
 
       <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
+
+      {dealing && <DealCeremony />}
     </main>
   );
 }

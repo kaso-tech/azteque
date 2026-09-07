@@ -114,7 +114,36 @@ function voiceBlip(at: number, freq: number, duration: number, gainValue: number
   osc.stop(t + duration + 0.02);
 }
 
+/**
+ * Un riffle : le paquet séparé en deux, puis les deux moitiés relâchées l'une
+ * dans l'autre. À l'oreille, une rafale de petits claquements de plus en plus
+ * serrés, sous un souffle de carton. Les irrégularités sont voulues — une
+ * grille parfaitement régulière sonnerait mécanique.
+ */
+function riffle(at: number) {
+  const n = 22;
+  for (let i = 0; i < n; i += 1) {
+    // Les cartes tombent d'abord lentement puis s'emballent : l'écart se
+    // resserre à mesure que les moitiés se vident.
+    const t = at + 0.34 * Math.pow(i / n, 0.72) + Math.random() * 0.006;
+    noise(t, 0.018, 0.045 + Math.random() * 0.02, 3400, 1500, "bandpass");
+  }
+  noise(at, 0.3, 0.045, 900, 2600, "bandpass");
+}
+
 export const sfx = {
+  /** Le paquet est battu : deux riffles, puis la coupe. */
+  shuffle() {
+    riffle(0);
+    riffle(0.4);
+    noise(0.82, 0.17, 0.13, 700, 200, "lowpass");
+    tone(0.83, 130, 0.11, 0.045, "sine", 82);
+  },
+  /** Une carte glisse du paquet vers une main. */
+  dealCard() {
+    noise(0, 0.07, 0.1, 3600, 1400, "bandpass");
+    tone(0.005, 240, 0.05, 0.03, "sine", 150);
+  },
   /** La carte quitte la main et se pose sur la table. */
   place() {
     noise(0, 0.13, 0.16, 2600, 700);
