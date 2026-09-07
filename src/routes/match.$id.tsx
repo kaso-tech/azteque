@@ -114,6 +114,12 @@ function OnlineTable() {
   const pileRef0 = useRef<HTMLDivElement | null>(null);
   const pileRef1 = useRef<HTMLDivElement | null>(null);
   const pileRefs = useMemo(() => [pileRef0, pileRef1] as const, []);
+  // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
+  // zéro au premier pli d'un tour (tas des deux joueurs encore vides).
+  const bonneStreak = useRef<{ player: PlayerIndex | null; count: number }>({
+    player: null,
+    count: 0,
+  });
 
   const [flying, setFlying] = useState<{ card: Card; from: { x: number; y: number } } | null>(null);
   const [collect, setCollect] = useState<
@@ -362,6 +368,18 @@ function OnlineTable() {
           if (stealsBonne(preTrick.trick, winner))
             timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
+          // Série de bonnes : au premier pli du tour (aucun tas encore
+          // entamé), on repart de zéro — y compris après un Pont rejoué.
+          if (preTrick.gains[0].length === 0 && preTrick.gains[1].length === 0) {
+            bonneStreak.current = { player: null, count: 0 };
+          }
+          if (preTrick.trick.some((e) => isBonne(e.card))) {
+            const precedent = bonneStreak.current;
+            const compte = precedent.player === winner ? precedent.count + 1 : 1;
+            bonneStreak.current = { player: winner, count: compte };
+            if (compte === 3) timers.push(setTimeout(() => sfx.streakLaugh(), lastDelay + 420));
+          }
+
           const sweeps = trickCapturesPile(preTrick, { atout10: true })
             ? preTrick.gains[loser].length
             : 0;
@@ -373,6 +391,7 @@ function OnlineTable() {
               if (sweeps > 0 && loserPile) {
                 const layers = Math.min(6, sweeps);
                 sfx.sweep();
+                sfx.sweepLaugh();
                 setSweepFlights(
                   Array.from({ length: layers }, (_, i) => ({
                     id: i,
@@ -446,17 +465,29 @@ function OnlineTable() {
       if (won) sfx.cheer();
       else if (lost) sfx.taunt();
     }, 350);
-    return () => clearTimeout(t);
+    // Treize bonnes ou plus en un tour : un rire à part, qui suit l'acclamation
+    // ou la moquerie plutôt que de s'y mélanger.
+    const t2 = state.instantWin ? setTimeout(() => sfx.landslideLaugh(), 1000) : null;
+    return () => {
+      clearTimeout(t);
+      if (t2) clearTimeout(t2);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey, me, opp]);
 
-  // Rire léger lorsque l'adversaire annonce un compte
+  // Rire léger lorsque l'adversaire annonce un compte ; un rire différent la
+  // première fois, quand cette annonce fixe aussi la couleur d'atout.
   const oppMeldCount = state ? state.melds[opp].length : 0;
   const prevOppMelds = useRef(0);
+  const prevTrump = useRef<Suit | null>(null);
   useEffect(() => {
-    if (oppMeldCount > prevOppMelds.current) sfx.chuckle();
+    if (oppMeldCount > prevOppMelds.current) {
+      if (prevTrump.current === null && state?.trump) sfx.trumpLaugh();
+      else sfx.chuckle();
+    }
     prevOppMelds.current = oppMeldCount;
-  }, [oppMeldCount]);
+    prevTrump.current = state?.trump ?? null;
+  }, [oppMeldCount, state?.trump]);
 
   // --- Chronomètre du tour et surveillance de la connexion ---
   // "quit" se déclare contre soi-même ; "timeout"/"disconnect" contre
@@ -576,7 +607,10 @@ function OnlineTable() {
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
-    sfx.chuckle();
+    // L'atout se fixe sur cette annonce précisément quand il n'était pas
+    // encore choisi : un rire différent salue ce moment-là.
+    if (state.trump === null) sfx.trumpLaugh();
+    else sfx.chuckle();
     void runAction({
       type: "announce",
       suits: myMelds.map((m) => m.suit),

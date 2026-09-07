@@ -155,6 +155,12 @@ function Azteque() {
   ] as const;
   const aiRedealChecked = useRef(-1);
   const askedForName = useRef(false);
+  // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
+  // zéro au premier pli d'un tour (tas des deux joueurs encore vides).
+  const bonneStreak = useRef<{ player: PlayerIndex | null; count: number }>({
+    player: null,
+    count: 0,
+  });
 
   // Réglages persistants
   useEffect(() => {
@@ -424,6 +430,18 @@ function Azteque() {
         if (stealsBonne([first, second], winner))
           timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
+        // Série de bonnes : au premier pli du tour (aucun tas encore entamé),
+        // on repart de zéro — y compris après un Pont rejoué.
+        if (state.gains[0].length === 0 && state.gains[1].length === 0) {
+          bonneStreak.current = { player: null, count: 0 };
+        }
+        if (winner !== null && [first, second].some((e) => isBonne(e.card))) {
+          const precedent = bonneStreak.current;
+          const compte = precedent.player === winner ? precedent.count + 1 : 1;
+          bonneStreak.current = { player: winner, count: compte };
+          if (compte === 3) timers.push(setTimeout(() => sfx.streakLaugh(), lastDelay + 420));
+        }
+
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
         const sweeps =
           winner !== null && trickCapturesPile(state, { atout10: true })
@@ -437,6 +455,7 @@ function Azteque() {
             if (sweeps > 0 && loserPile && winnerPile) {
               const layers = Math.min(6, sweeps);
               sfx.sweep();
+              sfx.sweepLaugh();
               setSweepFlights(
                 Array.from({ length: layers }, (_, i) => ({
                   id: i,
@@ -482,7 +501,10 @@ function Azteque() {
             if (s.phase !== "playing" || s.canAnnounce !== 1) return s;
             const a = aiAnnounceAt(s, settings.difficulty);
             if (!a) return { ...s, canAnnounce: null };
-            sfx.chuckle();
+            // L'atout se fixe sur cette annonce précisément quand il n'était
+            // pas encore choisi : un rire différent salue ce moment-là.
+            if (s.trump === null) sfx.trumpLaugh();
+            else sfx.chuckle();
             return announce(s, 1, a.suits, a.trump);
           });
         }, 650);
@@ -544,7 +566,13 @@ function Azteque() {
       if (won) sfx.cheer();
       else if (lost) sfx.taunt();
     }, 350);
-    return () => clearTimeout(t);
+    // Treize bonnes ou plus en un tour : un rire à part, qui suit l'acclamation
+    // ou la moquerie plutôt que de s'y mélanger.
+    const t2 = state.instantWin ? setTimeout(() => sfx.landslideLaugh(), 1000) : null;
+    return () => {
+      clearTimeout(t);
+      if (t2) clearTimeout(t2);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phaseKey]);
 
@@ -621,6 +649,9 @@ function Azteque() {
   }, [settings.difficulty, started, restart]);
 
   const doAnnounce = (trumpChoice: Suit | null) => {
+    // L'atout se fixe sur cette annonce précisément quand il n'était pas
+    // encore choisi : un rire différent salue ce moment-là.
+    const fixeLAtout = state.trump === null;
     setState((s) =>
       announce(
         s,
@@ -630,7 +661,8 @@ function Azteque() {
       ),
     );
     setChoosingTrump(false);
-    sfx.chuckle();
+    if (fixeLAtout) sfx.trumpLaugh();
+    else sfx.chuckle();
   };
 
   const announceMelds = () => {

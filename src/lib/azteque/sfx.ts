@@ -283,7 +283,7 @@ function riffle(at: number, g = 1, s = 1) {
 /* ---------- Réglages ---------- */
 
 /**
- * Les onze sons du jeu, réglables depuis la console d'administration.
+ * Les quinze sons du jeu, réglables depuis la console d'administration.
  *
  * Chacun se règle sur trois axes : le volume, la hauteur et la vitesse. Ce
  * n'est pas un synthétiseur complet — on ne redessine pas un son depuis une
@@ -303,6 +303,10 @@ export const SOUND_IDS = [
   "chuckle",
   "taunt",
   "cheer",
+  "trumpLaugh",
+  "sweepLaugh",
+  "landslideLaugh",
+  "streakLaugh",
 ] as const;
 
 export type SoundId = (typeof SOUND_IDS)[number];
@@ -320,6 +324,10 @@ export const SOUND_LABELS: Record<SoundId, string> = {
   chuckle: "Rire — compte annoncé",
   taunt: "Rire moqueur — tour perdu",
   cheer: "Acclamations — tour gagné",
+  trumpLaugh: "Rire — atout annoncé",
+  sweepLaugh: "Rire — tas raflé (Atout 10)",
+  landslideLaugh: "Rire — tour dominé (13 bonnes ou plus)",
+  streakLaugh: "Rire — trois bonnes d'affilée",
 };
 
 export interface SoundTuning {
@@ -358,6 +366,10 @@ export const SOUND_EXTRAS: Record<SoundId, (keyof SoundTuning)[]> = {
   chuckle: ["syllables", "step", "vowel"],
   taunt: ["syllables", "step", "vowel"],
   cheer: ["voices", "claps"],
+  trumpLaugh: ["syllables", "step", "vowel"],
+  sweepLaugh: ["syllables", "step", "vowel"],
+  landslideLaugh: ["syllables", "step", "vowel"],
+  streakLaugh: ["syllables", "step", "vowel"],
 };
 
 /** Bornes de chaque réglage : au-delà, le son cesse d'être un son. */
@@ -441,6 +453,10 @@ const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
   chuckle: { syllables: 4, step: 1.02, vowel: 1 },
   taunt: { syllables: 5, step: 0.9, vowel: 0 },
   cheer: { voices: 14, claps: 80 },
+  trumpLaugh: { syllables: 2, step: 1.08, vowel: 0 },
+  sweepLaugh: { syllables: 4, step: 0.92, vowel: 0 },
+  landslideLaugh: { syllables: 7, step: 0.94, vowel: 0 },
+  streakLaugh: { syllables: 4, step: 0.97, vowel: 1 },
 };
 
 /** Les réglages en vigueur, tels que la console doit les afficher. */
@@ -652,5 +668,55 @@ export const sfx = {
     }
     // La rumeur de fond, qui lie le tout.
     noise(0, 1.9 * s, 0.088 * g, 500, 1400, "bandpass");
+  },
+  /**
+   * Rire bref et affirmé : la couleur d'atout vient d'être fixée pour le
+   * tour. Deux syllabes qui montent, comme une déclaration plutôt qu'une
+   * moquerie — l'atout se choisit, il ne se vole pas.
+   */
+  trumpLaugh() {
+    if (echantillon("trumpLaugh")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("trumpLaugh");
+    rire(0, {
+      syllabes,
+      f0: 340 * p,
+      pas,
+      tempo: 0.14 * s,
+      voyelle,
+      gain: 0.23 * g,
+      reprise: false,
+    });
+    tone(0.04 * s, 520 * p, 0.28 * s, 0.045 * g, "triangle", 780 * p);
+  },
+  /**
+   * Rire qui accompagne le transfert de tas : le 10 d'atout vient de rafler
+   * tout le tas adverse. Un léger temps de retard le laisse suivre le
+   * souffle du transfert plutôt que le couvrir.
+   */
+  sweepLaugh() {
+    if (echantillon("sweepLaugh")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("sweepLaugh");
+    rire(0.1 * s, { syllabes, f0: 260 * p, pas, tempo: 0.16 * s, voyelle, gain: 0.27 * g });
+  },
+  /**
+   * Rire long et retentissant : treize bonnes ou plus en un seul tour, la
+   * partie est pliée d'un coup. Plus de syllabes et plus de voix que le rire
+   * moqueur d'un tour ordinaire — cette victoire-là n'a rien d'ordinaire.
+   */
+  landslideLaugh() {
+    if (echantillon("landslideLaugh")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("landslideLaugh");
+    rire(0, { syllabes, f0: 300 * p, pas, tempo: 0.15 * s, voyelle, gain: 0.3 * g });
+  },
+  /**
+   * Rire malicieux : trois bonnes prises d'affilée sans que l'adversaire
+   * n'en reprenne une seule. Une petite fanfare de rien, pour la série
+   * plutôt que pour une bonne isolée — c'est déjà le rôle de « snicker ».
+   */
+  streakLaugh() {
+    if (echantillon("streakLaugh")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("streakLaugh");
+    rire(0, { syllabes, f0: 330 * p, pas, tempo: 0.13 * s, voyelle, gain: 0.24 * g });
+    tone(0.05 * s, 587 * p, 0.22 * s, 0.03 * g, "triangle", 880 * p);
   },
 };

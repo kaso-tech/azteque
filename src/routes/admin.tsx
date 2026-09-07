@@ -725,6 +725,10 @@ const DEFAUTS_AFFICHES: Partial<Record<SoundId, Partial<SoundTuning>>> = {
   chuckle: { syllables: 4, step: 1.02, vowel: 1 },
   taunt: { syllables: 5, step: 0.9, vowel: 0 },
   cheer: { voices: 14, claps: 80 },
+  trumpLaugh: { syllables: 2, step: 1.08, vowel: 0 },
+  sweepLaugh: { syllables: 4, step: 0.92, vowel: 0 },
+  landslideLaugh: { syllables: 7, step: 0.94, vowel: 0 },
+  streakLaugh: { syllables: 4, step: 0.97, vowel: 1 },
 };
 
 /**
