@@ -247,7 +247,6 @@ function OnlineTable() {
     [id, sync],
   );
 
-
   /* ---------- Mise de jetons ---------- */
   const { bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
     matchId: id,
@@ -601,7 +600,6 @@ function OnlineTable() {
     return () => clearInterval(t);
   }, [oppOnline, state, opp, declareForfeit, linkHealthy]);
 
-
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   const legalIds = useMemo(() => {
     if (!state) return new Set<string>();
@@ -837,7 +835,6 @@ function OnlineTable() {
             {oppName} est hors ligne · {offlineLeft}s
           </span>
         )}
-
 
         {state.trump && (
           <span className="absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
