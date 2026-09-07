@@ -725,7 +725,7 @@ function endgameLead(
   state: GameState,
   c: Card,
   m: OppModel,
-): { wins: boolean; captured: number } | null {
+): { wins: boolean; captured: number; given: Card | null } | null {
   if (!m.known || state.stock.length > 0) return null;
   const hand = m.known;
   const same = hand.filter((x) => x.suit === c.suit);
@@ -734,23 +734,26 @@ function endgameLead(
     const trumps = state.trump ? hand.filter((x) => x.suit === state.trump) : [];
     if (trumps.length) {
       // Il doit couper : il le fera au meilleur marché, mais il remporte le pli.
-      return { wins: false, captured: 0 };
+      return { wins: false, captured: 0, given: null };
     }
     // Défausse libre : il se sépare de sa carte la moins utile, jamais d'une
     // bonne s'il peut l'éviter.
     const junk = hand.filter((x) => !isBonne(x));
-    return { wins: true, captured: junk.length ? 0 : 1 };
+    const thrown = junk.length
+      ? [...junk].sort((x, y) => rankValue(x.rank) - rankValue(y.rank))[0]!
+      : hand[0]!;
+    return { wins: true, captured: junk.length ? 0 : 1, given: thrown };
   }
 
   const winning = same.filter((x) => beats(x, c, state.trump));
-  if (winning.length) return { wins: false, captured: 0 };
+  if (winning.length) return { wins: false, captured: 0, given: null };
 
   const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
   const top = sorted[0]!;
   // Protection d'une bonne : il peut lui substituer la carte immédiatement
   // inférieure de la couleur.
   const given = isBonne(top) && sorted.length > 1 ? sorted[1]! : top;
-  return { wins: true, captured: isBonne(given) ? 1 : 0 };
+  return { wins: true, captured: isBonne(given) ? 1 : 0, given };
 }
 
 /* ---------- Valeur de conservation d'une carte ---------- */
@@ -901,6 +904,16 @@ function aiTacticalCard(state: GameState): Card {
     if (exact) {
       risk = exact.wins ? 0 : 1;
       pts = mine + exact.captured;
+      // Atout 10 : si la réponse imposée est le 10 d'atout, tout son tas bascule.
+      if (
+        exact.wins &&
+        trump &&
+        exact.given &&
+        exact.given.rank === "10" &&
+        exact.given.suit === trump
+      ) {
+        pts += state.gains[0].filter(isBonne).length;
+      }
     } else {
       // Qui peut me battre ? Une carte de la même couleur plus forte, ou un atout.
       const pHigher = oppHas(

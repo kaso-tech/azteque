@@ -1,3 +1,4 @@
+import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setTokens } from "@/lib/azteque/tokens";
 import { START_RATING } from "@/lib/azteque/rank";
@@ -15,7 +16,7 @@ import { START_RATING } from "@/lib/azteque/rank";
  * lecture les applique explicitement.
  */
 const anyTable = (name: string) =>
-  (supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }).from(name);
+  (supabase as unknown as { from: (t: string) => any }).from(name);
 
 const rpc = (name: string, args: Record<string, unknown>) =>
   (
@@ -506,10 +507,25 @@ export async function isUsernameFree(username: string): Promise<boolean> {
   // Une vérification qui n'aboutit pas doit se déclarer perdue plutôt que de
   // laisser le joueur devant un « Vérification… » sans fin : c'est un confort,
   // pas une condition.
+  const timeoutFallback: PostgrestSingleResponse<{ id: string }[]> = {
+    data: null,
+    error: {
+      message: "Vérification interrompue",
+      details: "",
+      hint: "",
+      code: "timeout",
+      name: "PostgrestError",
+      toJSON: () => ({}),
+    } as PostgrestError,
+    count: null,
+    status: 0,
+    statusText: "",
+    success: false,
+  };
   const { data, error } = await withTimeout(
-    anyTable("profiles").select("id").ilike("username", name).limit(2),
+    (async () => supabase.from("profiles").select("id").ilike("username", name).limit(2))(),
     6000,
-    { data: null, error: { message: "Vérification interrompue" } } as never,
+    timeoutFallback,
   );
   if (error) throw error;
   const rows = (data as unknown as { id: string }[]) ?? [];
@@ -715,7 +731,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
   if (q.length < 2) return [];
   const me = await currentUserId();
   const { data, error } = await readProfiles((cols) =>
-    anyTable("profiles")
+    anyTable("public_profiles")
       .select(cols)
       .ilike("username", `%${q}%`)
       .limit(limit + 1),
@@ -730,7 +746,7 @@ export async function searchPlayers(query: string, limit = 10): Promise<PublicPr
 /** Profil public d'un joueur, pour afficher son grade à côté de son nom. */
 export async function getPublicProfile(id: string): Promise<PublicProfile | null> {
   const { data, error } = await readProfiles((cols) =>
-    anyTable("profiles").select(cols).eq("id", id).maybeSingle(),
+    anyTable("public_profiles").select(cols).eq("id", id).maybeSingle(),
   );
   if (error) throw error;
   const row = data as (PublicProfile & { id: string; username: string }) | null;
@@ -756,7 +772,7 @@ export async function listFriends(): Promise<Friend[]> {
 
   const others = rows.map((r) => (r.requester_id === me ? r.addressee_id : r.requester_id));
   const { data: profiles, error: pErr } = await readProfiles((cols) =>
-    anyTable("profiles").select(cols).in("id", others),
+    anyTable("public_profiles").select(cols).in("id", others),
   );
   if (pErr) throw pErr;
   const known = new Map(
@@ -850,7 +866,7 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
   if (invites.length === 0) return [];
 
   const { data: profiles } = await readProfiles((cols) =>
-    anyTable("profiles")
+    anyTable("public_profiles")
       .select(cols)
       .in("id", [...new Set(invites.map((i) => i.from_id))]),
   );

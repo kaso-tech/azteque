@@ -302,7 +302,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_kind: string | null
+          avatar_url: string | null
+          country: string | null
+          created_at: string | null
+          id: string | null
+          last_seen_at: string | null
+          peak_rating: number | null
+          rated_games: number | null
+          rating: number | null
+          rounds_played: number | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_kind?: string | null
+          avatar_url?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          last_seen_at?: string | null
+          peak_rating?: number | null
+          rated_games?: number | null
+          rating?: number | null
+          rounds_played?: number | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_kind?: string | null
+          avatar_url?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          last_seen_at?: string | null
+          peak_rating?: number | null
+          rated_games?: number | null
+          rating?: number | null
+          rounds_played?: number | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_game_invite: {
@@ -439,6 +483,37 @@ export type Database = {
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      sync_google_identity: {
+        Args: never
+        Returns: {
+          avatar_kind: string
+          avatar_url: string | null
+          banned: boolean
+          claimed_local_tokens: boolean
+          country: string | null
+          created_at: string
+          daily_bonus_at: string
+          first_name: string | null
+          id: string
+          is_admin: boolean
+          last_name: string | null
+          last_seen_at: string | null
+          local_tokens_total: number
+          peak_rating: number
+          rated_games: number
+          rating: number
+          rounds_played: number
+          tokens: number
+          updated_at: string
+          username: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       touch_last_seen: { Args: never; Returns: undefined }
     }
     Enums: {
