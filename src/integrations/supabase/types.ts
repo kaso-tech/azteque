@@ -302,7 +302,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_kind: string | null
+          avatar_url: string | null
+          country: string | null
+          created_at: string | null
+          id: string | null
+          last_seen_at: string | null
+          peak_rating: number | null
+          rated_games: number | null
+          rating: number | null
+          rounds_played: number | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_kind?: string | null
+          avatar_url?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          last_seen_at?: string | null
+          peak_rating?: number | null
+          rated_games?: number | null
+          rating?: number | null
+          rounds_played?: number | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_kind?: string | null
+          avatar_url?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          last_seen_at?: string | null
+          peak_rating?: number | null
+          rated_games?: number | null
+          rating?: number | null
+          rounds_played?: number | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_game_invite: {
