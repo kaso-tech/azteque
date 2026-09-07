@@ -123,28 +123,81 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_kind: string
+          avatar_url: string | null
           claimed_local_tokens: boolean
           created_at: string
+          daily_bonus_at: string
           id: string
           tokens: number
           updated_at: string
           username: string
         }
         Insert: {
+          avatar_kind?: string
+          avatar_url?: string | null
           claimed_local_tokens?: boolean
           created_at?: string
+          daily_bonus_at?: string
           id: string
           tokens?: number
           updated_at?: string
           username: string
         }
         Update: {
+          avatar_kind?: string
+          avatar_url?: string | null
           claimed_local_tokens?: boolean
           created_at?: string
+          daily_bonus_at?: string
           id?: string
           tokens?: number
           updated_at?: string
           username?: string
+        }
+        Relationships: []
+      }
+      purchases: {
+        Row: {
+          bought_at: string
+          item_id: string
+          user_id: string
+        }
+        Insert: {
+          bought_at?: string
+          item_id: string
+          user_id: string
+        }
+        Update: {
+          bought_at?: string
+          item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "shop_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_items: {
+        Row: {
+          id: string
+          kind: string
+          price: number
+        }
+        Insert: {
+          id: string
+          kind: string
+          price: number
+        }
+        Update: {
+          id?: string
+          kind?: string
+          price?: number
         }
         Relationships: []
       }
@@ -179,6 +232,8 @@ export type Database = {
         }
       }
       award_ai_win: { Args: { _difficulty: string }; Returns: number }
+      buy_item: { Args: { _item_id: string }; Returns: Json }
+      claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
