@@ -358,6 +358,10 @@ export type Database = {
           username: string
         }[]
       }
+      admin_log_sound_change: {
+        Args: { _action: string; _details?: Json; _id: string }
+        Returns: undefined
+      }
       admin_set_admin: {
         Args: { _is_admin: boolean; _user: string }
         Returns: undefined
