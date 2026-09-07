@@ -1345,7 +1345,7 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // tirage particulier. Cette fenêtre étroite est aussi trois fois plus rapide.
   const from = level === "legende" ? 2 : 0;
   if (state.stock.length <= from) {
-    const samples = state.stock.length === 0 ? 1 : 8;
+    const samples = state.stock.length === 0 ? 1 : 14;
     const exact = pimcChoose(state, samples, 12);
     if (exact) return exact;
   }
