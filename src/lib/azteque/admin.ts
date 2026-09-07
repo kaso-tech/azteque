@@ -423,10 +423,12 @@ export async function loadSoundFiles(): Promise<void> {
     await Promise.all(
       fichiers.map(async (f) => {
         try {
-          const { data: pub } = supabase.storage.from(SEAU_SONS).getPublicUrl(f.path);
-          const reponse = await fetch(pub.publicUrl);
-          if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
-          await registerSample(f.id, await reponse.arrayBuffer());
+          // Le seau est privé : pas d'adresse publique. La policy « Sons
+          // lisibles de tous » laisse néanmoins quiconque télécharger, même
+          // sans compte — le jeu contre l'IA s'entend pareil pour tous.
+          const { data, error } = await supabase.storage.from(SEAU_SONS).download(f.path);
+          if (error || !data) throw error ?? new Error("vide");
+          await registerSample(f.id, await data.arrayBuffer());
         } catch {
           clearSample(f.id);
         }
