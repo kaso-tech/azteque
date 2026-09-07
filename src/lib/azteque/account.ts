@@ -777,7 +777,7 @@ export async function listFriends(): Promise<Friend[]> {
 
   const others = rows.map((r) => (r.requester_id === me ? r.addressee_id : r.requester_id));
   const { data: profiles, error: pErr } = await readProfiles((cols) =>
-    anyTable("profiles").select(cols).in("id", others),
+    anyTable("public_profiles").select(cols).in("id", others),
   );
   if (pErr) throw pErr;
   const known = new Map(
