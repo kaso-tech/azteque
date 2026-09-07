@@ -109,10 +109,51 @@ export async function adminStats(): Promise<AdminStats | null> {
   return (data as unknown as AdminStats | null) ?? null;
 }
 
+/**
+ * La liste des joueurs.
+ *
+ * Elle passe d'abord par la fonction serveur, qui agrège le nombre d'achats.
+ * Si la base est en retard sur le code — fonction absente, colonne manquante —
+ * on relit `profiles` directement, en retirant les colonnes que la base ignore
+ * jusqu'à ce qu'elle réponde. Un administrateur a le droit de lire les profils ;
+ * il perd le décompte des achats, pas sa console.
+ */
 export async function adminListPlayers(query = "", limit = 50): Promise<AdminPlayer[]> {
   const { data, error } = await rpc("admin_list_players", { _query: query, _limit: limit });
-  if (error) throw error;
-  return (data as unknown as AdminPlayer[]) ?? [];
+  if (!error) return (data as unknown as AdminPlayer[]) ?? [];
+  if (!colonneAbsente(error) && !fonctionAbsente(error)) throw error;
+
+  const colonnes = [
+    "id, username, tokens, rating, rated_games, avatar_kind, avatar_url, is_admin, banned, created_at",
+    "id, username, tokens, rating, rated_games, avatar_kind, avatar_url, created_at",
+    "id, username, tokens, rating, created_at",
+    "id, username, tokens",
+  ];
+  let derniere: unknown = error;
+  for (const cols of colonnes) {
+    let q = anyTable("profiles").select(cols);
+    if (query) q = q.ilike("username", `%${query}%`);
+    const r = await q.limit(limit);
+    if (r.error) {
+      derniere = r.error;
+      if (colonneAbsente(r.error)) continue;
+      throw r.error;
+    }
+    return ((r.data as unknown as Partial<AdminPlayer>[]) ?? []).map((p) => ({
+      id: String(p.id),
+      username: p.username ?? "",
+      tokens: p.tokens ?? 0,
+      rating: p.rating ?? 1000,
+      rated_games: p.rated_games ?? 0,
+      avatar_kind: p.avatar_kind ?? "google",
+      avatar_url: p.avatar_url ?? null,
+      is_admin: p.is_admin ?? false,
+      banned: p.banned ?? false,
+      purchases: 0,
+      created_at: p.created_at ?? "",
+    }));
+  }
+  throw derniere;
 }
 
 /** Crédite (montant positif) ou débite (négatif). Renvoie le nouveau solde. */
@@ -151,6 +192,12 @@ export interface AdminShopItem {
 function colonneAbsente(e: unknown): boolean {
   const code = (e as { code?: string } | null)?.code ?? "";
   return code === "PGRST204" || code === "42703";
+}
+
+/** Vrai quand la base ignore la fonction appelée. */
+function fonctionAbsente(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code ?? "";
+  return code === "PGRST202" || code === "42883";
 }
 
 /**
