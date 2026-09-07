@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { sfx } from "@/lib/azteque/sfx";
 import type { GameState } from "@/lib/azteque/engine";
 
 /**
- * La cérémonie de la donne : le paquet se pose, il est battu, coupé, puis les
- * douze cartes partent une à une vers les deux mains.
+ * La cérémonie de la donne, jouée sur la table elle-même : le paquet est battu
+ * à l'emplacement de la pioche, coupé, puis les douze cartes partent une à une
+ * vers les places exactes qu'elles occuperont dans les deux mains.
  *
  * Elle ne décide de rien — la donne est déjà faite quand elle commence, et le
  * jeu la retrouve intacte à la fin. C'est du temps de théâtre, celui qu'un
  * joueur passe à regarder battre les cartes avant de prendre les siennes.
+ *
+ * Les positions sont relevées sur les vrais éléments plutôt que devinées : la
+ * carte qui se pose recouvre exactement celle que la main affichera, et le
+ * relais de l'une à l'autre ne se voit pas.
  */
 
 /** Battage et coupe. */
@@ -21,93 +26,135 @@ const DEALT = 12;
 /** Vol d'une carte du paquet à la main. Doit suivre `animate-deal-fly`. */
 const FLIGHT_MS = 430;
 /** Temps de pose, une fois la dernière carte arrivée. */
-const HOLD_MS = 120;
-/** Fondu de sortie. */
-const FADE_MS = 220;
+const HOLD_MS = 140;
 
 /** Instant où la dernière carte se pose. */
 const LAST_CARD_MS = SHUFFLE_MS + (DEALT - 1) * DEAL_STEP_MS + FLIGHT_MS;
 
 /**
  * Durée totale, déduite de la chorégraphie et non fixée à vue : un total trop
- * court lèverait le voile sur une carte encore en vol.
+ * court rendrait la main au joueur alors qu'une carte est encore en vol.
  */
-export const CEREMONY_MS = LAST_CARD_MS + HOLD_MS + FADE_MS;
+export const CEREMONY_MS = LAST_CARD_MS + HOLD_MS;
 
 /** Les cartes partent par paquets de trois, comme à la main. */
 function seatOf(index: number): 0 | 1 {
   return Math.floor(index / 3) % 2 === 0 ? 1 : 0;
 }
 
-/**
- * L'écart d'une carte à sa position finale, en pourcentage de sa taille.
- *
- * Le voile couvre tout l'écran, et non le seul tapis : sans cela les mains
- * resteraient visibles en dessous pendant qu'on fait mine de les distribuer.
- * Les cartes partent donc vers le haut et le bas de la fenêtre, là où les
- * mains apparaîtront au lever du voile.
- */
-function landing(index: number) {
-  const seat = seatOf(index);
-  const rank = Math.floor(index / 6) * 3 + (index % 3); // 0 à 5 dans sa main
-  const spread = (rank - 2.5) / 2.5; // −1 à +1
+/** Rang de la carte dans sa main, de 0 à 5. */
+function slotOf(index: number) {
+  return Math.floor(index / 6) * 3 + (index % 3);
+}
+
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+interface Geometry {
+  deck: Box;
+  /** Une case par carte distribuée, dans l'ordre de distribution. */
+  slots: (Box | null)[];
+}
+
+function boxOf(r: DOMRect): Box {
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+
+/** Les cartes réellement affichées dans un conteneur, dans l'ordre. */
+function cardBoxes(ref: RefObject<HTMLElement | null>): Box[] {
+  const el = ref.current;
+  if (!el) return [];
+  return Array.from(el.querySelectorAll<HTMLElement>(".playing-card")).map((c) =>
+    boxOf(c.getBoundingClientRect()),
+  );
+}
+
+function measure(
+  stockRef: RefObject<HTMLElement | null>,
+  myHandRef: RefObject<HTMLElement | null>,
+  oppHandRef: RefObject<HTMLElement | null>,
+): Geometry | null {
+  const stock = stockRef.current;
+  const deck = cardBoxes(stockRef)[0] ?? (stock ? boxOf(stock.getBoundingClientRect()) : null);
+  if (!deck || deck.width === 0) return null;
+  const hands = [cardBoxes(myHandRef), cardBoxes(oppHandRef)] as const;
   return {
-    // Les distances se mesurent sur la fenêtre, non sur la carte : les mains
-    // sont en haut et en bas de l'écran quelle qu'en soit la taille. L'étalement
-    // est borné, faute de quoi les cartes partiraient hors du plateau sur un
-    // écran large.
-    dx: `calc(${spread.toFixed(2)} * min(18vw, 140px))`,
-    dy: seat === 0 ? "34vh" : "-34vh",
-    dr: `${spread * 7}deg`,
+    deck,
+    slots: Array.from({ length: DEALT }, (_, i) => hands[seatOf(i)][slotOf(i)] ?? null),
   };
 }
 
-export function DealCeremony({ onDone }: { onDone?: () => void }) {
-  const [phase, setPhase] = useState<"shuffle" | "deal" | "out">("shuffle");
+export function DealCeremony({
+  stockRef,
+  myHandRef,
+  oppHandRef,
+}: {
+  /** La pioche : c'est de là que le paquet est battu et distribué. */
+  stockRef: RefObject<HTMLElement | null>;
+  /** La main du joueur local. */
+  myHandRef: RefObject<HTMLElement | null>;
+  /** Celle de l'adversaire. */
+  oppHandRef: RefObject<HTMLElement | null>;
+}) {
+  const [phase, setPhase] = useState<"shuffle" | "deal">("shuffle");
+  const [geom, setGeom] = useState<Geometry | null>(null);
+
+  // Relevé avant peinture : les mains sont déjà en place, masquées, et leurs
+  // cases n'attendent que d'être recouvertes.
+  useLayoutEffect(() => {
+    setGeom(measure(stockRef, myHandRef, oppHandRef));
+  }, [stockRef, myHandRef, oppHandRef]);
 
   useEffect(() => {
     sfx.shuffle();
-    const timers = [
-      setTimeout(() => setPhase("deal"), SHUFFLE_MS),
-      setTimeout(() => setPhase("out"), CEREMONY_MS - FADE_MS),
-      setTimeout(() => onDone?.(), CEREMONY_MS),
-    ];
+    const timers = [setTimeout(() => setPhase("deal"), SHUFFLE_MS)];
     // Un claquement par carte, calé sur son départ.
     for (let i = 0; i < DEALT; i += 1) {
       timers.push(setTimeout(() => sfx.dealCard(), SHUFFLE_MS + i * DEAL_STEP_MS));
     }
     return () => timers.forEach(clearTimeout);
-  }, [onDone]);
+  }, []);
+
+  if (!geom) return null;
+  const { deck, slots } = geom;
+  const deckCx = deck.left + deck.width / 2;
+  const deckCy = deck.top + deck.height / 2;
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-felt-deep transition-opacity duration-200"
-      style={{
-        // Le voile n'est pas un écran posé sur la table : c'est la table, vide,
-        // le temps de la donne. À demi transparent, les mains transparaissaient
-        // en dessous et l'on voyait distribuer des cartes déjà en place.
-        backgroundImage: "var(--gradient-felt)",
-        opacity: phase === "out" ? 0 : 1,
-      }}
-    >
-      <div className="relative w-20 sm:w-24">
-        {/* L'épaisseur du paquet : quelques dos décalés sous les moitiés. */}
-        {[0, 1, 2].map((i) => (
-          <div
-            key={`base-${i}`}
-            className="animate-deck-settle absolute inset-0"
-            style={{ transform: `translate(${i * 2}px, ${i * -2}px)` }}
-          >
-            <PlayingCard faceDown size="hand" />
-          </div>
-        ))}
-
-        {/* Les deux moitiés qui s'imbriquent. Elles ne bougent que pendant le
-            battage : une fois la distribution commencée, le paquet est en
-            place et doit le rester. */}
-        {phase === "shuffle" &&
-          (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-30">
+      {/* Le paquet, posé sur la pioche. */}
+      {phase === "shuffle" && (
+        <div
+          className="animate-deck-present absolute"
+          style={
+            {
+              left: deck.left,
+              top: deck.top,
+              width: deck.width,
+              height: deck.height,
+              "--riffle-duration": `${SHUFFLE_MS}ms`,
+            } as React.CSSProperties
+          }
+        >
+          {/* L'épaisseur : quelques dos décalés sous les deux moitiés. Le
+              décalage tient sur un conteneur, l'apparition sur la carte : une
+              animation de transformation effacerait l'autre. */}
+          {[0, 1, 2].map((i) => (
+            <div
+              key={`base-${i}`}
+              className="absolute inset-0"
+              style={{ transform: `translate(${i * 2}px, ${i * -2}px)` }}
+            >
+              <div className="animate-deck-settle h-full w-full">
+                <PlayingCard faceDown size="hand" />
+              </div>
+            </div>
+          ))}
+          {(
             [
               { key: "gauche", x: "-46%", r: "-9deg" },
               { key: "droite", x: "46%", r: "9deg" },
@@ -127,29 +174,42 @@ export function DealCeremony({ onDone }: { onDone?: () => void }) {
               <PlayingCard faceDown size="hand" />
             </div>
           ))}
+        </div>
+      )}
 
-        {/* La distribution. */}
-        {phase !== "shuffle" &&
-          Array.from({ length: DEALT }, (_, i) => {
-            const { dx, dy, dr } = landing(i);
-            return (
-              <div
-                key={`deal-${i}`}
-                className="animate-deal-fly absolute inset-0"
-                style={
-                  {
-                    "--dx": dx,
-                    "--dy": dy,
-                    "--dr": dr,
-                    animationDelay: `${i * DEAL_STEP_MS}ms`,
-                  } as React.CSSProperties
-                }
-              >
-                <PlayingCard faceDown size="hand" />
-              </div>
-            );
-          })}
-      </div>
+      {/* La distribution : chaque carte part du paquet et se pose sur sa case. */}
+      {phase === "deal" &&
+        slots.map((slot, i) => {
+          if (!slot) return null;
+          const cx = slot.left + slot.width / 2;
+          const cy = slot.top + slot.height / 2;
+          return (
+            <div
+              key={`deal-${i}`}
+              className="animate-deal-fly absolute"
+              style={
+                {
+                  left: slot.left,
+                  top: slot.top,
+                  width: slot.width,
+                  height: slot.height,
+                  // La carte occupe d'emblée sa case, à la taille qu'elle y
+                  // aura : l'animation la fait partir du paquet et l'y ramène.
+                  // Décrire le vol ainsi évite d'avoir à corriger sa taille en
+                  // chemin, et garantit qu'elle se pose exactement en place.
+                  "--dx": `${deckCx - cx}px`,
+                  "--dy": `${deckCy - cy}px`,
+                  // Inclinaison au départ seulement : la carte se redresse en
+                  // arrivant, comme celle que la main affichera.
+                  "--dr": `${(slotOf(i) - 2.5) * 5}deg`,
+                  animationDelay: `${i * DEAL_STEP_MS}ms`,
+                } as React.CSSProperties
+              }
+            >
+              <PlayingCard faceDown size="hand" />
+            </div>
+          );
+        })}
     </div>
   );
 }
@@ -174,7 +234,8 @@ export function freshDealId(state: GameState | null | undefined): string | null 
 
 /**
  * Déclenche la cérémonie à chaque nouvelle donne, et rend `true` tant qu'elle
- * dure — de quoi retenir l'ordinateur et le compte à rebours.
+ * dure — de quoi masquer les mains, retenir l'ordinateur et suspendre le
+ * compte à rebours.
  *
  * Elle est purement décorative : un joueur qui a demandé moins d'animations la
  * saute entièrement, plutôt que d'attendre deux secondes devant un écran fixe.
@@ -199,7 +260,7 @@ export function useDealCeremony(state: GameState | null | undefined, active: boo
     return () => clearTimeout(t);
   }, [dealId]);
 
-  // Quitter la table pendant la donne ne doit pas laisser le voile derrière.
+  // Quitter la table pendant la donne ne doit pas laisser les mains masquées.
   useEffect(() => {
     if (!active) {
       setDealing(false);

@@ -656,7 +656,7 @@ function OnlineTable() {
 
       {/* Main adverse */}
       <section>
-        <div ref={handRefs[opp]}>
+        <div ref={handRefs[opp]} style={{ opacity: dealing ? 0 : 1 }}>
           <HandRow
             cards={state.hands[opp]}
             exposedIds={state.exposed[opp]}
@@ -782,7 +782,10 @@ function OnlineTable() {
       {/* Votre main */}
       <section className="flex flex-col gap-2">
         <TurnBar total={TURN_LIMIT} active={myMustAct} resetKey={turnKey} />
-        <div ref={handRefs[me]}>
+        {/* Pendant la donne, la main garde sa place — ses cases servent de
+            cibles aux cartes qui arrivent — mais reste invisible : on ne
+            distribue pas des cartes déjà posées. */}
+        <div ref={handRefs[me]} style={{ opacity: dealing ? 0 : 1 }}>
           <HandRow
             cards={state.hands[me]}
             exposedIds={state.exposed[me]}
@@ -1005,7 +1008,9 @@ function OnlineTable() {
 
       <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
 
-      {dealing && <DealCeremony />}
+      {dealing && (
+        <DealCeremony stockRef={stockRef} myHandRef={handRefs[me]} oppHandRef={handRefs[opp]} />
+      )}
     </main>
   );
 }

@@ -299,6 +299,21 @@
 
 /* ---- Cérémonie de la donne ---- */
 
+/* Le paquet est présenté en grand pour être battu, puis se pose sur la pioche
+   à sa taille réelle : le battage est la partie qui se regarde, la pioche est
+   trop petite pour qu'on y distingue quoi que ce soit. */
+@keyframes deck-present {
+  0% {
+    transform: scale(1.5);
+  }
+  74% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Le paquet se pose sur la table. */
 @keyframes deck-settle {
   from {
@@ -338,19 +353,25 @@
   }
 }
 
-/* Une carte quitte le paquet et rejoint sa place dans la main. */
+/* Une carte quitte le paquet et rejoint sa place dans la main.
+   Elle est décrite depuis sa case d'arrivée : `--dx`/`--dy` la reportent sur le
+   paquet, d'où elle revient se poser exactement à sa place, redressée. */
 @keyframes deal-fly {
   0% {
     opacity: 0;
-    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.88);
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--dr)) scale(0.9);
   }
-  10% {
+  12% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--dr)) scale(1);
+    transform: none;
   }
+}
+
+@utility animate-deck-present {
+  animation: deck-present var(--riffle-duration, 900ms) cubic-bezier(0.4, 0, 0.3, 1) both;
 }
 
 @utility animate-deck-settle {
@@ -367,6 +388,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-deal,
+  .animate-deck-present,
   .animate-deck-settle,
   .animate-riffle,
   .animate-deal-fly,

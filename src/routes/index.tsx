@@ -330,12 +330,14 @@ function Azteque() {
     state.melds[0].length === 0 &&
     state.melds[1].length === 0;
 
-  const canRedeal = freshRound && !redealDone && hasMainBlanche(state, 0);
-
   // Battage et distribution : le temps qu'ils durent, l'ordinateur ne joue pas
   // et le compte à rebours ne court pas — le joueur regarde, il ne réfléchit
   // pas encore.
   const dealing = useDealCeremony(state, started);
+
+  // L'offre de redistribution attend la fin de la donne : proposée pendant,
+  // elle annoncerait le contenu de la main avant que les cartes n'y soient.
+  const canRedeal = freshRound && !dealing && !redealDone && hasMainBlanche(state, 0);
 
   const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
     setState(newRound(dealer, won));
@@ -743,7 +745,7 @@ function Azteque() {
       {/* Adversaire */}
       <section className="flex items-start justify-between gap-3">
         <div className="flex w-full flex-col gap-2">
-          <div ref={opponentHandRef}>
+          <div ref={opponentHandRef} style={{ opacity: dealing ? 0 : 1 }}>
             <HandRow
               cards={state.hands[1]}
               exposedIds={state.exposed[1]}
@@ -905,7 +907,10 @@ function Azteque() {
       {/* Votre main */}
       <section className="flex flex-col gap-2">
         <TurnBar total={TURN_LIMIT} active={myTurnActive} resetKey={turnKey} />
-        <div ref={playerHandRef}>
+        {/* Pendant la donne, la main garde sa place — ses cases servent de
+            cibles aux cartes qui arrivent — mais reste invisible : on ne
+            distribue pas des cartes déjà posées. */}
+        <div ref={playerHandRef} style={{ opacity: dealing ? 0 : 1 }}>
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
@@ -1064,7 +1069,9 @@ function Azteque() {
         </div>
       )}
 
-      {dealing && <DealCeremony />}
+      {dealing && (
+        <DealCeremony stockRef={stockRef} myHandRef={playerHandRef} oppHandRef={opponentHandRef} />
+      )}
       {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
       {showPlayerProfile && (
         <PlayerProfilePanel
