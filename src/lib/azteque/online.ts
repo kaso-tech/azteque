@@ -157,7 +157,6 @@ export function subscribeMatch(
   };
 }
 
-
 export interface ChatMessage {
   id: string;
   seat: "host" | "guest";
