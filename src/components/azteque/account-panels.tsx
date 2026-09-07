@@ -10,7 +10,7 @@ import {
   describeError,
   isUsernameFree,
   PAYS_PROPOSES,
-  updateIdentity,
+  updateCountry,
   listPurchases,
   setAvatarKind,
   updateUsername,
@@ -126,20 +126,16 @@ export function AccountIdentity({
   onChange: (p: Profile) => void;
 }) {
   const [name, setName] = useState(profile.username);
-  const [prenom, setPrenom] = useState(profile.first_name ?? "");
-  const [nom, setNom] = useState(profile.last_name ?? "");
   const [pays, setPays] = useState(profile.country ?? "");
   const [busyIdentite, setBusyIdentite] = useState(false);
-  const identiteModifiee =
-    prenom !== (profile.first_name ?? "") ||
-    nom !== (profile.last_name ?? "") ||
-    pays !== (profile.country ?? "");
+  const paysModifie = pays !== (profile.country ?? "");
+  const nomComplet = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
 
-  const enregistrerIdentite = () => {
+  const enregistrerPays = () => {
     if (busyIdentite) return;
     setBusyIdentite(true);
     setError(null);
-    updateIdentity({ first_name: prenom, last_name: nom, country: pays || null })
+    updateCountry(pays || null)
       .then(onChange)
       .catch((e: unknown) => setError(describeError(e, "Enregistrement impossible.")))
       .finally(() => setBusyIdentite(false));
@@ -255,24 +251,15 @@ export function AccountIdentity({
 
       <p className="mt-6 text-sm text-foreground">Identité</p>
       <p className="text-xs text-muted-foreground">
-        Facultative, et connue de vous seul : elle ne s'affiche pas aux autres joueurs.
+        Connue de vous seul : elle ne s'affiche pas aux autres joueurs.
       </p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <input
-          value={prenom}
-          onChange={(e) => setPrenom(e.target.value)}
-          placeholder="Prénom"
-          maxLength={60}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-gold"
-        />
-        <input
-          value={nom}
-          onChange={(e) => setNom(e.target.value)}
-          placeholder="Nom"
-          maxLength={60}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-gold"
-        />
+      <div className="mt-2 flex h-10 w-full items-center rounded-md border border-input bg-secondary/40 px-3 text-sm text-muted-foreground">
+        {nomComplet || "Non fourni par votre compte Google"}
       </div>
+      <p className="mt-1 text-[0.68rem] text-muted-foreground">
+        Prénom et nom viennent de votre compte Google et ne se modifient pas ici — changez-les sur
+        votre compte Google si besoin.
+      </p>
       <select
         value={pays}
         onChange={(e) => setPays(e.target.value)}
@@ -286,14 +273,14 @@ export function AccountIdentity({
           </option>
         ))}
       </select>
-      {identiteModifiee && (
+      {paysModifie && (
         <Button
           size="sm"
           className="mt-2 font-semibold"
           disabled={busyIdentite}
-          onClick={enregistrerIdentite}
+          onClick={enregistrerPays}
         >
-          {busyIdentite ? "…" : "Enregistrer l'identité"}
+          {busyIdentite ? "…" : "Enregistrer le pays"}
         </Button>
       )}
 

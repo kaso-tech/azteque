@@ -14,6 +14,9 @@ const base = {
   moi: "11111111-1111-1111-1111-111111111111",
   colonnes: new Set<string>(),
   profils: [] as Record<string, unknown>[],
+  rpc: { data: null as unknown, error: null as { code?: string; message?: string } | null },
+  /** Ce que le dernier `update(...)` a reçu, pour vérifier ce qu'il ne doit pas contenir. */
+  dernierUpdate: null as Record<string, unknown> | null,
 };
 
 const TOUTES = ["id", "username", "rating", "avatar_kind", "avatar_url", "tokens"];
@@ -24,6 +27,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       getSession: () =>
         Promise.resolve({ data: { session: { user: { id: base.moi, is_anonymous: false } } } }),
     },
+    rpc: () => Promise.resolve(base.rpc),
     from: () => {
       const q = { cols: [] as string[], motif: "", like: "" };
       const repondre = () => {
@@ -51,8 +55,8 @@ vi.mock("@/integrations/supabase/client", () => ({
         });
       };
       const chaine = {
-        select: (cols: string) => {
-          q.cols = cols.split(",").map((c) => c.trim());
+        select: (cols?: string) => {
+          if (cols) q.cols = cols.split(",").map((c) => c.trim());
           return chaine;
         },
         ilike: (_c: string, motif: string) => {
@@ -62,13 +66,27 @@ vi.mock("@/integrations/supabase/client", () => ({
         },
         limit: repondre,
         then: (r: (v: unknown) => unknown) => repondre().then(r),
+        update: (valeurs: Record<string, unknown>) => {
+          base.dernierUpdate = valeurs;
+          return chaine;
+        },
+        eq: () => chaine,
+        single: () =>
+          Promise.resolve({ data: { ...base.profils[0], ...base.dernierUpdate }, error: null }),
       };
       return chaine;
     },
   },
 }));
 
-const { isUsernameFree, searchPlayers, describeError, nomDeColonne } = await import("./account");
+const {
+  isUsernameFree,
+  searchPlayers,
+  describeError,
+  nomDeColonne,
+  syncGoogleIdentity,
+  updateCountry,
+} = await import("./account");
 
 beforeEach(() => {
   base.colonnes = new Set(TOUTES);
@@ -82,6 +100,8 @@ beforeEach(() => {
       avatar_url: null,
     },
   ];
+  base.rpc = { data: null, error: null };
+  base.dernierUpdate = null;
 });
 
 describe("disponibilité d'un pseudo", () => {
@@ -191,5 +211,51 @@ describe("message d'une colonne manquante", () => {
   it("nomme le fichier pour une colonne d'administration", () => {
     const m = describeError({ code: "42703", message: "column p.is_admin does not exist" }, "x");
     expect(m).toContain("20260907160000_administration.sql");
+  });
+});
+
+/**
+ * Prénom et nom viennent de Google, et de lui seul : le joueur ne peut plus
+ * les modifier. La fonction serveur relit elle-même la métadonnée posée par
+ * Supabase Auth à la connexion — le client se contente de rapporter ce
+ * qu'elle a rendu, jamais de lui dicter une valeur.
+ */
+describe("identité reprise de Google", () => {
+  const profilVierge = {
+    id: base.moi,
+    username: "kofi_92",
+    first_name: null,
+    last_name: null,
+  } as unknown as Parameters<typeof syncGoogleIdentity>[0];
+
+  it("reprend ce que la fonction serveur rend", async () => {
+    base.rpc = {
+      data: { id: base.moi, username: "kofi_92", first_name: "Kofi", last_name: "Boateng" },
+      error: null,
+    };
+    const profil = await syncGoogleIdentity(profilVierge);
+    expect(profil).toMatchObject({ first_name: "Kofi", last_name: "Boateng" });
+  });
+
+  it("laisse le profil tel quel si la migration n'est pas encore passée", async () => {
+    base.rpc = { data: null, error: { code: "PGRST202", message: "fonction introuvable" } };
+    await expect(syncGoogleIdentity(profilVierge)).resolves.toBe(profilVierge);
+  });
+});
+
+describe("changement de pays", () => {
+  it("n'écrit que le pays, jamais le prénom ou le nom", async () => {
+    await updateCountry("CI");
+    expect(base.dernierUpdate).toEqual({ country: "CI" });
+  });
+
+  it("normalise en majuscules et sur deux lettres", async () => {
+    await updateCountry("ci");
+    expect(base.dernierUpdate).toEqual({ country: "CI" });
+  });
+
+  it("efface le pays avec une valeur vide", async () => {
+    await updateCountry(null);
+    expect(base.dernierUpdate).toEqual({ country: null });
   });
 });

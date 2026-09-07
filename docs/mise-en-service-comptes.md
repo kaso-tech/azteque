@@ -20,6 +20,7 @@ Fichiers, dans cet ordre :
 8. `20260907190000_console_complete.sql` — fiches détaillées, catalogue en base
 9. `20260907220000_sons_locaux.sql` — sons remplaçables par des fichiers (base64)
 10. `20260907230000_sons_storage.sql` — remplace le n° 9 par un seau Storage
+11. `20260907240000_identite_google_verrouillee.sql` — prénom et nom non modifiables
 
 Tous sont dans `supabase/migrations/` et écrits pour être rejoués sans risque :
 `IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP POLICY IF EXISTS`. Les relancer ne
@@ -64,6 +65,9 @@ appliquée par Lovable : celle-ci recrée l'ancienne fonction
 > 10. `supabase/migrations/20260907230000_sons_storage.sql` — retire ce que le
 >     n° 9 avait posé (base64 en colonne), crée à la place le seau Storage
 >     `sounds`, ses policies, et la fonction `admin_log_sound_change`.
+> 11. `supabase/migrations/20260907240000_identite_google_verrouillee.sql` —
+>     retire à `authenticated` le droit d'écrire `first_name` et `last_name`
+>     sur `profiles`, crée la fonction `sync_google_identity`.
 >
 > Régénère ensuite le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables et
@@ -200,11 +204,16 @@ contre l'IA ; les règles sont appliquées par la base, pas par l'écran.
 
 ## Identité du joueur
 
-Outre son pseudo, un joueur peut renseigner son **prénom, son nom et son pays**
-depuis son profil. Le prénom et le nom sont repris de Google la première fois,
-puisqu'il les transmet, et ne sont plus touchés ensuite : un joueur qui corrige
-son nom ne doit pas le voir revenir. Ces champs ne s'affichent pas aux autres
-joueurs ; ils ne servent qu'à la console.
+Outre son pseudo, un joueur voit son **prénom, son nom et son pays** depuis son
+profil. Le prénom et le nom viennent de Google, et de lui seul : la fonction
+`sync_google_identity` les relit à chaque connexion depuis la métadonnée que
+Supabase Auth y a posée, et `authenticated` n'a plus le droit d'écrire ces deux
+colonnes directement — un joueur ne peut donc pas se donner un autre nom que
+celui de son compte Google. Le pays, lui, reste un choix manuel : Google n'en
+transmet pas de fiable — son seul champ approchant, la `locale` du compte,
+n'est qu'une préférence de langue d'interface, pas un pays de résidence.
+Ces champs ne s'affichent pas aux autres joueurs ; ils ne servent qu'à la
+console.
 
 Le **statut en ligne** se lit sur une trace horodatée (`last_seen_at`), écrite à
 chaque ouverture du jeu : en ligne signifie « vu il y a moins de cinq minutes ».

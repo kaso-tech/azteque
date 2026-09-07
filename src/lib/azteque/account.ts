@@ -561,23 +561,19 @@ export const PAYS_PROPOSES: { code: string; nom: string }[] = [
   { code: "US", nom: "États-Unis" },
 ];
 
-/** Enregistre l'état civil et le pays. Chaque champ est facultatif. */
-export async function updateIdentity(champs: {
-  first_name?: string | null;
-  last_name?: string | null;
-  country?: string | null;
-}): Promise<Profile> {
+/**
+ * Enregistre le pays.
+ *
+ * Prénom et nom ne se règlent plus ici : ils viennent de Google, et la base
+ * refuse désormais toute écriture du client sur ces deux colonnes — les
+ * envoyer les ferait échouer avec les autres.
+ */
+export async function updateCountry(country: string | null): Promise<Profile> {
   const id = await currentUserId();
   if (!id) throw new Error("Connectez-vous d'abord.");
-  const propre = (v: string | null | undefined) => {
-    const t = (v ?? "").trim().slice(0, 60);
-    return t === "" ? null : t;
-  };
   const { data, error } = await anyTable("profiles")
     .update({
-      first_name: propre(champs.first_name),
-      last_name: propre(champs.last_name),
-      country: champs.country ? champs.country.toUpperCase().slice(0, 2) : null,
+      country: country ? country.toUpperCase().slice(0, 2) : null,
     } as never)
     .eq("id", id)
     .select()
@@ -587,26 +583,20 @@ export async function updateIdentity(champs: {
 }
 
 /**
- * Reprend de Google ce qu'il transmet du nom, une seule fois.
+ * Reprend de Google le prénom et le nom.
  *
- * Le fournisseur donne le prénom et le nom séparément ; les recopier évite de
- * les redemander. On ne touche qu'aux champs encore vides : un joueur qui a
- * corrigé son nom ne doit pas le voir revenir.
+ * Le joueur ne peut plus les modifier lui-même : une colonne qu'on ne peut
+ * pas écrire ne protège rien si la synchronisation, elle, accepte n'importe
+ * quelle valeur envoyée par le client. La fonction serveur relit donc
+ * elle-même ce que Google a transmis à la connexion — jamais ce que le
+ * client prétend avoir lu — et écrase l'existant : après ce verrouillage,
+ * Google est la seule source possible, donc revenir dessus ne peut que
+ * corriger un écart plutôt qu'en introduire un.
  */
 export async function syncGoogleIdentity(profile: Profile): Promise<Profile> {
-  if (profile.first_name || profile.last_name) return profile;
-  const { data } = await withTimeout(supabase.auth.getSession(), 3500, {
-    data: { session: null },
-  } as Awaited<ReturnType<typeof supabase.auth.getSession>>);
-  const meta = data.session?.user?.user_metadata as Record<string, unknown> | undefined;
-  const prenom = typeof meta?.["given_name"] === "string" ? meta["given_name"] : null;
-  const nom = typeof meta?.["family_name"] === "string" ? meta["family_name"] : null;
-  if (!prenom && !nom) return profile;
-  return updateIdentity({
-    first_name: prenom,
-    last_name: nom,
-    country: profile.country,
-  }).catch(() => profile);
+  const { data, error } = await rpc("sync_google_identity", {});
+  if (error || !data) return profile;
+  return data as unknown as Profile;
 }
 
 /* ---------- Boutique ---------- */
