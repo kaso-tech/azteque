@@ -540,9 +540,6 @@ const TUNE = {
    * à l'adversaire (voir myLeadGain / oppLeadGain).
    */
   tempoBase: 0.1,
-  /** Avantage de remporter le pli qui vide la pioche : on tire la dernière
-   *  carte et l'on aborde la phase finale avec une carte de plus. */
-  lastDrawEdge: 0.6,
   /** Intérêt de se défausser d'une carte basse avant la phase finale. */
   discardJunk: 0.5,
   /** Propension prêtée à l'adversaire à dépenser pour rafler une bonne. */
@@ -662,8 +659,7 @@ function myLeadGain(state: GameState): number {
     // Phase finale : seul le dernier pli rapporte encore (« la main »).
     return state.hands[1].length <= 1 ? 1 : TUNE.tempoBase;
   }
-  const edge = state.stock.length === 1 ? TUNE.lastDrawEdge : 0;
-  return edge + TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+  return TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
 }
 
 /** Symétrique : ce que l'adversaire gagne s'il remporte ce pli. */
@@ -688,8 +684,7 @@ function oppLeadGain(state: GameState, m: OppModel): number {
       threat += pair * (meldPoints("simple", full) + p("J"));
     }
   }
-  const edge = state.stock.length === 1 ? TUNE.lastDrawEdge : 0;
-  return edge + TUNE.tempoBase + meldWindow(state) * threat;
+  return TUNE.tempoBase + meldWindow(state) * threat;
 }
 
 /**
