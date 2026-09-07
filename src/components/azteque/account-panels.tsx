@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RankBadge } from "@/components/azteque/rank";
-import { AVATAR_CHOICES, PlayerAvatar, type AvatarKind } from "@/components/azteque/avatar";
+import { AVATAR_CHOICES, PlayerAvatar } from "@/components/azteque/avatar";
+import { SHOP_AVATARS } from "@/lib/azteque/shop";
 import {
   USERNAME_RULE,
   describeError,
   isUsernameFree,
+  listPurchases,
   setAvatarKind,
   updateUsername,
   acceptFriend,
@@ -121,6 +124,13 @@ export function AccountIdentity({
   onChange: (p: Profile) => void;
 }) {
   const [name, setName] = useState(profile.username);
+  // Les avatars achetés rejoignent les deux libres dans le choix.
+  const [owned, setOwned] = useState<string[]>([]);
+  useEffect(() => {
+    listPurchases()
+      .then(setOwned)
+      .catch(() => setOwned([]));
+  }, []);
   const [check, setCheck] = useState<NameCheck>("vierge");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +173,7 @@ export function AccountIdentity({
       .finally(() => setBusy(false));
   };
 
-  const choisirAvatar = (kind: AvatarKind) => {
+  const choisirAvatar = (kind: string) => {
     const avant = profile.avatar_kind;
     onChange({ ...profile, avatar_kind: kind });
     setAvatarKind(kind).catch((e: unknown) => {
@@ -173,12 +183,19 @@ export function AccountIdentity({
   };
 
   const aucunePhoto = !profile.avatar_url;
+  const choix = [
+    ...AVATAR_CHOICES,
+    ...SHOP_AVATARS.filter((a) => owned.includes(a.id)).map((a) => ({
+      kind: a.id,
+      label: a.name,
+    })),
+  ];
 
   return (
     <>
       <p className="mt-6 text-sm text-foreground">Photo de profil</p>
-      <div className="mt-2 flex gap-3">
-        {AVATAR_CHOICES.map(({ kind, label }) => {
+      <div className="mt-2 flex flex-wrap gap-3">
+        {choix.map(({ kind, label }) => {
           const actif = profile.avatar_kind === kind;
           const indisponible = kind === "google" && aucunePhoto;
           return (
@@ -208,6 +225,13 @@ export function AccountIdentity({
           Aucune photo n'accompagne votre compte Google : choisissez un avatar.
         </p>
       )}
+      <p className="mt-1 text-xs text-muted-foreground">
+        D'autres visages attendent à la{" "}
+        <Link to="/boutique" className="text-gold underline">
+          boutique
+        </Link>
+        .
+      </p>
 
       <label htmlFor="player-name" className="mt-6 block text-sm text-foreground">
         Nom d'utilisateur

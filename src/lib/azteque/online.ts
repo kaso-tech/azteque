@@ -149,6 +149,8 @@ export interface ChatMessage {
   name: string;
   text: string;
   reaction?: "taunt" | "cheer" | null;
+  /** Identifiant d'un sticker de la boutique, à la place du texte. */
+  sticker?: string | null;
 }
 
 /** Salon de discussion temps réel (broadcast, sans stockage). */

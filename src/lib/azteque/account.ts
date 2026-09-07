@@ -351,8 +351,11 @@ export async function syncGooglePhoto(profile: Profile): Promise<Profile> {
   return { ...profile, avatar_url: url };
 }
 
-/** Choisit ce que le joueur montre : sa photo Google ou l'un des deux avatars. */
-export async function setAvatarKind(kind: "google" | "homme" | "femme"): Promise<void> {
+/**
+ * Choisit ce que le joueur montre : sa photo Google, l'un des avatars libres,
+ * ou l'un de ceux qu'il a achetés. C'est la base qui vérifie qu'il le possède.
+ */
+export async function setAvatarKind(kind: string): Promise<void> {
   const id = await currentUserId();
   if (!id) throw new Error("Connectez-vous d'abord.");
   const { error } = await anyTable("profiles")
@@ -407,6 +410,39 @@ export async function updateUsername(username: string): Promise<Profile> {
     throw error;
   }
   return data as unknown as Profile;
+}
+
+/* ---------- Boutique ---------- */
+
+/** Les articles déjà achetés par le joueur connecté. */
+export async function listPurchases(): Promise<string[]> {
+  const me = await currentUserId();
+  if (!me) return [];
+  const { data, error } = await anyTable("purchases").select("item_id").eq("user_id", me);
+  if (error) throw error;
+  return ((data as unknown as { item_id: string }[]) ?? []).map((r) => r.item_id);
+}
+
+export interface BuyResult {
+  bought: boolean;
+  /** `ok`, `owned` (déjà acheté) ou `tokens` (solde insuffisant). */
+  reason: "ok" | "owned" | "tokens";
+  /** Solde après l'opération. */
+  tokens: number;
+}
+
+/**
+ * Achète un article.
+ *
+ * Le prix n'est pas transmis : il est lu en base, qui débite et enregistre
+ * l'achat d'un seul mouvement. Un solde insuffisant ou un article déjà possédé
+ * ne sont pas des erreurs mais des réponses, que l'appelant peut expliquer.
+ */
+export async function buyItem(itemId: string): Promise<BuyResult> {
+  const { data, error } = await rpc("buy_item", { _item_id: itemId });
+  if (error) throw error;
+  const r = (data as unknown as Partial<BuyResult> | null) ?? {};
+  return { bought: !!r.bought, reason: r.reason ?? "ok", tokens: r.tokens ?? 0 };
 }
 
 /* ---------- Jetons ---------- */

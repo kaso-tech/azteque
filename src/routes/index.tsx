@@ -680,6 +680,12 @@ function Azteque() {
           >
             Jouer en ligne
           </Link>
+          <Link
+            to="/boutique"
+            className="w-full rounded-full border border-gold/35 px-8 py-2.5 text-center font-display text-sm font-semibold text-gold/90 transition-transform hover:scale-105"
+          >
+            Boutique
+          </Link>
         </div>
 
         {/* Le cadeau attend que la table soit libre : au tout premier lancement,

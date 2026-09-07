@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
+import { cn } from "@/lib/utils";
+import { Sticker, isSticker } from "@/components/azteque/stickers";
+import { ownedPhrases, ownedStickers } from "@/lib/azteque/shop";
 
 const QUICK_PHRASES = [
   "Bien joué !",
@@ -22,6 +25,8 @@ interface Props {
   matchId: string;
   seat: "host" | "guest";
   myName: string;
+  /** Articles achetés en boutique : stickers et lots de messages. */
+  owned?: ReadonlySet<string>;
 }
 
 interface Bubble extends ChatMessage {
@@ -29,7 +34,15 @@ interface Bubble extends ChatMessage {
   at: number;
 }
 
-export function MatchChat({ matchId, seat, myName }: Props) {
+/** Les bulles flottantes, mêmes dimensions pour un texte ou un sticker. */
+const bulle =
+  "max-w-[85%] animate-[banner-in_180ms_ease-out] rounded-full border bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold";
+
+export function MatchChat({ matchId, seat, myName, owned }: Props) {
+  const vide = useMemo(() => new Set<string>(), []);
+  const acquis = owned ?? vide;
+  const mesStickers = useMemo(() => ownedStickers(acquis), [acquis]);
+  const mesPhrases = useMemo(() => ownedPhrases(acquis), [acquis]);
   const [open, setOpen] = useState(false);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
@@ -57,15 +70,20 @@ export function MatchChat({ matchId, seat, myName }: Props) {
     return () => clearInterval(t);
   }, [bubbles.length]);
 
-  const send = (text: string, reaction: "taunt" | "cheer" | null = null) => {
+  const send = (
+    text: string,
+    reaction: "taunt" | "cheer" | null = null,
+    sticker: string | null = null,
+  ) => {
     const clean = text.trim().slice(0, 120);
-    if (!clean) return;
+    if (!clean && !sticker) return;
     const msg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       seat,
       name: myName,
       text: clean,
       reaction,
+      sticker,
     };
     chatRef.current?.send(msg);
     setBubbles((b) => [...b.slice(-5), { ...msg, mine: true, at: Date.now() }]);
@@ -84,11 +102,20 @@ export function MatchChat({ matchId, seat, myName }: Props) {
             key={b.id}
             className={
               b.mine
-                ? "max-w-[85%] animate-[banner-in_180ms_ease-out] truncate rounded-full border border-gold/50 bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold text-gold"
-                : "max-w-[85%] animate-[banner-in_180ms_ease-out] truncate rounded-full border border-border bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold text-foreground"
+                ? cn(bulle, "border-gold/50 text-gold")
+                : cn(bulle, "border-border text-foreground")
             }
           >
-            {b.name} : {b.text}
+            {b.sticker && isSticker(b.sticker) ? (
+              <span className="flex items-center gap-1.5">
+                {b.name}
+                <Sticker id={b.sticker} className="h-7 w-7" />
+              </span>
+            ) : (
+              <>
+                {b.name} : {b.text}
+              </>
+            )}
           </span>
         ))}
       </div>
@@ -127,6 +154,35 @@ export function MatchChat({ matchId, seat, myName }: Props) {
                 className="flex-1 rounded-full border border-gold/40 px-2 py-1.5 text-[0.7rem] font-semibold text-gold"
               >
                 {r.icon} {r.label}
+              </button>
+            ))}
+          </div>
+
+          {mesStickers.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {mesStickers.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  title={s.name}
+                  onClick={() => send(s.name, null, s.id)}
+                  className="rounded-lg border border-gold/40 p-1"
+                >
+                  <Sticker id={s.id} className="h-8 w-8" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {mesPhrases.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => send(p)}
+                className="rounded-full border border-gold/40 px-2.5 py-1 text-[0.68rem] text-gold"
+              >
+                {p}
               </button>
             ))}
           </div>

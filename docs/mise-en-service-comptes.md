@@ -15,6 +15,7 @@ Fichiers, dans cet ordre :
 3. `supabase/migrations/20260906240000_player_ranks.sql`
 4. `supabase/migrations/20260907090000_daily_bonus.sql`
 5. `supabase/migrations/20260907120000_avatars_and_rename.sql`
+6. `supabase/migrations/20260907140000_boutique.sql`
 
 La seconde doit passer **après** `20260906224310_...`, la copie de la première
 appliquée par Lovable : celle-ci recrée l'ancienne fonction
@@ -47,7 +48,10 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > `claim_daily_bonus` et met à jour le barème de `award_ai_win`. Applique
 > enfin `supabase/migrations/20260907120000_avatars_and_rename.sql`, qui ajoute
 > les colonnes `avatar_kind` et `avatar_url` à `profiles` avec leurs contraintes
-> et étend le droit d'écriture du client à ces deux colonnes.
+> et étend le droit d'écriture du client à ces deux colonnes. Applique en
+> dernier `supabase/migrations/20260907140000_boutique.sql`, qui crée les tables
+> `shop_items` et `purchases`, la fonction `buy_item` et le déclencheur
+> `profiles_avatar_owned`.
 > Ensuite, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
 
@@ -153,6 +157,25 @@ six secondes et laisse tout de même essayer. Renommer un compte est sans
 conséquence sur le reste : parties, amitiés, jetons et confrontations se
 rattachent à l'identifiant du compte, jamais au nom.
 
+## La boutique
+
+Trois rayons — cinq avatars de 500 à 2500 jetons, six stickers de 200 à 900, et
+trois lots de cinq messages de 400 à 800 — payés avec les jetons du compte.
+
+Le catalogue est écrit à deux endroits, et c'est délibéré : le client garde les
+dessins et les libellés (`src/lib/azteque/shop.ts`), la base garde les
+identifiants et les **prix**. C'est elle qui débite ; un prix annoncé par le
+client ne vaudrait rien, il suffirait de le mettre à zéro. Rien dans le code
+n'impose que les deux listes concordent : un test le vérifie en lisant la
+migration.
+
+Le client ne peut ni s'offrir un achat (aucun droit d'écriture sur
+`purchases` : seul `buy_item` en crée, et il débite dans le même mouvement), ni
+modifier un prix, ni voir les achats d'autrui. Et l'on ne porte que ce qu'on
+possède : un déclencheur sur `profiles` refuse un avatar qui n'a pas été acheté
+— la vérification ne pouvait pas rester une contrainte de colonne, puisqu'elle
+demande d'aller lire les achats.
+
 ## Le classement
 
 Chaque joueur porte une **cote** (un nombre) dont se déduit son **grade** (un
@@ -239,9 +262,12 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
    remplacer par un avatar, et la voir reparaître en la rechoisissant.
 8. Renommer son compte, vérifier que le nouveau nom est bien annoncé libre
    pendant la frappe, puis qu'un second compte se voit refuser le même.
-9. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
-   plus jusqu'au lendemain, y compris après rechargement ou dans un second
-   onglet.
-10. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
+9. Acheter un avatar en boutique, le porter, vérifier que l'adversaire le voit ;
+   acheter un sticker et un lot de messages, et les retrouver dans la
+   discussion d'une partie en ligne.
+10. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
+    plus jusqu'au lendemain, y compris après rechargement ou dans un second
+    onglet.
+11. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
     affichée sous le score — puis le grade mis à jour dans le salon et sur le
     profil. L'adversaire doit voir la variation opposée.

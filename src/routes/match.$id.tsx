@@ -40,6 +40,7 @@ import { useBetNegotiation } from "@/hooks/useBetNegotiation";
 import {
   getMyProfile,
   getPublicProfile,
+  listPurchases,
   headToHead,
   type HeadToHead,
   type PublicProfile,
@@ -242,6 +243,14 @@ function OnlineTable() {
   // Grades des deux joueurs. Celui de l'adversaire s'affiche dès l'entrée à la
   // table : c'est ce qui permet de savoir contre qui l'on mise. Les deux sont
   // relus en fin de champ, une fois le classement appliqué par le serveur.
+  // Stickers et lots de messages achetés, pour la discussion.
+  const [owned, setOwned] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    listPurchases()
+      .then((ids) => setOwned(new Set(ids)))
+      .catch(() => {});
+  }, []);
+
   const [myRank, setMyRank] = useState<number | null>(null);
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
@@ -1017,7 +1026,7 @@ function OnlineTable() {
         <SweepCard key={flight.id} {...flight} />
       ))}
 
-      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} />
+      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} owned={owned} />
 
       {dealing && (
         <DealCeremony stockRef={stockRef} myHandRef={handRefs[me]} oppHandRef={handRefs[opp]} />
