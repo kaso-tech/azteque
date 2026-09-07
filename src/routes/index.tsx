@@ -33,13 +33,26 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { cn } from "@/lib/utils";
 import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
-import { awardAiWin, claimLocalTokens, getMyProfile, type Profile } from "@/lib/azteque/account";
-import { getTokens as getLocalTokens } from "@/lib/azteque/tokens";
+import {
+  awardAiWin,
+  claimDailyBonus,
+  claimLocalTokens,
+  getMyProfile,
+  type Profile,
+} from "@/lib/azteque/account";
+import {
+  DAILY_BONUS,
+  claimLocalDailyBonus,
+  getTokens as getLocalTokens,
+  localBonusDay,
+  todayKey,
+} from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
+  DailyBonusPanel,
   MeldHistoryPanel,
   PlayerProfilePanel,
   ProfileButton,
@@ -196,11 +209,44 @@ function Azteque() {
       })
       .catch(() => {
         /* hors ligne ou non connecté : on reste sur le profil du navigateur */
+      })
+      .finally(() => {
+        if (alive) setAccountChecked(true);
       });
     return () => {
       alive = false;
     };
   }, []);
+
+  // Cadeau du jour.
+  //
+  // La proposition attend de savoir si un compte est ouvert : avec un compte,
+  // c'est le serveur qui tient la date du dernier versement et décide ; sans
+  // compte, c'est le navigateur. Décider avant la réponse reviendrait à verser
+  // deux fois le même cadeau, une fois ici et une fois là-bas.
+  const [accountChecked, setAccountChecked] = useState(false);
+  const [showBonus, setShowBonus] = useState(false);
+  const bonusAsked = useRef(false);
+  useEffect(() => {
+    if (!accountChecked || bonusAsked.current) return;
+    bonusAsked.current = true;
+    const due = account ? account.daily_bonus_at < todayKey() : localBonusDay() !== todayKey();
+    if (due) setShowBonus(true);
+  }, [accountChecked, account]);
+
+  const collectBonus = useCallback(async () => {
+    if (account) {
+      const { granted, tokens: solde } = await claimDailyBonus();
+      if (granted <= 0) return null;
+      setTokens(solde);
+      setAccount((a) => (a ? { ...a, tokens: solde, daily_bonus_at: todayKey() } : a));
+      return solde;
+    }
+    const solde = claimLocalDailyBonus();
+    if (solde === null) return null;
+    setTokens(solde);
+    return solde;
+  }, [account]);
 
   useEffect(() => {
     if (!profileReady || accountBound) return;
@@ -621,6 +667,16 @@ function Azteque() {
           </Link>
         </div>
 
+        {/* Le cadeau attend que la table soit libre : au tout premier lancement,
+            le jeu demande d'abord un nom, et deux panneaux superposés
+            cacheraient l'un des deux. */}
+        {showBonus && !showPlayerProfile && !showRules && (
+          <DailyBonusPanel
+            amount={DAILY_BONUS}
+            onCollect={collectBonus}
+            onClose={() => setShowBonus(false)}
+          />
+        )}
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
         {showPlayerProfile && (
           <PlayerProfilePanel

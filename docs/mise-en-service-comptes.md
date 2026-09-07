@@ -13,6 +13,7 @@ Fichiers, dans cet ordre :
 1. `supabase/migrations/20260906200000_accounts_friends_invites.sql`
 2. `supabase/migrations/20260906230000_sync_offline_tokens.sql`
 3. `supabase/migrations/20260906240000_player_ranks.sql`
+4. `supabase/migrations/20260907090000_daily_bonus.sql`
 
 La seconde doit passer **après** `20260906224310_...`, la copie de la première
 appliquée par Lovable : celle-ci recrée l'ancienne fonction
@@ -40,6 +41,9 @@ quatre fonctions serveur. Il est écrit pour être rejouable : `IF NOT EXISTS`,
 > colonnes `rating`, `peak_rating` et `rated_games` à `profiles`, les colonnes
 > `rating_delta_host` et `rating_delta_guest` à `matches`, crée les fonctions
 > `elo_k`, `rating_floor` et `apply_match_rating`, et remplace `settle_match`.
+> Applique pour finir `supabase/migrations/20260907090000_daily_bonus.sql`, qui
+> ajoute la colonne `daily_bonus_at` à `profiles`, crée la fonction
+> `claim_daily_bonus` et met à jour le barème de `award_ai_win`.
 > Ensuite, régénère le fichier de types TypeScript
 > `src/integrations/supabase/types.ts` pour qu'il inclue ces nouvelles tables.
 
@@ -103,6 +107,26 @@ La réponse JSON liste les fournisseurs actifs. Il doit s'y trouver :
 
 Si `google` y vaut `false`, c'est bien ce projet-là qu'il faut configurer —
 quelle que soit la console où l'activation a déjà été faite.
+
+## Les jetons
+
+Trois sources, et une seule règle : le client ne s'en crédite jamais lui-même
+quand un compte est ouvert.
+
+| Source                   | Montant                                 | Décidé par          |
+| ------------------------ | --------------------------------------- | ------------------- |
+| Victoire contre l'IA     | 20 / 40 / 60 / 80 / 100 selon le niveau | `award_ai_win`      |
+| Cadeau du jour           | 50, une fois par journée civile         | `claim_daily_bonus` |
+| Mise d'un champ en ligne | ce qui a été misé                       | `settle_match`      |
+
+Le cadeau du jour est proposé à l'ouverture du menu. Sans compte, il est versé
+dans le navigateur et rejoindra le compte à la prochaine connexion ; avec un
+compte, c'est la base qui tient la date du dernier versement — hors d'atteinte
+du client — et qui décide. La journée est comptée en UTC des deux côtés, pour
+que le cadeau ne paraisse jamais dû ici et refusé là-bas.
+
+Une longue absence ne cumule pas les cadeaux manqués : le retour en vaut un,
+pas trente.
 
 ## Le classement
 
@@ -186,6 +210,9 @@ développement de l'agent, dont l'accès réseau au projet Supabase est bloqué 
 6. Se déconnecter, gagner une partie contre l'IA, se reconnecter : les jetons
    gagnés doivent s'ajouter au solde du compte, et une seconde connexion ne
    doit rien ajouter de plus.
-7. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
+7. Ouvrir le jeu connecté : le cadeau du jour doit être proposé une fois, puis
+   plus jusqu'au lendemain, y compris après rechargement ou dans un second
+   onglet.
+8. Jouer un champ en ligne et vérifier, en fin de partie, la variation de cote
    affichée sous le score — puis le grade mis à jour dans le salon et sur le
    profil. L'adversaire doit voir la variation opposée.

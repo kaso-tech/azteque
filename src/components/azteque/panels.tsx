@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,12 +19,19 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
 
+/**
+ * Récompense d'une victoire contre l'IA.
+ *
+ * Ce barème n'est que le repli hors connexion : pour un joueur connecté, le
+ * montant est décidé par la fonction serveur `award_ai_win`, seule à faire
+ * foi. Les deux doivent rester d'accord.
+ */
 export const TOKEN_REWARDS: Record<Difficulty, number> = {
-  facile: 50,
-  normal: 100,
-  expert: 150,
-  maitre: 200,
-  legende: 250,
+  facile: 20,
+  normal: 40,
+  expert: 60,
+  maitre: 80,
+  legende: 100,
 };
 
 export function ProfileButton({
@@ -56,6 +64,85 @@ export function ProfileButton({
         {name}
       </span>
     </button>
+  );
+}
+
+/**
+ * Cadeau du jour, proposé à l'ouverture.
+ *
+ * Le versement est demandé au moment du clic, jamais à l'affichage : c'est le
+ * joueur qui déclenche, et le montant réellement versé — décidé par le serveur
+ * quand un compte est ouvert — est celui qui s'affiche ensuite.
+ */
+export function DailyBonusPanel({
+  amount,
+  onCollect,
+  onClose,
+}: {
+  amount: number;
+  /** Verse le cadeau et rend le nouveau solde, ou `null` s'il était déjà pris. */
+  onCollect: () => Promise<number | null>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+  const [missed, setMissed] = useState(false);
+
+  const collect = () => {
+    if (busy) return;
+    setBusy(true);
+    onCollect()
+      .then((solde) => {
+        if (solde === null) setMissed(true);
+        else setDone(solde);
+      })
+      .catch(() => setMissed(true))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
+      <div className="panel w-full max-w-xs px-6 py-7 text-center">
+        <span className="text-5xl" aria-hidden="true">
+          🎁
+        </span>
+        <h2 className="gold-text mt-3 text-2xl">
+          {done !== null ? "Cadeau reçu" : "Cadeau du jour"}
+        </h2>
+
+        {done !== null ? (
+          <>
+            <p className="mt-2 font-display text-3xl font-semibold text-gold">+{amount} 🪙</p>
+            <p className="mt-1 text-sm text-muted-foreground">Nouveau solde : {done} jetons</p>
+            <Button className="mt-5 w-full font-semibold" onClick={onClose}>
+              Continuer
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 font-display text-3xl font-semibold text-gold">{amount} 🪙</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Offerts chaque jour, à l'ouverture du jeu.
+            </p>
+            <Button className="mt-5 w-full font-semibold" disabled={busy} onClick={collect}>
+              {busy ? "…" : "Collecter"}
+            </Button>
+            {missed && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cadeau déjà pris aujourd'hui. À demain !
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-3 text-xs text-muted-foreground underline"
+            >
+              Plus tard
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

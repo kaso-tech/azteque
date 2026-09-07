@@ -42,6 +42,8 @@ export interface Profile extends PublicProfile {
   peak_rating: number;
   /** Nombre de champs classés joués, qui détermine l'amplitude des résultats. */
   rated_games: number;
+  /** Journée du dernier cadeau quotidien perçu, au format AAAA-MM-JJ. */
+  daily_bonus_at: string;
 }
 
 export interface Friend {
@@ -348,6 +350,20 @@ export async function claimLocalTokens(localBalance: number): Promise<number | n
   if (error) throw error;
   setTokens(0);
   return (data as unknown as number | null) ?? null;
+}
+
+/**
+ * Verse le cadeau du jour sur le compte connecté.
+ *
+ * C'est la base qui décide s'il est encore dû : elle seule tient la date du
+ * dernier versement, hors d'atteinte du client. Renvoie ce qui a été versé —
+ * zéro si le cadeau du jour était déjà pris — et le solde à jour.
+ */
+export async function claimDailyBonus(): Promise<{ granted: number; tokens: number }> {
+  const { data, error } = await rpc("claim_daily_bonus", {});
+  if (error) throw error;
+  const r = (data as unknown as { granted?: number; tokens?: number } | null) ?? {};
+  return { granted: r.granted ?? 0, tokens: r.tokens ?? 0 };
 }
 
 /** Récompense d'une victoire contre l'IA. Le montant est fixé par le serveur. */
