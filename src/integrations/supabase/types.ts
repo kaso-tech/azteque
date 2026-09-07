@@ -125,6 +125,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -141,6 +143,8 @@ export type Database = {
           host_id?: string | null
           host_name: string
           id?: string
+          rating_delta_guest?: number | null
+          rating_delta_host?: number | null
           settings?: Json
           settled_at?: string | null
           state?: Json | null
@@ -157,6 +161,8 @@ export type Database = {
           host_id?: string | null
           host_name?: string
           id?: string
+          rating_delta_guest?: number | null
+          rating_delta_host?: number | null
           settings?: Json
           settled_at?: string | null
           state?: Json | null
@@ -172,10 +178,19 @@ export type Database = {
           avatar_url: string | null
           banned: boolean
           claimed_local_tokens: boolean
+          country: string | null
           created_at: string
           daily_bonus_at: string
+          first_name: string | null
           id: string
           is_admin: boolean
+          last_name: string | null
+          last_seen_at: string | null
+          local_tokens_total: number
+          peak_rating: number
+          rated_games: number
+          rating: number
+          rounds_played: number
           tokens: number
           updated_at: string
           username: string
@@ -185,10 +200,19 @@ export type Database = {
           avatar_url?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
+          country?: string | null
           created_at?: string
           daily_bonus_at?: string
+          first_name?: string | null
           id: string
           is_admin?: boolean
+          last_name?: string | null
+          last_seen_at?: string | null
+          local_tokens_total?: number
+          peak_rating?: number
+          rated_games?: number
+          rating?: number
+          rounds_played?: number
           tokens?: number
           updated_at?: string
           username: string
@@ -198,10 +222,19 @@ export type Database = {
           avatar_url?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
+          country?: string | null
           created_at?: string
           daily_bonus_at?: string
+          first_name?: string | null
           id?: string
           is_admin?: boolean
+          last_name?: string | null
+          last_seen_at?: string | null
+          local_tokens_total?: number
+          peak_rating?: number
+          rated_games?: number
+          rating?: number
+          rounds_played?: number
           tokens?: number
           updated_at?: string
           username?: string
@@ -237,21 +270,33 @@ export type Database = {
       shop_items: {
         Row: {
           active: boolean
+          data: Json
+          hint: string | null
           id: string
           kind: string
+          name: string | null
           price: number
+          sort: number
         }
         Insert: {
           active?: boolean
+          data?: Json
+          hint?: string | null
           id: string
           kind: string
+          name?: string | null
           price: number
+          sort?: number
         }
         Update: {
           active?: boolean
+          data?: Json
+          hint?: string | null
           id?: string
           kind?: string
+          name?: string | null
           price?: number
+          sort?: number
         }
         Relationships: []
       }
@@ -271,6 +316,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -285,6 +332,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_delete_item: { Args: { _id: string }; Returns: undefined }
       admin_grant_tokens: {
         Args: { _amount: number; _reason?: string; _user: string }
         Returns: number
@@ -295,12 +343,17 @@ export type Database = {
           avatar_kind: string
           avatar_url: string
           banned: boolean
+          country: string
           created_at: string
+          first_name: string
           id: string
           is_admin: boolean
+          last_name: string
+          last_seen_at: string
           purchases: number
           rated_games: number
           rating: number
+          rounds_played: number
           tokens: number
           username: string
         }[]
@@ -322,10 +375,31 @@ export type Database = {
         Returns: undefined
       }
       admin_stats: { Args: never; Returns: Json }
+      admin_upsert_item: {
+        Args: {
+          _active: boolean
+          _data: Json
+          _hint: string
+          _id: string
+          _kind: string
+          _name: string
+          _price: number
+          _sort?: number
+        }
+        Returns: undefined
+      }
+      apply_match_rating: {
+        Args: { _loser: string; _match_id: string; _winner: string }
+        Returns: undefined
+      }
       award_ai_win: { Args: { _difficulty: string }; Returns: number }
       buy_item: { Args: { _item_id: string }; Returns: Json }
       claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
+      elo_k: {
+        Args: { _rated_games: number; _rating: number }
+        Returns: number
+      }
       is_admin: { Args: never; Returns: boolean }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
@@ -338,6 +412,8 @@ export type Database = {
           host_id: string | null
           host_name: string
           id: string
+          rating_delta_guest: number | null
+          rating_delta_host: number | null
           settings: Json
           settled_at: string | null
           state: Json | null
@@ -356,8 +432,10 @@ export type Database = {
         Args: { _action: string; _details: Json; _target: string }
         Returns: undefined
       }
+      rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      touch_last_seen: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
