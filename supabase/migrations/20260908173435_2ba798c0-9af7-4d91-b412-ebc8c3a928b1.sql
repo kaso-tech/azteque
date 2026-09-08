@@ -1,0 +1,12 @@
+REVOKE EXECUTE ON FUNCTION public.admin_shop_sales_summary() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_list_log(text, uuid, timestamptz, timestamptz, int, int) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_revert_log_entry(bigint) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_list_matches(text, timestamptz, timestamptz, uuid, uuid, int, int) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_match_void(uuid, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_match_forfeit(uuid, uuid, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.submit_player_report(uuid, text, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_list_reports(text, text, int, int) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_resolve_report(bigint, text, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_list_settings() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_get_setting(text) FROM anon;
+NOTIFY pgrst, 'reload schema';

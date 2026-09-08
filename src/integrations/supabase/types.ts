@@ -526,6 +526,35 @@ export type Database = {
           target: string
         }[]
       }
+      admin_list_matches: {
+        Args: {
+          _guest?: string
+          _host?: string
+          _limit?: number
+          _offset?: number
+          _since?: string
+          _status?: string
+          _until?: string
+        }
+        Returns: {
+          bet_amount: number
+          code: string
+          created_at: string
+          finished_at: string
+          guest_id: string
+          guest_username: string
+          host_id: string
+          host_username: string
+          id: string
+          rating_delta_guest: number
+          rating_delta_host: number
+          rounds_guest: number
+          rounds_host: number
+          settled_at: string
+          status: string
+          winner_id: string
+        }[]
+      }
       admin_list_players: {
         Args: { _limit?: number; _query?: string }
         Returns: {
@@ -580,6 +609,14 @@ export type Database = {
       }
       admin_log_sound_change: {
         Args: { _action: string; _details?: Json; _id: string }
+        Returns: undefined
+      }
+      admin_match_forfeit: {
+        Args: { _id: string; _reason?: string; _winner_id: string }
+        Returns: undefined
+      }
+      admin_match_void: {
+        Args: { _id: string; _reason?: string }
         Returns: undefined
       }
       admin_player_purchase_count: {
