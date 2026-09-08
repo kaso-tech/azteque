@@ -7,6 +7,14 @@
  * est appariée : la variance chute et quelques centaines de tours suffisent à
  * mesurer un écart réel.
  *
+ * ATTENTION à l'étalon choisi. Mesurer contre l'IA figée (`old:<niveau>`)
+ * convient pour situer un niveau, mais TROMPE sur les tactiques qui exploitent
+ * une faiblesse de l'adversaire plutôt que de renforcer le jeu. L'exemple
+ * vécu : la valeur de conservation d'un As (TUNE.aceAmbush) semblait optimale
+ * à 3.0 contre l'IA figée, alors qu'un A/B contre un adversaire par ailleurs
+ * identique la donne déjà négative à cette valeur. Pour calibrer une tactique,
+ * faire jouer la variante contre la version NON modifiée du même niveau.
+ *
  * Usage :
  *   bun scripts/ai-bench.ts                       # matrice complète
  *   bun scripts/ai-bench.ts legende expert 400    # un duel précis

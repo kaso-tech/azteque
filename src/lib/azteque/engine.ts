@@ -580,6 +580,15 @@ const TUNE = {
   /**
    * Ce qu'un As gagne à rester en main tant qu'un 10 de sa couleur court
    * encore : l'espoir de le prendre. Voir `ambushValue`.
+   *
+   * Calibrée en A/B contre un adversaire IDENTIQUE par ailleurs, et non
+   * contre l'IA figée — la distinction est capitale ici. Face à l'étalon figé,
+   * la courbe culminait à 3.0 (+0.9 point par tour) et donnait envie d'y aller
+   * franchement ; en A/B, 3.0 est déjà NÉGATIF (-0.05) et 9 est désastreux
+   * (-1.18). Thésauriser ses As écrase un adversaire faible qui brade les
+   * siens, mais se retourne contre l'IA dès que l'autre joue correctement.
+   * Vérité mesurée sur dix jeux de donnes indépendants, 600 tours chacun :
+   * +0.107 en moyenne, dix écarts positifs sur dix, t = 3.4 (p ~ 0.008).
    */
   aceAmbush: 0.85,
 };
