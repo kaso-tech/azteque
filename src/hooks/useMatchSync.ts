@@ -18,6 +18,16 @@ import { withRetry } from "@/lib/azteque/net";
 
 const FAST_POLL_MS = 2_500;
 const SLOW_POLL_MS = 9_000;
+/**
+ * Au bout de ce temps sans canal temps réel établi, on le reconstruit.
+ *
+ * Le client Supabase se reconnecte de lui-même dans les cas ordinaires, mais
+ * un canal tombé sur `CHANNEL_ERROR` ou `TIMED_OUT` peut rester mort sans que
+ * rien ne le relance : la table ne vit alors plus que du rattrapage
+ * périodique, et chaque coup se paie une à neuf secondes d'attente. On le
+ * refait donc à neuf plutôt que d'espérer.
+ */
+const RESUBSCRIBE_AFTER_MS = 15_000;
 
 export interface MatchSync {
   /** Le canal temps réel est établi. */
@@ -65,6 +75,8 @@ export function useMatchSync(
   }, [enabled, matchId, accept]);
 
   // Canal temps réel : chemin rapide, avec suivi de son état de santé.
+  // `generation` est incrémenté pour forcer la reconstruction du canal.
+  const [generation, setGeneration] = useState(0);
   useEffect(() => {
     if (!enabled) return;
     const unsub = subscribeMatch(matchId, accept, setLive);
@@ -72,7 +84,15 @@ export function useMatchSync(
       setLive(false);
       unsub();
     };
-  }, [enabled, matchId, accept]);
+  }, [enabled, matchId, accept, generation]);
+
+  // Canal muet depuis trop longtemps : on le reconstruit. Le compteur ne part
+  // que lorsqu'il est effectivement tombé, et s'annule dès qu'il revient.
+  useEffect(() => {
+    if (!enabled || live) return;
+    const t = setTimeout(() => setGeneration((n) => n + 1), RESUBSCRIBE_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [enabled, live]);
 
   // Rattrapage périodique — cadence resserrée quand le temps réel est muet.
   useEffect(() => {

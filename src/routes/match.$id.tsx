@@ -42,6 +42,7 @@ import {
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
+import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
 import { useMatchSync } from "@/hooks/useMatchSync";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
@@ -81,10 +82,24 @@ export const Route = createFileRoute("/match/$id")({
 });
 
 const TRICK_DELAY = 1000;
-/** Temps maximum pour jouer son coup (secondes). */
+/**
+ * Temps maximum pour jouer son coup (secondes).
+ *
+ * C'est un temps de RÉFLEXION : il ne court que lorsque la liaison des deux
+ * joueurs est saine. Une coupure le suspend (voir `waitingOnLink`), elle ne le
+ * consomme pas.
+ */
 const TURN_LIMIT = 30;
-/** Temps toléré avant de déclarer un joueur déconnecté perdant (secondes). */
-const DISCONNECT_LIMIT = 30;
+/**
+ * Temps d'attente accordé à la CONNEXION, indépendant du temps de réflexion
+ * (secondes).
+ *
+ * Confondre les deux revenait à faire perdre son tour à un joueur pour une
+ * coupure de réseau. Une minute entière est donc accordée au lien pour se
+ * rétablir — pendant laquelle la réflexion est gelée — avant que l'absence ne
+ * soit tenue pour un abandon.
+ */
+const LINK_WAIT_LIMIT = 60;
 
 function OnlineTable() {
   const { id } = Route.useParams();
@@ -98,6 +113,10 @@ function OnlineTable() {
   const [row, setRow] = useState<MatchRow | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Un échec de CHARGEMENT dû au réseau n'est pas une fin de non-recevoir :
+  // il se réessaie, alors qu'une partie disparue ou un siège usurpé, non.
+  const [errorRetryable, setErrorRetryable] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [choosingTrump, setChoosingTrump] = useState(false);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
@@ -197,21 +216,62 @@ function OnlineTable() {
         }
         applyRow(r);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Chargement impossible."));
+      .catch((e) => {
+        if (!alive) return;
+        if (isTransientError(e)) {
+          setErrorRetryable(true);
+          setError("La table n'a pas pu être chargée : la connexion n'a pas répondu.");
+          return;
+        }
+        setErrorRetryable(false);
+        setError(e instanceof Error ? e.message : "Chargement impossible.");
+      });
     return () => {
       alive = false;
     };
-  }, [id, applyRow, seat]);
+  }, [id, applyRow, seat, reloadKey]);
+
+  // Chargement échoué faute de réseau : on retente de nous-mêmes dès qu'il
+  // revient, et régulièrement en attendant. Sans cela, revenir à la table
+  // demandait de quitter l'écran et d'y rentrer à nouveau.
+  useEffect(() => {
+    if (!errorRetryable) return;
+    const retenter = () => {
+      setError(null);
+      setErrorRetryable(false);
+      setReloadKey((n) => n + 1);
+    };
+    const t = setInterval(retenter, 6_000);
+    window.addEventListener("online", retenter);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("online", retenter);
+    };
+  }, [errorRetryable]);
 
   // Temps réel + rattrapage périodique : sur connexion faible le websocket
   // tombe sans prévenir, la relecture régulière évite la table figée.
   const sync = useMatchSync(id, !!verifiedSeat, applyRow);
+
+  // Sur réseau faible, c'est souvent NOTRE liaison qui flanche, pas celle de
+  // l'adversaire : tant qu'elle n'est pas saine, on ne déclare aucun abandon —
+  // ni dépassement de temps (son coup peut être en route), ni déconnexion (la
+  // présence passe par le même canal que nous avons perdu).
+  const linkHealthy = sync.live && !sync.offline && !sync.stale;
 
   // Envoi d'action en cours (affiché discrètement) et file d'attente : sur un
   // lien lent, deux actions envoyées coup sur coup ne doivent pas se croiser.
   const [sending, setSending] = useState(0);
   const [retrying, setRetrying] = useState(false);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  // Le coup que le réseau n'a pas réussi à transmettre (voir REJOUABLES), avec
+  // la position dans laquelle il a été voulu.
+  const pending = useRef<{ action: MatchAction; position: string } | null>(null);
+  const [pendingReplay, setPendingReplay] = useState(false);
+  // Position courante, lisible depuis les fonctions qui ne la reçoivent pas.
+  const positionRef = useRef("");
+  positionRef.current = positionSignature(state);
 
   // Envoie une action au serveur, qui la rejoue et la valide avant de
   // l'appliquer — le client ne calcule plus lui-même le résultat.
@@ -220,18 +280,28 @@ function OnlineTable() {
   // afficher (l'autre joueur a déjà résolu l'action entre-temps).
   const runAction = useCallback(
     async (action: MatchAction, opts: { silent?: boolean } = {}) => {
+      const positionAuDepart = positionRef.current;
       const task = queue.current.then(async () => {
         setSending((n) => n + 1);
         try {
           const result = await withRetry(
             () => applyMatchAction({ data: { matchId: id, action } }),
             {
-              attempts: 4,
-              deadlineMs: 12_000,
+              // Volontairement moins obstiné qu'avant : les actions partent
+              // l'une après l'autre, et une tentative qui s'acharne bloque
+              // toutes les suivantes — le joueur tape une carte et rien ne
+              // bouge. Mieux vaut renoncer plus tôt et laisser le renvoi
+              // différé (REJOUABLES) faire son travail au retour du réseau.
+              attempts: 3,
+              deadlineMs: 10_000,
               onRetry: () => setRetrying(true),
             },
           );
           setRetrying(false);
+          if (pending.current?.action === action) {
+            pending.current = null;
+            setPendingReplay(false);
+          }
           setState(result.state);
           setRow((r) => (r ? { ...r, settings: result.settings } : r));
         } catch (e) {
@@ -239,6 +309,10 @@ function OnlineTable() {
           // Coupure franche : l'état sera rattrapé par la relecture; inutile
           // d'alarmer avec un message d'action refusée.
           if (isTransientError(e)) {
+            if (estRejouable(action)) {
+              pending.current = { action, position: positionAuDepart };
+              setPendingReplay(true);
+            }
             sync.refresh();
             return;
           }
@@ -252,6 +326,22 @@ function OnlineTable() {
     },
     [id, sync],
   );
+
+  // Retour du réseau : le coup mis de côté repart aussitôt. En `silent`, car
+  // s'il est devenu caduc entre-temps (l'adversaire a joué, le tour a tourné),
+  // le refus du serveur n'apprendrait rien au joueur — la relecture de l'état
+  // lui montre déjà la table telle qu'elle est.
+  useEffect(() => {
+    if (!linkHealthy) return;
+    const attendu = pending.current;
+    if (!attendu) return;
+    pending.current = null;
+    setPendingReplay(false);
+    // La position a bougé : l'intention n'est plus la même, on la laisse
+    // tomber plutôt que de jouer à la place du joueur.
+    if (!peutEtreRenvoye(attendu, positionRef.current)) return;
+    void runAction(attendu.action, { silent: true });
+  }, [linkHealthy, runAction]);
 
   /* ---------- Mise de jetons ---------- */
   // Mise remportée : les jetons volent vers le nom du joueur, qui tient lieu
@@ -581,6 +671,22 @@ function OnlineTable() {
   // suspendre son propre décompte.
   const dealing = useDealCeremony(state, !!state);
 
+  const [oppOnline, setOppOnline] = useState(true);
+  useEffect(() => {
+    if (!verifiedSeat) return;
+    return trackPresence(id, verifiedSeat, setOppOnline);
+  }, [id, verifiedSeat]);
+
+  /**
+   * La partie attend le réseau, d'un côté ou de l'autre.
+   *
+   * C'est le seul état où le temps de réflexion cesse de courir. Les deux
+   * causes se valent pour le joueur qui regarde une table figée : que ce soit
+   * sa propre liaison ou celle de l'adversaire qui ait lâché, personne ne
+   * réfléchit pendant ce temps-là, donc personne ne doit le payer.
+   */
+  const waitingOnLink = !linkHealthy || !oppOnline;
+
   // Le compte à rebours redémarre à chaque changement de tour
   const oppMustAct =
     !dealing &&
@@ -592,7 +698,10 @@ function OnlineTable() {
   const turnKey = state
     ? `${state.turn}-${state.trick.length}-${state.drawPending.length}-${state.phase}-${String(oppMustAct)}`
     : "";
-  const turnLeft = useTurnCountdown(oppMustAct, turnKey, TURN_LIMIT);
+  // Le décompte de réflexion est SUSPENDU dès que la liaison de l'un ou
+  // l'autre est en difficulté : le coup de l'adversaire est peut-être déjà
+  // parti et cherche son chemin.
+  const turnLeft = useTurnCountdown(oppMustAct, turnKey, TURN_LIMIT, waitingOnLink);
 
   // Barre de temps du joueur local
   const myMustAct =
@@ -603,40 +712,41 @@ function OnlineTable() {
     state.trick.length < 2 &&
     state.drawPending.length === 0;
 
-  // Sur réseau faible, c'est souvent NOTRE liaison qui flanche, pas celle de
-  // l'adversaire : tant qu'elle n'est pas saine, on ne déclare aucun abandon —
-  // ni dépassement de temps (son coup peut être en route), ni déconnexion (la
-  // présence passe par le même canal que nous avons perdu).
-  const linkHealthy = sync.live && !sync.offline && !sync.stale;
-
-  // Seul l'observateur déclare : si l'adversaire dépasse le délai, il perd
+  // Seul l'observateur déclare : si l'adversaire dépasse son temps de
+  // RÉFLEXION, il perd. Jamais pendant une attente réseau : le décompte y est
+  // gelé, mais on refuse en plus de déclarer quoi que ce soit sur la foi d'un
+  // lien qu'on sait douteux.
   useEffect(() => {
     if (!state || state.phase !== "playing" || !oppMustAct) return;
-    if (turnLeft > 0 || !linkHealthy) return;
+    if (turnLeft > 0 || waitingOnLink) return;
     declareForfeit("timeout");
-  }, [turnLeft, state, opp, oppMustAct, declareForfeit, linkHealthy]);
+  }, [turnLeft, state, opp, oppMustAct, declareForfeit, waitingOnLink]);
 
-  const [oppOnline, setOppOnline] = useState(true);
-  const [offlineLeft, setOfflineLeft] = useState<number | null>(null);
+  /**
+   * Le délai d'attente de la CONNEXION, décompté à part.
+   *
+   * Il court dès que la liaison est en difficulté, d'un côté ou de l'autre, et
+   * pendant tout ce temps la réflexion est suspendue. À son terme, l'abandon
+   * n'est déclaré que si c'est bien l'adversaire qui manque et que notre
+   * propre lien est sain : si c'est le nôtre qui est tombé, nous ne sommes en
+   * état d'accuser personne — on continue d'attendre et de réessayer, pendant
+   * que l'adversaire décompte de son côté le même délai contre nous.
+   */
+  const [linkWaitLeft, setLinkWaitLeft] = useState<number | null>(null);
   useEffect(() => {
-    if (!verifiedSeat) return;
-    return trackPresence(id, verifiedSeat, setOppOnline);
-  }, [id, verifiedSeat]);
-
-  useEffect(() => {
-    if (oppOnline || !linkHealthy || !state || state.phase !== "playing") {
-      setOfflineLeft(null);
+    if (!waitingOnLink || !state || state.phase !== "playing") {
+      setLinkWaitLeft(null);
       return;
     }
     const start = Date.now();
-    setOfflineLeft(DISCONNECT_LIMIT);
+    setLinkWaitLeft(LINK_WAIT_LIMIT);
     const t = setInterval(() => {
-      const left = Math.max(0, DISCONNECT_LIMIT - Math.round((Date.now() - start) / 1000));
-      setOfflineLeft(left);
-      if (left === 0) declareForfeit("disconnect");
+      const left = Math.max(0, LINK_WAIT_LIMIT - Math.round((Date.now() - start) / 1000));
+      setLinkWaitLeft(left);
+      if (left === 0 && linkHealthy && !oppOnline) declareForfeit("disconnect");
     }, 1000);
     return () => clearInterval(t);
-  }, [oppOnline, state, opp, declareForfeit, linkHealthy]);
+  }, [waitingOnLink, linkHealthy, oppOnline, state, declareForfeit]);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   const legalIds = useMemo(() => {
@@ -721,6 +831,24 @@ function OnlineTable() {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-destructive">{error}</p>
+        {errorRetryable && (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Nouvelle tentative en cours… La partie vous attend, rien n'est perdu.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setErrorRetryable(false);
+                setReloadKey((n) => n + 1);
+              }}
+              className="rounded-full border border-gold/50 px-5 py-2 text-xs font-semibold text-gold"
+            >
+              Réessayer maintenant
+            </button>
+          </>
+        )}
         <Link to="/online" className="text-xs text-gold underline">
           Retour au salon
         </Link>
@@ -804,7 +932,7 @@ function OnlineTable() {
             keepSlots={state.stock.length > 0}
           />
         </div>
-        <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} />
+        <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} paused={waitingOnLink} />
       </section>
 
       {/* Tapis */}
@@ -860,19 +988,25 @@ function OnlineTable() {
           </div>
         </div>
 
-        {(sync.offline || sync.stale || retrying || sending > 0) && (
+        {(sync.offline || sync.stale || retrying || sending > 0 || pendingReplay) && (
           <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-gold/50 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-gold">
             {sync.offline
               ? "Hors ligne · reprise automatique"
-              : retrying || sync.stale
-                ? "Connexion lente · nouvelle tentative…"
-                : "Envoi…"}
+              : pendingReplay
+                ? "Coup en attente · il partira au retour du réseau"
+                : retrying || sync.stale
+                  ? "Connexion lente · nouvelle tentative…"
+                  : "Envoi…"}
           </span>
         )}
 
-        {offlineLeft !== null && (
+        {/* Attente de la connexion : le temps de réflexion est gelé pendant ce
+            décompte, et le joueur doit voir que ce n'est PAS son tour qui
+            s'épuise. */}
+        {linkWaitLeft !== null && (
           <span className="absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-destructive/60 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-destructive">
-            {oppName} est hors ligne · {offlineLeft}s
+            {oppOnline ? "Connexion perdue" : `${oppName} est hors ligne`} · attente {linkWaitLeft}s
+            · réflexion en pause
           </span>
         )}
 
@@ -930,7 +1064,7 @@ function OnlineTable() {
 
       {/* Votre main */}
       <section className="flex flex-col gap-2">
-        <TurnBar total={TURN_LIMIT} active={myMustAct} resetKey={turnKey} />
+        <TurnBar total={TURN_LIMIT} active={myMustAct} resetKey={turnKey} paused={waitingOnLink} />
         {/* Pendant la donne, la main garde sa place — ses cases servent de
             cibles aux cartes qui arrivent — mais reste invisible : on ne
             distribue pas des cartes déjà posées. */}

@@ -314,18 +314,29 @@ export function TurnBar({
   total,
   active,
   resetKey,
+  paused = false,
 }: {
   total: number;
   active: boolean;
   resetKey: string;
+  /** Suspend la barre sans la vider : voir `useTurnCountdown`. */
+  paused?: boolean;
 }) {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
       {active ? (
         <div
           key={resetKey}
-          className="animate-countdown h-full rounded-full"
-          style={{ "--turn-duration": `${total}s` } as CSSProperties}
+          // La barre est une animation CSS de durée fixe : sans cette
+          // suspension elle continuerait de se vider pendant que le décompte
+          // est gelé, et montrerait au joueur un temps qu'il n'a pas perdu.
+          className={cn("animate-countdown h-full rounded-full", paused && "opacity-40")}
+          style={
+            {
+              "--turn-duration": `${total}s`,
+              animationPlayState: paused ? "paused" : "running",
+            } as CSSProperties
+          }
         />
       ) : (
         <div className="h-full w-full rounded-full bg-muted-foreground/20" />
