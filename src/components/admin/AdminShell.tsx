@@ -1,21 +1,22 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
+  MobileNav,
   Sidebar,
-  type SidebarItem,
+  Topbar,
   type SidebarSection,
-} from "@/components/admin/Sidebar";
-import { Topbar } from "@/components/admin/Topbar";
+} from "@/components/admin";
 
 /**
  * Coquille de la console d'administration.
  *
- * Sidebar à gauche, topbar en haut, zone de contenu à droite. Le shell porte
- * toute la navigation et la chrome — les écrans enfants ne rendent que leur
- * propre corps, sans rien savoir de la disposition.
+ * Trois couches :
+ * - Topbar sticky en haut
+ * - Sur desktop : sidebar dans le flux à gauche
+ * - Sur mobile : la sidebar est cachée, remplacée par un bouton
+ *   hamburger dans la topbar qui ouvre `MobileNav` (Sheet shadcn)
  *
- * PR1 : la navigation est gérée par un onglet interne (chaque onglet reste
- * sur l'URL `/admin`). PR2 introduira les sous-routes TanStack quand les
- * écrans "Dashboard", "Signalements" et "Réglages" auront du contenu.
+ * Le shell porte toute la navigation et la chrome — les écrans enfants
+ * ne rendent que leur propre corps.
  */
 export type AdminTabId =
   | "dashboard"
@@ -53,23 +54,17 @@ export function AdminShell({
     | null;
   children: ReactNode;
 }) {
+  // La nav mobile est un tiroir : on gère son état ici pour qu'il
+  // survive aux changements d'onglet.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   const sections: SidebarSection[] = [
     {
       title: "Pilotage",
       items: [
         { id: "dashboard", label: "Vue d'ensemble", icon: "📊" },
-        {
-          id: "players",
-          label: "Joueurs",
-          icon: "👥",
-          count: stats?.players,
-        },
-        {
-          id: "matches",
-          label: "Parties",
-          icon: "♟️",
-          count: stats?.matches,
-        },
+        { id: "players", label: "Joueurs", icon: "👥", count: stats?.players },
+        { id: "matches", label: "Parties", icon: "♟️", count: stats?.matches },
       ],
     },
     {
@@ -105,12 +100,20 @@ export function AdminShell({
         pendingReports={pendingReports}
         adminInitial={adminInitial}
         adminName={adminName}
+        onOpenMobileNav={() => setMobileNavOpen(true)}
       />
       <div className="flex flex-1">
         <Sidebar
           sections={sections}
           activeId={activeTab}
           onSelect={(id) => onSelectTab(id as AdminTabId)}
+        />
+        <MobileNav
+          sections={sections}
+          activeId={activeTab}
+          onSelect={(id) => onSelectTab(id as AdminTabId)}
+          open={mobileNavOpen}
+          onOpenChange={setMobileNavOpen}
         />
         <main className="flex-1 overflow-x-hidden">{children}</main>
       </div>
