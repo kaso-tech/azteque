@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/azteque/account";
+import { toCsv, telechargerCsv } from "@/lib/azteque/csv";
 import {
   adminListLog,
   adminRevertLogEntry,
@@ -118,14 +119,36 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
       .finally(() => setRevertEnCours(null));
   };
 
+  const exporter = () => {
+    const contenu = toCsv(lignes, [
+      { entete: "Date", getter: (l) => l.at },
+      { entete: "Action", getter: (l) => l.action },
+      { entete: "Admin", getter: (l) => l.admin_username ?? "" },
+      { entete: "Cible", getter: (l) => l.target ?? "" },
+      { entete: "Détails", getter: (l) => JSON.stringify(l.details) },
+    ]);
+    const date = new Date().toISOString().slice(0, 10);
+    telechargerCsv(`azteque-journal-${date}.csv`, contenu);
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl gold-text">Journal d'audit</h1>
-        <p className="text-xs text-muted-foreground">
-          {lignes.length} événement{lignes.length > 1 ? "s" : ""} affiché
-          {lignes.length > 1 ? "s" : ""}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            {lignes.length} événement{lignes.length > 1 ? "s" : ""} affiché
+            {lignes.length > 1 ? "s" : ""}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exporter}
+            disabled={lignes.length === 0}
+          >
+            📥 Exporter
+          </Button>
+        </div>
       </div>
 
       {/* Filtres */}

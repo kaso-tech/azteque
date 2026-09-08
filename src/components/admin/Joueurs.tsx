@@ -6,6 +6,7 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { RankBadge } from "@/components/azteque/rank";
 import { rankOf } from "@/lib/azteque/rank";
 import { describeError } from "@/lib/azteque/account";
+import { toCsv, telechargerCsv } from "@/lib/azteque/csv";
 import {
   adminGrantTokens,
   adminListPlayers,
@@ -175,14 +176,45 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
     [liste, selection],
   );
 
+  const exporter = (joueurs: AdminPlayer[]) => {
+    const contenu = toCsv(joueurs, [
+      { entete: "Pseudo", getter: (j) => j.username },
+      { entete: "Prénom", getter: (j) => j.first_name ?? "" },
+      { entete: "Nom", getter: (j) => j.last_name ?? "" },
+      { entete: "Pays", getter: (j) => j.country ?? "" },
+      { entete: "Grade", getter: (j) => rankOf(j.rating).name },
+      { entete: "Cote", getter: (j) => j.rating },
+      { entete: "Parties classées", getter: (j) => j.rated_games },
+      { entete: "Tours joués", getter: (j) => j.rounds_played },
+      { entete: "Jetons", getter: (j) => j.tokens },
+      { entete: "Achats", getter: (j) => j.purchases },
+      { entete: "Admin", getter: (j) => (j.is_admin ? "oui" : "non") },
+      { entete: "Suspendu", getter: (j) => (j.banned ? "oui" : "non") },
+      { entete: "Dernier passage", getter: (j) => j.last_seen_at ?? "" },
+      { entete: "Inscrit le", getter: (j) => j.created_at },
+    ]);
+    const date = new Date().toISOString().slice(0, 10);
+    telechargerCsv(`azteque-joueurs-${date}.csv`, contenu);
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl gold-text">Joueurs</h1>
-        <p className="text-xs text-muted-foreground">
-          {filtres.length} joueur{filtres.length > 1 ? "s" : ""} affiché
-          {filtres.length > 1 ? "s" : ""}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            {filtres.length} joueur{filtres.length > 1 ? "s" : ""} affiché
+            {filtres.length > 1 ? "s" : ""}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => exporter(filtres)}
+            disabled={filtres.length === 0}
+          >
+            📥 Exporter CSV
+          </Button>
+        </div>
       </div>
 
       {/* Barre de filtres */}

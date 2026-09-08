@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/azteque/account";
@@ -34,7 +34,6 @@ import {
 
 const VOYELLES_LABELS = ["a", "e", "o"];
 
-/** Ce que valent les réglages propres à chaque son quand nul n'y a touché. */
 const DEFAUTS_AFFICHES: Partial<Record<SoundId, Partial<SoundTuning>>> = {
   snicker: { syllables: 3, step: 0.9, vowel: 1 },
   chuckle: { syllables: 4, step: 1.02, vowel: 1 },
@@ -48,13 +47,6 @@ const DEFAUTS_AFFICHES: Partial<Record<SoundId, Partial<SoundTuning>>> = {
   streakLaugh5: { syllables: 6, step: 0.93, vowel: 1 },
 };
 
-/**
- * Le type d'un fichier, quand le navigateur ne le dit pas.
- *
- * Certains navigateurs remettent une chaîne vide pour un fichier glissé depuis
- * un dossier ; la base, elle, exige un type qui commence par « audio/ ». On le
- * déduit du nom plutôt que de refuser un son parfaitement lisible.
- */
 const MIMES: Record<string, string> = {
   mp3: "audio/mpeg",
   wav: "audio/wav",
@@ -79,6 +71,37 @@ function poids(octets: number): string {
     : `${Math.max(1, Math.round(octets / 1024))} ko`;
 }
 
+/** Catégorise les sons pour les regrouper dans la grille. */
+const CATEGORIES: { id: string; titre: string; ids: SoundId[] }[] = [
+  {
+    id: "cartes",
+    titre: "Bruitages de la partie",
+    ids: ["place", "beat", "collect", "draw", "sweep", "shuffle", "dealCard"],
+  },
+  {
+    id: "rires",
+    titre: "Rires & acclamations",
+    ids: ["snicker", "chuckle", "taunt", "cheer", "trumpLaugh", "sweepLaugh", "landslideLaugh", "streakLaugh", "streakLaugh4", "streakLaugh5"],
+  },
+  {
+    id: "jetons",
+    titre: "Boutique",
+    ids: ["coin"],
+  },
+];
+
+/**
+ * Onglet Sons — refonte PR4.
+ *
+ * Mise en grille 2 colonnes : à gauche le volume général et l'aide, à
+ * droite la grille des sons groupés par catégorie. Chaque carte son
+ * porte son titre, un bouton « ▶ Écouter » qui joue l'aperçu avec
+ * les réglages courants, un bouton d'upload fichier, un player natif
+ * si un fichier est en place, et ses curseurs.
+ *
+ * On ne change pas la logique : les fonctions admin_* sont les mêmes
+ * que dans l'onglet d'origine, seul le balisage est revu.
+ */
 export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const [profil, setProfil] = useState<SoundContext>("ia");
   const [reglages, setReglages] = useState<SoundSettings>(() => currentSoundSettings("ia"));
@@ -87,9 +110,6 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const [fichiers, setFichiers] = useState<Record<string, SoundFileInfo>>({});
   const [occupe, setOccupe] = useState<SoundId | null>(null);
 
-  // Le profil affiché doit aussi être celui qu'on entend en cliquant sur
-  // « Écouter » : la console bascule le contexte actif en même temps qu'elle
-  // recharge ses réglages et ses fichiers.
   useEffect(() => {
     setSoundContext(profil);
     setReglages(currentSoundSettings(profil));
@@ -98,19 +118,11 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
       .catch(() => setFichiers({}));
   }, [profil]);
 
-  // L'aperçu doit s'entendre tel qu'il sera : on applique avant de jouer.
   const ecouter = (id: SoundId) => {
     applySoundSettings(reglages, profil);
     sfx[id]();
   };
 
-  /**
-   * Installe un fichier à la place d'un son.
-   *
-   * Il est décodé d'abord, envoyé ensuite : un fichier que le navigateur
-   * n'ouvre pas deviendrait un silence chez tous les joueurs, et l'on ne
-   * s'en apercevrait qu'en jouant.
-   */
   const televerser = async (id: SoundId, f: File) => {
     onErreur(null);
     setOccupe(id);
@@ -128,7 +140,6 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
       setFichiers((x) => ({ ...x, [id]: info }));
       sfx[id]();
     } catch (e: unknown) {
-      // Le son revient à sa synthèse : mieux vaut l'ancien effet qu'un silence.
       clearSample(id, profil);
       setFichiers((x) => {
         const { [id]: _dropped, ...reste } = x;
@@ -176,15 +187,287 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
       .finally(() => setBusy(false));
   };
 
-  const curseur = (
-    label: string,
-    v: number,
-    min: number,
-    max: number,
-    pas: number,
-    onChange: (v: number) => void,
-    libelles?: string[],
-  ) => (
+  const sonsRanges = useMemo(() => {
+    const out: Record<string, SoundId[]> = {};
+    for (const cat of CATEGORIES) {
+      out[cat.id] = cat.ids.filter((id) => SOUND_IDS.includes(id));
+    }
+    return out;
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl gold-text">Sons</h1>
+        <p className="text-xs text-muted-foreground">
+          {SOUND_IDS.length} son{SOUND_IDS.length > 1 ? "s" : ""} au total
+        </p>
+      </div>
+
+      {/* Sélecteur de profil (contexte) */}
+      <div className="panel flex flex-wrap items-center gap-2 p-2">
+        <span className="px-2 text-xs text-muted-foreground">Profil :</span>
+        <div className="flex overflow-hidden rounded-md border border-border">
+          {SOUND_CONTEXTS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setProfil(c)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium",
+                profil === c
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent",
+              )}
+            >
+              {SOUND_CONTEXT_LABELS[c]}
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto text-xs text-muted-foreground">
+          Réglages et fichiers indépendants par profil
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Colonne gauche : volume général + aide */}
+        <aside className="panel space-y-3 p-4 lg:sticky lg:top-4 lg:self-start">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Volume général</p>
+            <Curseur
+              label="Tous les sons"
+              v={reglages.master}
+              min={0}
+              max={2}
+              pas={0.05}
+              onChange={(v) => setReglages((r) => ({ ...r, master: v }))}
+            />
+          </div>
+
+          <div className="divider" />
+
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <p>
+              Chaque son se règle sur trois axes : le volume, la hauteur et la
+              vitesse. <span className="font-mono">1,00</span> est la valeur
+              d'origine.
+            </p>
+            <p>
+              Les réglages valent pour tous les joueurs dès l'enregistrement.
+            </p>
+            <p>
+              Un son peut aussi être remplacé par un fichier local. Le fichier
+              s'installe aussitôt, sans passer par « Enregistrer ».{" "}
+              <span className="font-mono">{poids(SON_MAX_OCTETS)}</span> au
+              maximum, c'est un effet d'une ou deux secondes que chaque joueur
+              télécharge à l'ouverture.
+            </p>
+          </div>
+
+          <div className="divider" />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={busy}
+              onClick={enregistrer}
+              className="font-semibold"
+            >
+              {busy ? "…" : "Enregistrer pour tous"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                applySoundSettings(DEFAULT_SOUND_SETTINGS, profil);
+                setReglages(currentSoundSettings(profil));
+              }}
+            >
+              Valeurs d'origine
+            </Button>
+            {enregistre && (
+              <span className="text-xs text-emerald-400">✓ Enregistré</span>
+            )}
+          </div>
+        </aside>
+
+        {/* Colonne droite : grille de sons */}
+        <div className="space-y-4 lg:col-span-2">
+          {CATEGORIES.map((cat) => {
+            const ids = sonsRanges[cat.id] ?? [];
+            if (ids.length === 0) return null;
+            return (
+              <section key={cat.id} className="space-y-2">
+                <h2 className="font-display text-sm uppercase tracking-wider text-muted-foreground">
+                  {cat.titre}{" "}
+                  <span className="text-muted-foreground/60">· {ids.length}</span>
+                </h2>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {ids.map((id) => (
+                    <CarteSon
+                      key={id}
+                      id={id}
+                      fichier={fichiers[id]}
+                      occupe={occupe === id}
+                      axes={fichiers[id]
+                        ? ["gain", "pitch", "speed"]
+                        : ["gain", "pitch", "speed", ...SOUND_EXTRAS[id]]}
+                      valeur={(axe) => valeur(id, axe)}
+                      regler={(axe, v) => regler(id, axe, v)}
+                      onEcouter={() => ecouter(id)}
+                      onTeleverser={(f) => televerser(id, f)}
+                      onRetirer={() => retirer(id)}
+                      sampleDisponible={hasSample(id, profil)}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CarteSon({
+  id,
+  fichier,
+  occupe,
+  axes,
+  valeur,
+  regler,
+  onEcouter,
+  onTeleverser,
+  onRetirer,
+  sampleDisponible,
+}: {
+  id: SoundId;
+  fichier: SoundFileInfo | undefined;
+  occupe: boolean;
+  axes: (keyof SoundTuning)[];
+  valeur: (axe: keyof SoundTuning) => number;
+  regler: (axe: keyof SoundTuning, v: number) => void;
+  onEcouter: () => void;
+  onTeleverser: (f: File) => void;
+  onRetirer: () => void;
+  sampleDisponible: boolean;
+}) {
+  return (
+    <article className="panel-2 space-y-2 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {SOUND_LABELS[id]}
+          </p>
+          <p className="text-[10px] text-muted-foreground/70">
+            <code>{id}</code>
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onEcouter}>
+          ▶ Écouter
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <label
+          className={cn(
+            "cursor-pointer rounded-full border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary",
+            occupe && "pointer-events-none opacity-60",
+          )}
+        >
+          {occupe ? "…" : fichier ? "Remplacer" : "Choisir un fichier"}
+          <input
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) onTeleverser(f);
+            }}
+          />
+        </label>
+        {fichier ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={occupe}
+            onClick={onRetirer}
+            className="h-6 px-2 text-[10px] text-muted-foreground"
+          >
+            Retirer
+          </Button>
+        ) : (
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            Son synthétisé
+          </span>
+        )}
+      </div>
+
+      {fichier && (
+        <div className="rounded-md border border-border bg-card/40 p-2 text-[10px] text-muted-foreground">
+          <p className="mb-1 flex items-center justify-between">
+            <span className="font-mono">
+              🎵 {fichier.path.split(".").pop()?.toUpperCase() ?? "?"} · {poids(fichier.bytes)}
+            </span>
+            {fichier.updated_at && (
+              <span>{new Date(fichier.updated_at).toLocaleDateString("fr")}</span>
+            )}
+          </p>
+          {sampleDisponible ? (
+            <audio
+              controls
+              preload="none"
+              src={fichier.path}
+              className="h-8 w-full"
+            />
+          ) : (
+            <p className="text-warning">
+              Fichier déposé mais pas encore téléchargé — rechargez la page.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-1.5 pt-1">
+        {axes.map((axe) => {
+          const b = SOUND_RANGES[axe];
+          return (
+            <Curseur
+              key={axe}
+              label={SOUND_TUNING_LABELS[axe]}
+              v={valeur(axe)}
+              min={b.min}
+              max={b.max}
+              pas={b.step}
+              onChange={(v) => regler(axe, v)}
+              libelles={axe === "vowel" ? VOYELLES_LABELS : undefined}
+            />
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function Curseur({
+  label,
+  v,
+  min,
+  max,
+  pas,
+  onChange,
+  libelles,
+}: {
+  label: string;
+  v: number;
+  min: number;
+  max: number;
+  pas: number;
+  onChange: (v: number) => void;
+  libelles?: string[];
+}) {
+  return (
     <label className="flex items-center gap-2 text-[0.68rem] text-muted-foreground">
       <span className="w-24 shrink-0">{label}</span>
       <input
@@ -196,144 +479,9 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-1.5 min-w-0 flex-1 accent-[var(--gold)]"
       />
-      <span className="w-12 shrink-0 text-right tabular-nums text-foreground">
+      <span className="w-12 shrink-0 text-right font-mono tabular-nums text-foreground">
         {libelles ? (libelles[Math.round(v)] ?? v) : pas >= 1 ? Math.round(v) : v.toFixed(2)}
       </span>
     </label>
-  );
-
-  return (
-    <section className="panel space-y-4 px-4 py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        {SOUND_CONTEXTS.map((c) => (
-          <Button
-            key={c}
-            size="sm"
-            variant={profil === c ? "default" : "outline"}
-            onClick={() => setProfil(c)}
-            className={cn(profil === c && "font-semibold")}
-          >
-            {SOUND_CONTEXT_LABELS[c]}
-          </Button>
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Deux jeux de sons indépendants : l'un pour affronter l'IA, l'autre pour le jeu en ligne.
-        Chaque réglage et chaque fichier ci-dessous ne vaut que pour le profil sélectionné.
-      </p>
-
-      <div>
-        <p className="text-sm text-foreground">Volume général</p>
-        {curseur("Tous", reglages.master, 0, 2, 0.05, (v) =>
-          setReglages((r) => ({ ...r, master: v })),
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">
-          Chaque son se règle sur trois axes : le volume, la hauteur et la vitesse. 1,00 est la
-          valeur d'origine. Les réglages valent pour tous les joueurs dès l'enregistrement.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Chaque son peut aussi être remplacé par un fichier local — un vrai rire, de vraies
-          acclamations. Le fichier s'installe aussitôt, sans passer par « Enregistrer », et le
-          retirer rend au son sa synthèse. {poids(SON_MAX_OCTETS)} au maximum : ce sont des effets
-          d'une ou deux secondes, que chaque joueur télécharge à l'ouverture.
-        </p>
-      </div>
-
-      <ul className="space-y-3">
-        {SOUND_IDS.map((id) => {
-          const fichier = fichiers[id];
-          const axes: (keyof SoundTuning)[] = fichier
-            ? ["gain", "pitch", "speed"]
-            : ["gain", "pitch", "speed", ...SOUND_EXTRAS[id]];
-          return (
-            <li key={id} className="rounded-lg border border-border px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-foreground">{SOUND_LABELS[id]}</p>
-                <Button size="sm" variant="outline" onClick={() => ecouter(id)}>
-                  ▶ Écouter
-                </Button>
-              </div>
-
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <label
-                  className={cn(
-                    "cursor-pointer rounded-full border border-gold/50 px-3 py-1 text-[0.68rem] text-gold",
-                    occupe === id && "pointer-events-none opacity-60",
-                  )}
-                >
-                  {occupe === id ? "…" : fichier ? "Remplacer le fichier" : "Choisir un fichier"}
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      // Le champ est vidé pour que reprendre le même fichier
-                      // après une erreur relance bien l'installation.
-                      e.target.value = "";
-                      if (f) void televerser(id, f);
-                    }}
-                  />
-                </label>
-                {fichier ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={occupe === id}
-                    onClick={() => retirer(id)}
-                    className="h-7 px-2 text-[0.68rem]"
-                  >
-                    Retirer
-                  </Button>
-                ) : (
-                  <span className="text-[0.68rem] text-muted-foreground">Son synthétisé</span>
-                )}
-              </div>
-              {fichier && (
-                <p className="mt-1 truncate text-[0.68rem] text-muted-foreground">
-                  🎵 {(fichier.path.split(".").pop() ?? "").toUpperCase()} · {poids(fichier.bytes)}
-                  {!hasSample(id, profil) && " · rechargez la page pour l'entendre"}
-                </p>
-              )}
-
-              <div className="mt-1.5 space-y-1">
-                {axes.map((axe) => {
-                  const b = SOUND_RANGES[axe];
-                  return (
-                    <div key={axe}>
-                      {curseur(
-                        SOUND_TUNING_LABELS[axe],
-                        valeur(id, axe),
-                        b.min,
-                        b.max,
-                        b.step,
-                        (v) => regler(id, axe, v),
-                        axe === "vowel" ? VOYELLES_LABELS : undefined,
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={busy} onClick={enregistrer} className="font-semibold">
-          {busy ? "…" : "Enregistrer pour tous"}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => {
-            applySoundSettings(DEFAULT_SOUND_SETTINGS, profil);
-            setReglages(currentSoundSettings(profil));
-          }}
-        >
-          Valeurs d'origine
-        </Button>
-        {enregistre && <span className="text-sm text-emerald-400">✓ Enregistré</span>}
-      </div>
-    </section>
   );
 }
