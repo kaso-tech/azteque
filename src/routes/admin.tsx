@@ -43,6 +43,7 @@ function Administration() {
   const [onglet, setOnglet] = useState<AdminTabId>("players");
   const [erreur, setErreur] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const setTab = useCallback((id: AdminTabId) => setOnglet(id), []);
 
   useEffect(() => {
     adminAccess()
@@ -70,7 +71,6 @@ function Administration() {
   // Onglets vides : à montrer dans la nav (compteurs facultatifs) mais
   // sans contenu tant que leur écran n'est pas livré.
   const placeholder = !ONGLETS_DISPONIBLES.includes(onglet);
-  const setTab = useCallback((id: AdminTabId) => setOnglet(id), []);
 
   const adminInitial = acces.username ? acces.username[0]!.toUpperCase() : "A";
   const adminName = acces.username ?? "Administrateur";
