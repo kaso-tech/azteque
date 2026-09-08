@@ -52,20 +52,20 @@ export interface MatchFilters {
 
 export async function adminListMatches(filters: MatchFilters = {}): Promise<AdminMatchRow[]> {
   const { data, error } = await rpc("admin_list_matches", {
-    status: filters.status ?? null,
-    since: filters.since ?? null,
-    until: filters.until ?? null,
-    host: filters.hostId ?? null,
-    guest: filters.guestId ?? null,
-    limit: filters.limit ?? 50,
-    offset: filters.offset ?? 0,
+    _status: filters.status ?? null,
+    _since: filters.since ?? null,
+    _until: filters.until ?? null,
+    _host: filters.hostId ?? null,
+    _guest: filters.guestId ?? null,
+    _limit: filters.limit ?? 50,
+    _offset: filters.offset ?? 0,
   });
   if (error) throw error;
   return (data as unknown as AdminMatchRow[]) ?? [];
 }
 
 export async function adminMatchVoid(matchId: string, reason: string): Promise<void> {
-  const { error } = await rpc("admin_match_void", { id: matchId, reason });
+  const { error } = await rpc("admin_match_void", { _id: matchId, _reason: reason });
   if (error) throw error;
 }
 
@@ -75,9 +75,9 @@ export async function adminMatchForfeit(
   reason: string,
 ): Promise<void> {
   const { error } = await rpc("admin_match_forfeit", {
-    id: matchId,
-    winner_id: winnerId,
-    reason,
+    _id: matchId,
+    _winner_id: winnerId,
+    _reason: reason,
   });
   if (error) throw error;
 }

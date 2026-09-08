@@ -53,12 +53,12 @@ export interface AdminLogFilters {
 
 export async function adminListLog(filters: AdminLogFilters = {}): Promise<AdminLogEntryV2[]> {
   const { data, error } = await rpc("admin_list_log", {
-    action: filters.action ?? null,
-    admin_id: filters.adminId ?? null,
-    since: filters.since ?? null,
-    until: filters.until ?? null,
-    limit: filters.limit ?? 50,
-    offset: filters.offset ?? 0,
+    _action: filters.action ?? null,
+    _admin_id: filters.adminId ?? null,
+    _since: filters.since ?? null,
+    _until: filters.until ?? null,
+    _limit: filters.limit ?? 50,
+    _offset: filters.offset ?? 0,
   });
   if (error) throw error;
   return (data as AdminLogEntryV2[]) ?? [];
@@ -70,7 +70,7 @@ export async function adminListLog(filters: AdminLogFilters = {}): Promise<Admin
  * l'entrée est non réversible.
  */
 export async function adminRevertLogEntry(id: number): Promise<string> {
-  const { data, error } = await rpc("admin_revert_log_entry", { id });
+  const { data, error } = await rpc("admin_revert_log_entry", { _id: id });
   if (error) throw error;
   return String(data ?? "");
 }

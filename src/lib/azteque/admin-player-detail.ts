@@ -46,9 +46,9 @@ export async function adminPlayerDetail(
   seriesDays = 60,
 ): Promise<PlayerDetail> {
   const [recentRes, seriesRes, purchasesRes] = await Promise.allSettled([
-    rpc("admin_player_recent_matches", { user_id: userId, limit_n: recentLimit }),
-    rpc("admin_player_rating_series", { user_id: userId, days_n: seriesDays }),
-    rpc("admin_player_purchase_count", { user_id: userId }),
+    rpc("admin_player_recent_matches", { _user_id: userId, _limit: recentLimit }),
+    rpc("admin_player_rating_series", { _user_id: userId, _days: seriesDays }),
+    rpc("admin_player_purchase_count", { _user_id: userId }),
   ]);
   return {
     recent: recentRes.status === "fulfilled"
