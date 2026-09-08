@@ -669,6 +669,49 @@ describe("tactiques de l'IA", () => {
     expect(aiChooseCardAt(state, "expert").id).toBe(aceDiamonds.id);
   });
 
+  it("encaisse son 10 d'atout tant qu'il gagne, quand un As d'atout court encore", () => {
+    // Le 10 d'atout ne se perd que d'une façon : l'adversaire entame l'As en
+    // phase finale, quand le règlement oblige à fournir. Quand ce moment
+    // arrive, il est trop tard — la recherche a beau être exacte, un 10 cerné
+    // tombe. La seule parade est antérieure : le jouer sur un pli qu'il
+    // emporte, où il rentre au tas définitivement à l'abri.
+    //
+    // Le talon est plein : c'est là que `trumpKeepValue` prête au 10 d'atout
+    // la plus forte valeur de conservation du jeu, et que l'IA le gardait
+    // précieusement — jusqu'à ce qu'il devienne un passif.
+    const dixAtout = card("10", "S", "dix");
+    const petitAtout = card("7", "S", "petit");
+    const menee = card("K", "H", "menee");
+    const stock = Array.from({ length: 12 }, (_, i) => card("7", "C", `stock${i}`));
+    // Une main adverse normale : c'est ce qui rend crédible qu'un As d'atout
+    // y dorme encore, et donc réel le danger que court le 10.
+    const mainAdverse = [
+      card("9", "D"),
+      card("8", "D"),
+      card("J", "C"),
+      card("Q", "C"),
+      card("9", "H"),
+      card("J", "H"),
+    ];
+    // Les deux As d'atout sont déclarés SANS être posés nulle part : ils
+    // restent donc invisibles pour l'IA — exactement la situation où elle doit
+    // craindre pour son 10.
+    const asDehors = [card("A", "S", "as1"), card("A", "S", "as2")];
+    const gains = fillGains([dixAtout, petitAtout, menee, ...mainAdverse, ...stock, ...asDehors]);
+    const state = makeState({
+      trump: "S",
+      stock,
+      hands: [mainAdverse, [dixAtout, petitAtout]],
+      trick: [{ player: 0, card: menee }],
+      turn: 1,
+      // Un tas déjà fourni : c'est lui que le 10 met en jeu.
+      gains: [gains[0], [...gains[1], card("A", "H"), card("10", "H"), card("A", "D")]],
+    });
+    expect(aiChooseCardAt(state, "legende").id).toBe(dixAtout.id);
+    // Le Maître n'a pas cette attention : elle est propre à la Légende.
+    expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
+  });
+
   it("en fin de partie, sacrifie un pli pour remporter le dernier (la main)", () => {
     // Mener l'As gagne tout de suite mais laisse le dernier pli — et « la
     // main » — à l'adversaire. Mener le 7 d'abord garde l'As pour le pli

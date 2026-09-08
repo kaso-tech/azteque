@@ -591,6 +591,11 @@ const TUNE = {
    * +0.107 en moyenne, dix écarts positifs sur dix, t = 3.4 (p ~ 0.008).
    */
   aceAmbush: 0.85,
+  /**
+   * Empressement à ENCAISSER le 10 d'atout tant qu'il gagne encore le pli.
+   * Voir `trump10Peril`.
+   */
+  trump10Cash: 1.2,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -910,13 +915,54 @@ function trump10Exposure(state: GameState, c: Card): number {
   return state.gains[1].filter(isBonne).length;
 }
 
+/**
+ * Le péril du 10 d'atout, et le seul moyen de s'en défaire.
+ *
+ * Perdre son 10 d'atout ne coûte pas une bonne : il rafle TOUT le tas. Or il
+ * n'existe qu'une seule façon de se le faire arracher — que l'adversaire
+ * entame l'As d'atout en phase finale, quand le règlement oblige à fournir. Le
+ * 10 bat tout le reste : joué sur n'importe quel autre atout, il gagne le pli
+ * et rentre au tas, définitivement à l'abri.
+ *
+ * Ce qui a été mesuré, et qui commande cette correction : quand ce moment
+ * arrive, il est TROP TARD. La recherche de fin de partie évalue alors les
+ * deux réponses à la même valeur, et elle a raison — un adversaire qui tient
+ * l'As d'atout le rejouera, et le 10 tombera au pli suivant. Aucune finesse
+ * de fin de partie ne sauve un 10 déjà cerné.
+ *
+ * La seule parade est donc antérieure : ENCAISSER le 10 tant qu'il gagne
+ * encore, plutôt que de le thésauriser comme un gros atout. C'est ce que fait
+ * un joueur qui a compris ce qu'il risque, et c'est exactement ce que
+ * `trumpKeepValue` décourageait — elle prête au 10 d'atout la plus forte
+ * valeur de conservation de tout le jeu.
+ *
+ * Le péril se lit dans la mémoire des cartes : il tombe à zéro dès que les
+ * deux As d'atout sont passés, et grandit avec le tas que le 10 met en jeu.
+ */
+function trump10Peril(state: GameState, m: OppModel): number {
+  const trump = state.trump;
+  if (!trump) return 0;
+  if (!state.hands[1].some((c) => c.rank === "10" && c.suit === trump)) return 0;
+  const pAs = oppHas(m, (x) => x.rank === "A" && x.suit === trump);
+  if (pAs <= 0) return 0;
+  return pAs * (1 + state.gains[1].filter(isBonne).length);
+}
+
 /* ---------- Heuristique tactique (expert et repli des niveaux hauts) ---------- */
 
-function aiTacticalCard(state: GameState): Card {
+function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   const legal = legalCards(state, 1);
   if (legal.length === 1) return legal[0]!;
   const trump = state.trump;
   const opp = readOpponent(state);
+  // Attention particulière de la Légende au 10 d'atout : voir `trump10Peril`.
+  const peril = level === "legende" ? trump10Peril(state, opp) : 0;
+  /**
+   * Prime à encaisser le 10 d'atout sur un pli qu'on GAGNE : c'est la seule
+   * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
+   */
+  const encaisserLeDix = (c: Card) =>
+    peril > 0 && trump && c.rank === "10" && c.suit === trump ? TUNE.trump10Cash * peril : 0;
   const myBonnes = state.gains[1].filter(isBonne).length;
   const oppBonnes = state.gains[0].filter(isBonne).length;
   // Prendre la main ne vaut que par ce qu'elle permet — annoncer son compte,
@@ -941,7 +987,7 @@ function aiTacticalCard(state: GameState): Card {
       if (wins) {
         // Je ramasse les deux cartes : ma bonne rentre dans mon tas, et
         // j'ouvre ma fenêtre d'annonce en refermant la sienne.
-        score = ledPts + mine + stealable + myLead - keepValue(state, c, opp);
+        score = ledPts + mine + stealable + myLead - keepValue(state, c, opp) + encaisserLeDix(c);
       } else {
         // L'adversaire ramasse : je lui offre sa carte, la mienne, et la main.
         score =
@@ -1003,7 +1049,7 @@ function aiTacticalCard(state: GameState): Card {
     }
 
     const score =
-      (1 - risk) * (pts + myLead) -
+      (1 - risk) * (pts + myLead + encaisserLeDix(c)) -
       risk * (pts + oppLead + trump10Exposure(state, c)) -
       keepValue(state, c, opp) +
       deadWeight(state, c);
@@ -1349,11 +1395,32 @@ function pimcChoose(
     }
   }
 
+  // Départage : à valeur ÉGALE, ne jamais livrer le 10 d'atout.
+  //
+  // Mesuré en partie : dans une position déjà perdue, la recherche évaluait à
+  // la même valeur exacte le 10 d'atout et la carte inoffensive, et retenait
+  // simplement la première de la liste — le 10. Elle avait raison sur le fond
+  // (l'adversaire tenait un second As et le 10 tombait au pli suivant), mais
+  // ce départage-là ne coûte rien et protège partout ailleurs : dès que la
+  // pioche n'est pas vide, la valeur est une MOYENNE sur des mondes tirés au
+  // sort, et deux moyennes égales peuvent recouvrir des risques très
+  // différents. On préfère alors la carte qui ne met pas tout le tas en jeu.
+  const livreLeDix = (c: Card) => {
+    if (!state.trump || c.rank !== "10" || c.suit !== state.trump) return false;
+    const led = state.trick[0]?.card;
+    // Mener le 10, ou le fournir sans battre : dans les deux cas il peut être
+    // capturé. Le jouer sur un pli qu'il emporte le met au contraire à l'abri.
+    return !led || !beats(c, led, state.trump);
+  };
+
   let best: Card | null = null;
   let bestV = -Infinity;
+  let bestRisque = true;
   for (const [c, v] of totals) {
-    if (v > bestV) {
+    const risque = livreLeDix(c);
+    if (v > bestV || (v === bestV && bestRisque && !risque)) {
       bestV = v;
+      bestRisque = risque;
       best = c;
     }
   }
@@ -1449,7 +1516,7 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
     if (Math.random() < 0.25) return legal[Math.floor(Math.random() * legal.length)]!;
     return aiChooseCard(state);
   }
-  if (level === "expert") return aiTacticalCard(state);
+  if (level === "expert") return aiTacticalCard(state, level);
 
   // Maître et Légende : une fois la pioche vide, les cartes encore invisibles
   // SONT exactement la main adverse. La position est donc à information
@@ -1469,7 +1536,7 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
     const exact = pimcChoose(state, samples, 12);
     if (exact) return exact;
   }
-  return aiTacticalCard(state);
+  return aiTacticalCard(state, level);
 }
 
 export function aiWantsRedeal(state: GameState, level: Difficulty): boolean {
