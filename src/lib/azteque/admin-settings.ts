@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { rpc as baseRpc } from "@/lib/azteque/admin";
 
 /**
  * Console d'administration — Réglages.
@@ -30,7 +29,7 @@ export interface AppSetting {
 export async function adminListSettings(): Promise<AppSetting[]> {
   const { data, error } = await rpc("admin_list_settings");
   if (error) throw error;
-  return (data as AppSetting[]) ?? [];
+  return (data as unknown as AppSetting[]) ?? [];
 }
 
 export async function adminGetSetting(key: string): Promise<unknown> {
@@ -41,5 +40,6 @@ export async function adminGetSetting(key: string): Promise<unknown> {
 
 /** Raccourci : on garde la signature existante pour ne rien casser. */
 export async function adminSetSetting(key: string, value: unknown): Promise<void> {
-  await baseRpc("admin_set_setting", { key, value });
+  const { error } = await rpc("admin_set_setting", { key, value });
+  if (error) throw error;
 }

@@ -73,7 +73,7 @@ export function Signalements({ onErreur }: { onErreur: (e: string | null) => voi
   const charger = useCallback(() => {
     setBusy(true);
     adminListReports({
-      status: filtreStatut === "all" ? undefined : filtreStatut,
+      ...(filtreStatut === "all" ? {} : { status: filtreStatut }),
       limit: 100,
     })
       .then(setListe)
