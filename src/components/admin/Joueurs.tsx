@@ -193,7 +193,7 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
           placeholder="🔍 Pseudo, nom, email…"
           className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
         />
-        <SelectPill value={statut} onChange={setStatut}>
+        <SelectPill value={statut} onChange={(v) => setStatut(v as StatutFiltre)}>
           <option value="tous">Tous statuts</option>
           <option value="en_ligne">En ligne</option>
           <option value="hors_ligne">Hors ligne</option>
@@ -318,9 +318,9 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
                         <span
                           className={cn(
                             "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                            r.tier === "top" && "border-primary/40 bg-primary/10 text-primary",
-                            r.tier === "mid" && "border-info/40 bg-info/10 text-info",
-                            r.tier === "low" && "border-border bg-card text-muted-foreground",
+                            r.tier >= 8 && "border-primary/40 bg-primary/10 text-primary",
+                            r.tier >= 5 && r.tier < 8 && "border-info/40 bg-info/10 text-info",
+                            r.tier < 5 && "border-border bg-card text-muted-foreground",
                           )}
                         >
                           {r.name}
