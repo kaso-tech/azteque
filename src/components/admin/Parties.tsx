@@ -453,7 +453,7 @@ function PartieSheet({
               variant="outline"
               disabled={busy}
               onClick={() =>
-                agir(adminMatchForfait(match.id, match.host_id!, motif || "Forfait par l'arbitre"))
+                agir(adminMatchForfeit(match.id, match.host_id!, motif || "Forfait par l'arbitre"))
               }
             >
               Forfait : {match.host_username} gagne

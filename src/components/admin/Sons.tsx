@@ -441,7 +441,7 @@ function CarteSon({
               max={b.max}
               pas={b.step}
               onChange={(v) => regler(axe, v)}
-              libelles={axe === "vowel" ? VOYELLES_LABELS : undefined}
+              {...(axe === "vowel" ? { libelles: VOYELLES_LABELS } : {})}
             />
           );
         })}
