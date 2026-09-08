@@ -43,6 +43,7 @@ import {
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
 import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
+import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import { useMatchSync } from "@/hooks/useMatchSync";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
 import { useBetNegotiation } from "@/hooks/useBetNegotiation";
@@ -663,6 +664,20 @@ function OnlineTable() {
     },
     [runAction],
   );
+
+  // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
+  // accepter une invitation ailleurs devra d'abord déclarer forfait ici, avec
+  // l'avertissement qui va avec.
+  useEffect(() => {
+    if (!state || state.phase === "gameEnd") return;
+    return registerGameSession("online", () => declareForfeit("quit"));
+  }, [state, declareForfeit]);
+
+  // Fin de tour ou de partie : une invitation mise de côté avec « Plus tard »
+  // peut réapparaître.
+  useEffect(() => {
+    if (state?.phase === "roundEnd" || state?.phase === "gameEnd") announceFreed();
+  }, [state?.phase]);
 
   // Battage et distribution. Chaque joueur regarde la sienne, et le compte à
   // rebours ne court pour personne pendant ce temps : le délai s'ajoute

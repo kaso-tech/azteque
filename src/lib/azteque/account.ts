@@ -116,6 +116,7 @@ const MIGRATION_PAR_COLONNE: Record<string, string> = {
   banned: "20260907160000_administration.sql",
   active: "20260907160000_administration.sql",
   referral_code: "20260908000000_parrainage.sql",
+  snoozed_at: "20260908130000_invitations_report.sql",
 };
 
 /**
@@ -1002,6 +1003,21 @@ export async function respondInvite(
   if (error) throw error;
 }
 
+/**
+ * Reporte la réponse sans trancher : l'invitation reste en attente, mais
+ * l'expéditeur en est averti (voir `subscribeOutgoingInvites`).
+ *
+ * Chaque report pose un nouvel horodatage plutôt qu'un simple drapeau : Postgres
+ * ne notifie en temps réel que les lignes réellement modifiées, et l'expéditeur
+ * doit être prévenu à CHAQUE report, pas seulement au premier.
+ */
+export async function snoozeInvite(inviteId: string): Promise<void> {
+  const { error } = await anyTable("game_invites")
+    .update({ snoozed_at: new Date().toISOString() } as never)
+    .eq("id", inviteId);
+  if (error) throw error;
+}
+
 /** Réagit en direct aux invitations reçues. */
 export function subscribeInvites(userId: string, onChange: () => void) {
   const channel = supabase
@@ -1010,6 +1026,36 @@ export function subscribeInvites(userId: string, onChange: () => void) {
       "postgres_changes",
       { event: "*", schema: "public", table: "game_invites", filter: `to_id=eq.${userId}` },
       () => onChange(),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export interface OutgoingInviteEvent {
+  id: string;
+  to_id: string;
+  status: GameInvite["status"];
+  snoozed_at: string | null;
+}
+
+/**
+ * Réagit en direct à ce que devient une invitation qu'on a soi-même envoyée :
+ * refusée, ou reportée par l'invité (« Plus tard »). L'acceptation, elle, se
+ * voit déjà autrement — la table de jeu se peuple dès que l'invité la
+ * rejoint — et n'a donc pas besoin d'être répétée ici.
+ */
+export function subscribeOutgoingInvites(
+  userId: string,
+  onChange: (row: OutgoingInviteEvent) => void,
+) {
+  const channel = supabase
+    .channel(`invites-sent-${userId}`)
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "game_invites", filter: `from_id=eq.${userId}` },
+      (payload) => onChange(payload.new as unknown as OutgoingInviteEvent),
     )
     .subscribe();
   return () => {

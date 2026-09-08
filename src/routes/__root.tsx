@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { InviteManager } from "@/components/azteque/invite-manager";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -189,6 +191,10 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Invitations à jouer et annonces de connexion : fonctionnent quel que
+          soit l'écran affiché, y compris en pleine partie. */}
+      <InviteManager />
+      <Toaster position="top-center" />
     </QueryClientProvider>
   );
 }

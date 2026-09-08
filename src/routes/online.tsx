@@ -2,10 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
-import { RankBadge, RankProgressCard } from "@/components/azteque/rank";
+import { RankProgressCard } from "@/components/azteque/rank";
 import { PlayerAvatar } from "@/components/azteque/avatar";
 import {
-  acceptInvite,
   describeError,
   claimLocalTokens,
   clearStaleSession,
@@ -14,13 +13,10 @@ import {
   getMyProfile,
   syncGooglePhoto,
   invitePlayer,
-  listIncomingInvites,
   myRecord,
   onAuthChange,
   respondInvite,
-  subscribeInvites,
   trackLobbyPresence,
-  type GameInvite,
   type Profile,
 } from "@/lib/azteque/account";
 import {
@@ -81,7 +77,6 @@ function OnlineLobby() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [record, setRecord] = useState<{ wins: number; losses: number } | null>(null);
   const [online, setOnline] = useState<Set<string>>(new Set());
-  const [invites, setInvites] = useState<GameInvite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyInvite, setBusyInvite] = useState<string | null>(null);
 
@@ -169,22 +164,11 @@ function OnlineLobby() {
 
   useEffect(() => () => unwatch.current?.(), []);
 
-  /* ---------- Présence et invitations reçues ---------- */
+  /* ---------- Présence ---------- */
 
   useEffect(() => {
     if (!profile) return;
-    const refresh = () => {
-      listIncomingInvites()
-        .then(setInvites)
-        .catch(() => setInvites([]));
-    };
-    refresh();
-    const offInvites = subscribeInvites(profile.id, refresh);
-    const offPresence = trackLobbyPresence(profile.id, setOnline);
-    return () => {
-      offInvites();
-      offPresence();
-    };
+    return trackLobbyPresence(profile.id, setOnline);
   }, [profile]);
 
   /* ---------- Inviter un joueur ---------- */
@@ -213,22 +197,6 @@ function OnlineLobby() {
       })
       .catch((e: unknown) => setError(describeError(e, "Invitation impossible.")))
       .finally(() => setBusyInvite(null));
-  };
-
-  const answer = (inviteId: string, accept: boolean) => {
-    setError(null);
-    if (!accept) {
-      respondInvite(inviteId, "declined")
-        .then(() => setInvites((cur) => cur.filter((i) => i.id !== inviteId)))
-        .catch(() => setInvites((cur) => cur.filter((i) => i.id !== inviteId)));
-      return;
-    }
-    acceptInvite(inviteId)
-      .then((match) => {
-        if (!match) throw new Error("Cette partie n'est plus disponible.");
-        enterTable(match.id, "guest");
-      })
-      .catch((e: unknown) => setError(describeError(e, "Impossible de rejoindre.")));
   };
 
   /* ---------- Partie par code (repli) ---------- */
@@ -345,33 +313,8 @@ function OnlineLobby() {
         </div>
       )}
 
-      {invites.length > 0 && (
-        <div className="panel w-full space-y-2 px-5 py-4 text-left">
-          <p className="text-sm text-foreground">Invitations reçues</p>
-          {invites.map((i) => (
-            <div
-              key={i.id}
-              className="flex items-center justify-between gap-2 rounded-md border border-gold/40 px-3 py-2"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <PlayerAvatar className="h-8 w-8" profile={i.from_avatar ?? null} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm">{i.from_username} vous invite</span>
-                  {i.from_rating !== undefined && <RankBadge rating={i.from_rating} />}
-                </span>
-              </span>
-              <span className="flex shrink-0 gap-1">
-                <Button size="sm" onClick={() => answer(i.id, true)}>
-                  Jouer
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => answer(i.id, false)}>
-                  Refuser
-                </Button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Les invitations reçues s'affichent désormais partout, y compris en
+          pleine partie : voir InviteManager, monté à la racine. */}
 
       {profile && (
         <FriendsPanel profile={profile} online={online} onInvite={invite} busyInvite={busyInvite} />

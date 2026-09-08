@@ -53,6 +53,7 @@ import {
   todayKey,
 } from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
+import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import {
   CoinBurst,
   CollectCard,
@@ -656,6 +657,20 @@ function Azteque() {
     setConfirmQuit(false);
     setStarted(false);
   }, []);
+
+  // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
+  // accepter une invitation pendant qu'on joue devra d'abord passer par
+  // `quitTable`, avec l'avertissement qui va avec.
+  useEffect(() => {
+    if (!started || state.phase === "gameEnd") return;
+    return registerGameSession("solo", quitTable);
+  }, [started, state.phase, quitTable]);
+
+  // Fin de tour ou de partie : une invitation mise de côté avec « Plus tard »
+  // peut réapparaître.
+  useEffect(() => {
+    if (state.phase === "roundEnd" || state.phase === "gameEnd") announceFreed();
+  }, [state.phase]);
 
   const nextRound = useCallback(() => {
     setState((s) => {
