@@ -15,6 +15,8 @@ import {
   Journal,
   Joueurs,
   Parties,
+  Reglages,
+  Signalements,
   Sons,
   type AdminTabId,
 } from "@/components/admin";
@@ -27,10 +29,7 @@ export const Route = createFileRoute("/admin")({
 /**
  * Onglets effectivement affichés par la console.
  *
- * Les onglets « Dashboard », « Joueurs », « Parties » et « Boutique » sont
- * en service. Les onglets « Signalements » et « Réglages » existent dans
- * la navigation, mais ne montrent qu'un écran vide tant que leur contenu
- * n'est pas livré.
+ * Tous les onglets sont en service à partir de PR6.
  */
 const ONGLETS_DISPONIBLES: AdminTabId[] = [
   "dashboard",
@@ -39,6 +38,8 @@ const ONGLETS_DISPONIBLES: AdminTabId[] = [
   "shop",
   "sounds",
   "log",
+  "reports",
+  "settings",
 ];
 
 function Administration() {
@@ -111,6 +112,8 @@ function Administration() {
         {onglet === "shop" && <Boutique onErreur={setErreur} />}
         {onglet === "sounds" && <Sons onErreur={setErreur} />}
         {onglet === "log" && <Journal onErreur={setErreur} />}
+        {onglet === "reports" && <Signalements onErreur={setErreur} />}
+        {onglet === "settings" && <Reglages onErreur={setErreur} />}
         {placeholder && <Placeholder onglet={onglet} />}
       </div>
     </AdminShell>
@@ -118,32 +121,16 @@ function Administration() {
 }
 
 function Placeholder({ onglet }: { onglet: AdminTabId }) {
-  const textes: Record<AdminTabId, { titre: string; description: string }> = {
-    dashboard: {
-      titre: "Vue d'ensemble",
-      description: "L'écran est servi depuis un autre onglet.",
-    },
-    matches: {
-      titre: "Parties",
-      description: "L'historique et la gestion des parties sont servis depuis l'onglet Parties.",
-    },
-    reports: {
-      titre: "Signalements",
-      description:
-        "La file de modération joueurs sera livrée en même temps que la modale de décision.",
-    },
-    settings: {
-      titre: "Réglages",
-      description:
-        "Les feature flags, saisons et événements seront ajoutés dans une livraison ultérieure.",
-    },
-    players: { titre: "Joueurs", description: "" },
-    shop: { titre: "Boutique", description: "" },
-    sounds: { titre: "Sons", description: "" },
-    log: { titre: "Journal d'audit", description: "" },
-  };
-  const t = textes[onglet];
-  return <EmptyScreen title={t.titre} description={t.description} />;
+  // PR6 a livré tous les onglets principaux. Le Placeholder n'est
+  // plus utilisé qu'en filet de sécurité pour un onglet ajouté sans
+  // contenu — on garde le composant disponible, mais ce message
+  // ne devrait plus s'afficher.
+  return (
+    <EmptyScreen
+      title={onglet}
+      description="Cet écran est en cours de préparation."
+    />
+  );
 }
 
 /**
