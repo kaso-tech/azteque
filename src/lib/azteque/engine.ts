@@ -596,6 +596,19 @@ const TUNE = {
    * Voir `trump10Peril`.
    */
   trump10Cash: 1.2,
+  /**
+   * Plancher de valeur d'un atout pour la Légende. Voir `atoutDeReserve`.
+   *
+   * À 1, la décroissance de `trumpKeepValue` est exactement annulée : un atout
+   * garde toute sa valeur jusqu'au bout. Ce n'est pas un point de réglage
+   * arbitraire mais LA valeur qui a un sens, et c'est aussi celle que la
+   * mesure désigne, sur quatre jeux de donnes indépendants.
+   *
+   * Ne pas monter au-delà : à 1.4 le gain se retourne partout. À force de
+   * garder ses atouts, l'IA cesse de remporter des plis — donc d'annoncer ses
+   * comptes, qui valent 2 à 5 points chacun.
+   */
+  legendeTrumpFloor: 1,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -971,6 +984,27 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   const myLead = myLeadGain(state);
   const oppLead = oppLeadGain(state, opp);
 
+  /**
+   * Ce qu'un atout vaut de PLUS pour la Légende à l'approche de la fin.
+   *
+   * `trumpKeepValue` fait décroître la valeur d'un atout avec le talon et la
+   * ramène à zéro en phase finale, au motif qu'un atout gardé en main ne
+   * rapporte rien au décompte. C'est vrai du décompte, et faux du jeu : pioche
+   * vide, le règlement impose de fournir et de couper à défaut, si bien qu'un
+   * atout est précisément ce qui remporte les plis et arrache les bonnes.
+   * L'IA bradait donc ses atouts juste avant le moment où ils décident de
+   * tout. Ce supplément relève le plancher sans toucher aux autres niveaux.
+   */
+  const atoutDeReserve = (c: Card) => {
+    if (level !== "legende" || !trump || c.suit !== trump) return 0;
+    const plancher = TUNE.legendeTrumpFloor;
+    if (plancher <= 0) return 0;
+    const urgence = Math.min(1, state.stock.length / 12);
+    if (urgence >= plancher) return 0;
+    const force = rankValue(c.rank) / (RANKS.length - 1);
+    return (0.5 + force * 1.4) * (plancher - urgence);
+  };
+
   /* --- Second joueur : le pli vaut-il la carte dépensée ? --- */
   if (state.trick.length === 1) {
     const led = state.trick[0]!.card;
@@ -987,7 +1021,14 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
       if (wins) {
         // Je ramasse les deux cartes : ma bonne rentre dans mon tas, et
         // j'ouvre ma fenêtre d'annonce en refermant la sienne.
-        score = ledPts + mine + stealable + myLead - keepValue(state, c, opp) + encaisserLeDix(c);
+        score =
+          ledPts +
+          mine +
+          stealable +
+          myLead -
+          keepValue(state, c, opp) -
+          atoutDeReserve(c) +
+          encaisserLeDix(c);
       } else {
         // L'adversaire ramasse : je lui offre sa carte, la mienne, et la main.
         score =
@@ -995,7 +1036,8 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
           mine -
           oppLead -
           trump10Exposure(state, c) -
-          0.2 * keepValue(state, c, opp) +
+          0.2 * keepValue(state, c, opp) -
+          0.2 * atoutDeReserve(c) +
           deadWeight(state, c);
       }
       if (score > bestScore) {
@@ -1051,7 +1093,8 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
     const score =
       (1 - risk) * (pts + myLead + encaisserLeDix(c)) -
       risk * (pts + oppLead + trump10Exposure(state, c)) -
-      keepValue(state, c, opp) +
+      keepValue(state, c, opp) -
+      atoutDeReserve(c) +
       deadWeight(state, c);
     if (score > bestScore) {
       bestScore = score;

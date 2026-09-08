@@ -552,7 +552,16 @@ describe("aiChooseCardAt (non-régression)", () => {
     randomSpy.mockRestore();
   });
 
-  it("niveau légende : résout exactement la fin de partie sans pioche", () => {
+  /**
+   * Position volontairement INCOHÉRENTE : les deux mains n'ont pas la même
+   * taille, ce qui n'arrive jamais en partie, et le décompte des cartes vues
+   * ne tombe pas juste. La recherche exacte y renonce donc — c'est le repli
+   * heuristique que ce test fixe, et c'est utile ainsi : il garantit qu'un
+   * état bancal ne fait pas tomber l'IA. La vraie fin de partie résolue est
+   * couverte par les tactiques ci-dessous, qui rétablissent le décompte avec
+   * `fillGains`.
+   */
+  it("niveau légende : décide sans broncher sur une fin de partie bancale", () => {
     const state = makeState({
       trump: "S",
       stock: [],
@@ -667,6 +676,44 @@ describe("tactiques de l'IA", () => {
       gains,
     });
     expect(aiChooseCardAt(state, "expert").id).toBe(aceDiamonds.id);
+  });
+
+  it("garde ses atouts à l'approche de la phase finale, là où le Maître les brade", () => {
+    // `trumpKeepValue` fait décroître la valeur d'un atout avec le talon et la
+    // ramène à zéro pioche vide, au motif qu'un atout gardé ne rapporte rien
+    // au décompte. C'est vrai du décompte et faux du jeu : pioche vide, le
+    // règlement impose de fournir et de couper à défaut, si bien que l'atout
+    // est justement ce qui remporte les plis. L'IA bradait donc ses atouts
+    // juste avant le moment où ils décident de tout.
+    //
+    // Le pli mené est SANS ENJEU — ni bonne, ni compte : le couper ne rapporte
+    // que la main. Un atout dépensé là est un atout perdu pour la phase
+    // finale, où il aurait arraché une bonne.
+    const petitAtout = card("8", "S", "atout");
+    const dechet = card("J", "D", "dechet");
+    const menee = card("9", "H", "menee");
+    // Aucun Roi ni aucune Dame parmi les cartes encore invisibles : sans quoi
+    // couper se justifierait pour refuser un compte à l'adversaire, et ce
+    // n'est pas ce qu'on éprouve ici.
+    const stock = [card("9", "C", "s1"), card("7", "H", "s2"), card("8", "H", "s3")];
+    const mainAdverse = [
+      card("9", "H", "a1"),
+      card("J", "H", "a2"),
+      card("7", "C", "a3"),
+      card("8", "C", "a4"),
+    ];
+    const gains = fillGains([petitAtout, dechet, menee, ...mainAdverse, ...stock]);
+    const state = makeState({
+      trump: "S",
+      stock,
+      hands: [mainAdverse, [petitAtout, dechet]],
+      trick: [{ player: 0, card: menee }],
+      turn: 1,
+      gains,
+    });
+    // Le Maître coupe pour la main ; la Légende garde son atout.
+    expect(aiChooseCardAt(state, "legende").id).toBe(dechet.id);
+    expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
   });
 
   it("encaisse son 10 d'atout tant qu'il gagne, quand un As d'atout court encore", () => {

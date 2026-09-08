@@ -14,10 +14,10 @@ exports[`aiChooseCardAt (non-régression) > niveau facile : décision stable sur
 }
 `;
 
-exports[`aiChooseCardAt (non-régression) > niveau légende : résout exactement la fin de partie sans pioche 1`] = `
+exports[`aiChooseCardAt (non-régression) > niveau légende : décide sans broncher sur une fin de partie bancale 1`] = `
 {
-  "rank": "A",
-  "suit": "S",
+  "rank": "8",
+  "suit": "D",
 }
 `;
 
