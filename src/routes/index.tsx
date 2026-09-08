@@ -455,7 +455,10 @@ function Azteque() {
 
   // Résolution du pli : ramassage animé puis pioche, avec de petites pauses
   useEffect(() => {
-    if (state.phase !== "playing" || state.trick.length < 2) return;
+    // Avant que la partie ne soit lancée, l'état initial ne doit rien jouer
+    // tout seul : sans ce garde-fou, la partie se joue en silence pendant que
+    // le menu est affiché, et un rire finit par surprendre au bout d'un moment.
+    if (!started || state.phase !== "playing" || state.trick.length < 2) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const center = (el: HTMLElement | null | undefined) => {
       const r = el?.getBoundingClientRect();
@@ -487,32 +490,29 @@ function Azteque() {
           });
 
         // Le son du pli — battu ou ramassé — appartient à qui l'a emporté.
+        // Il joue toujours : c'est le geste mécanique, pas une réaction.
         if (winner === second.player) jouerPour(winner, () => sfx.beat());
         else jouerPour(winner, () => sfx.collect());
         setCollect(flights);
         timers.push(setTimeout(() => jouerPour(winner, () => sfx.collect()), lastDelay + 120));
-        // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : ramasser
-        // sa propre bonne n'a rien d'un exploit, et le rire à chaque pli en
-        // perdait tout son sel. C'est le vainqueur qui rit — son profil fait foi.
-        if (stealsBonne([first, second], winner))
-          timers.push(setTimeout(() => jouerPour(winner, () => sfx.snicker()), lastDelay + 240));
 
-        // Série de bonnes : au premier pli du tour (aucun tas encore entamé),
-        // on repart de zéro — y compris après un Pont rejoué.
+        // Série de bonnes : il faut des PLIS consécutifs, pas seulement des
+        // bonnes espacées dans le tour. Un pli sans bonne — même remporté par
+        // le même joueur — interrompt la série ; une bonne au premier pli puis
+        // une autre au troisième ne compte pas comme deux d'affilée.
         if (state.gains[0].length === 0 && state.gains[1].length === 0) {
           bonneStreak.current = { player: null, count: 0 };
         }
-        if (winner !== null && [first, second].some((e) => isBonne(e.card))) {
-          const precedent = bonneStreak.current;
-          const compte = precedent.player === winner ? precedent.count + 1 : 1;
-          bonneStreak.current = { player: winner, count: compte };
-          // Trois, quatre, cinq bonnes ou plus d'affilée : un rire de plus en
-          // plus franc, tant que l'adversaire n'en reprend aucune. C'est celui
-          // qui enchaîne la série qui rit.
-          const rireDeSerie =
-            compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
-          if (compte >= 3)
-            timers.push(setTimeout(() => jouerPour(winner, rireDeSerie), lastDelay + 420));
+        const bonneAuPli = [first, second].some((e) => isBonne(e.card));
+        let compteSerie = 0;
+        if (winner !== null) {
+          if (bonneAuPli) {
+            const precedent = bonneStreak.current;
+            compteSerie = precedent.player === winner ? precedent.count + 1 : 1;
+            bonneStreak.current = { player: winner, count: compteSerie };
+          } else {
+            bonneStreak.current = { player: null, count: 0 };
+          }
         }
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
@@ -521,6 +521,28 @@ function Azteque() {
             ? state.gains[winner === 0 ? 1 : 0].length
             : 0;
         const loserPile = winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
+
+        // Un seul rire par pli, même quand plusieurs conditions se rencontrent
+        // à la fois (une bonne volée qui prolonge aussi une série, par
+        // exemple) : celui de la condition la plus marquante, jamais les deux
+        // empilés. Rafler tout le tas d'un coup d'atout 10 l'emporte sur une
+        // série, qui l'emporte elle-même sur une simple bonne volée — son
+        // propre rire suit le transfert animé, plus bas.
+        if (sweeps === 0) {
+          if (compteSerie >= 3) {
+            const rireDeSerie =
+              compteSerie === 3
+                ? sfx.streakLaugh
+                : compteSerie === 4
+                  ? sfx.streakLaugh4
+                  : sfx.streakLaugh5;
+            timers.push(setTimeout(() => jouerPour(winner, rireDeSerie), lastDelay + 420));
+          } else if (stealsBonne([first, second], winner)) {
+            // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne :
+            // ramasser sa propre bonne n'a rien d'un exploit.
+            timers.push(setTimeout(() => jouerPour(winner, () => sfx.snicker()), lastDelay + 240));
+          }
+        }
 
         timers.push(
           setTimeout(() => {
@@ -558,12 +580,12 @@ function Azteque() {
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.trickDelay]);
+  }, [started, state, settings.trickDelay]);
 
   // Pioche : une carte à la fois, après l'éventuelle annonce du vainqueur.
   // La carte n'apparaît dans la main qu'à l'arrivée de l'animation.
   useEffect(() => {
-    if (state.phase !== "playing" || state.drawPending.length === 0) return;
+    if (!started || state.phase !== "playing" || state.drawPending.length === 0) return;
     if (state.stock.length === 0) return;
     const player = state.drawPending[0]!;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -615,11 +637,12 @@ function Azteque() {
     timers.push(t);
 
     return () => timers.forEach(clearTimeout);
-  }, [state, settings.difficulty]);
+  }, [started, state, settings.difficulty]);
 
   // Tour de l'ordinateur
   useEffect(() => {
-    if (state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2) return;
+    if (!started || state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2)
+      return;
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
     if (dealing) return;
     const t = setTimeout(() => {
@@ -632,32 +655,35 @@ function Azteque() {
       });
     }, 750);
     return () => clearTimeout(t);
-  }, [state, settings.difficulty, dealing]);
+  }, [started, state, settings.difficulty, dealing]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
   useEffect(() => {
-    if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
+    if (!started || (state.phase !== "roundEnd" && state.phase !== "gameEnd")) return;
     const won = state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
     const lost = state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
-    // Les acclamations saluent la victoire de l'utilisateur, la moquerie
-    // celle de l'IA : chacune dans son propre profil.
-    const t = setTimeout(() => {
-      if (won) jouerPour(0, () => sfx.cheer());
-      else if (lost) jouerPour(1, () => sfx.taunt());
-    }, 350);
-    // Treize bonnes ou plus en un tour : un rire à part, qui suit l'acclamation
-    // ou la moquerie plutôt que de s'y mélanger — dans le profil de qui l'a
-    // emporté.
-    const t2 = state.instantWin
-      ? setTimeout(() => jouerPour(won ? 0 : 1, () => sfx.landslideLaugh()), 1000)
-      : null;
+    // Treize bonnes ou plus en un tour est la condition la plus marquante :
+    // son rire remplace alors l'acclamation ou la moquerie ordinaire, plutôt
+    // que de s'y ajouter.
+    let t: ReturnType<typeof setTimeout> | null = null;
+    let t2: ReturnType<typeof setTimeout> | null = null;
+    if (state.instantWin) {
+      t2 = setTimeout(() => jouerPour(won ? 0 : 1, () => sfx.landslideLaugh()), 1000);
+    } else {
+      // Les acclamations saluent la victoire de l'utilisateur, la moquerie
+      // celle de l'IA : chacune dans son propre profil.
+      t = setTimeout(() => {
+        if (won) jouerPour(0, () => sfx.cheer());
+        else if (lost) jouerPour(1, () => sfx.taunt());
+      }, 350);
+    }
     return () => {
-      clearTimeout(t);
+      if (t) clearTimeout(t);
       if (t2) clearTimeout(t2);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phaseKey]);
+  }, [started, phaseKey]);
 
   // Compte à rebours du tour : dépasser le délai fait perdre le champ
   const myTurnActive =
