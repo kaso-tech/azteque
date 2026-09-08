@@ -1,5 +1,5 @@
 export { AdminShell, type AdminTabId } from "./AdminShell";
-export { Sidebar, type SidebarItem, type SidebarSection } from "./Sidebar";
+export { Sidebar, MobileNav, type SidebarItem, type SidebarSection } from "./Sidebar";
 export { Topbar } from "./Topbar";
 export { EmptyScreen } from "./EmptyScreen";
 export { Dashboard } from "./Dashboard";

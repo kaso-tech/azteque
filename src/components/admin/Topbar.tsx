@@ -3,24 +3,55 @@ import { cn } from "@/lib/utils";
 /**
  * Barre supérieure de la console d'administration.
  *
- * Trois blocs : marque, état du service, identité de l'administrateur.
- * L'avatar et le nom de l'administrateur sont des chaînes passées par le
- * parent — la console ne lit pas la session elle-même, elle reçoit ce que la
- * page admin a déjà résolu.
+ * Trois blocs : marque + bouton menu (mobile), état du service, identité
+ * de l'administrateur. Le bouton menu ouvre la navigation latérale en
+ * tiroir sur mobile (caché sur desktop où la sidebar est visible).
  */
 export function Topbar({
   onlineCount,
   pendingReports,
   adminInitial,
   adminName,
+  onOpenMobileNav,
+  onOpenNotifications,
 }: {
   onlineCount: number;
   pendingReports: number;
   adminInitial: string;
   adminName: string;
+  /** Appelé au clic sur le bouton hamburger (mobile uniquement). */
+  onOpenMobileNav?: () => void;
+  /** Appelé au clic sur la cloche de notifications. */
+  onOpenNotifications?: () => void;
 }) {
   return (
     <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card/85 px-4 py-3 backdrop-blur">
+      {/* Bouton menu : visible uniquement sur mobile. Sur desktop, la
+          sidebar est dans le flux, donc pas besoin de bouton. */}
+      {onOpenMobileNav && (
+        <button
+          type="button"
+          onClick={onOpenMobileNav}
+          className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:hidden"
+          aria-label="Ouvrir le menu"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      )}
+
       <div className="flex items-center gap-2">
         <div className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-primary to-primary/60 font-display text-sm font-bold text-primary-foreground">
           A
@@ -42,9 +73,17 @@ export function Topbar({
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
         {onlineCount} en ligne
       </span>
+      {/*
+        Bouton notifications : on garde un `<button>` (cliquable
+        partout) plutôt qu'un `<a>`. Le `onClick` ouvre le tiroir
+        "À traiter" sur la page d'accueil (Dashboard) si parent le
+        fournit, sans quoi l'icône reste cliquable mais sans handler —
+        l'agent décide du routage interne dans une PR future.
+      */}
       <button
         type="button"
-        className="relative grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+        onClick={onOpenNotifications}
+        className="relative grid h-8 w-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
         aria-label="Notifications"
       >
         🔔
