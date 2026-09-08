@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.lovable.azteque.twa",
+      "sha256_cert_fingerprints": [
+        "67:25:15:CD:DE:20:2D:BC:C2:5D:BE:D1:26:83:E9:C9:50:CE:56:67:93:35:AB:27:9E:3B:B4:A7:C0:8C:70:74"
+      ]
+    }
+  }
+]
