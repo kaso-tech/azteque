@@ -46,7 +46,14 @@ function Administration() {
   const [onglet, setOnglet] = useState<AdminTabId>("dashboard");
   const [erreur, setErreur] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const setTab = useCallback((id: AdminTabId) => setOnglet(id), []);
+  const setTab = useCallback((id: AdminTabId) => {
+    setOnglet(id);
+    // On remonte en haut de la zone de contenu à chaque changement d'onglet,
+    // sinon le nouvel écran apparaît coupé.
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, []);
 
   useEffect(() => {
     adminAccess()
