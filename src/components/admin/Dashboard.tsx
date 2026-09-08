@@ -243,10 +243,8 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
                   >
                     <PlayerAvatar
                       className="h-9 w-9"
-                      profile={{
-                        username: j.username,
-                        avatar_kind: "google",
-                      }}
+                      label={j.username}
+                      profile={{ avatar_kind: "google" }}
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-foreground">

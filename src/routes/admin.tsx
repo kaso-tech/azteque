@@ -73,16 +73,14 @@ function Administration() {
   // sans contenu tant que leur écran n'est pas livré.
   const placeholder = !ONGLETS_DISPONIBLES.includes(onglet);
 
-  const adminInitial = acces.username ? acces.username[0]!.toUpperCase() : "A";
-  const adminName = acces.username ?? "Administrateur";
+  const adminInitial = "A";
+  const adminName = "Administrateur";
   const onlineCount = 0;
   const pendingReports = 0;
   const shellStats = stats
     ? {
         players: stats.players,
         matches: stats.matches,
-        items: undefined,
-        logs: undefined,
       }
     : null;
 

@@ -12,8 +12,8 @@ export type SidebarItem = {
   id: string;
   label: string;
   icon: string;
-  count?: number;
-  tone?: "default" | "danger";
+  count?: number | undefined;
+  tone?: ("default" | "danger") | undefined;
 };
 
 export type SidebarSection = {

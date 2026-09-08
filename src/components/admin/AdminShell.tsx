@@ -43,7 +43,14 @@ export function AdminShell({
   pendingReports: number;
   adminInitial: string;
   adminName: string;
-  stats?: { players?: number; matches?: number; items?: number; logs?: number } | null;
+  stats?:
+    | {
+        players?: number | undefined;
+        matches?: number | undefined;
+        items?: number | undefined;
+        logs?: number | undefined;
+      }
+    | null;
   children: ReactNode;
 }) {
   const sections: SidebarSection[] = [

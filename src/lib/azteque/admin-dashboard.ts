@@ -51,7 +51,7 @@ export interface DashboardTopPlayer {
 export async function adminDashboardStats(): Promise<DashboardStats> {
   const { data, error } = await rpc("admin_dashboard_stats");
   if (error) throw error;
-  return (data as DashboardStats) ?? {
+  return (data as unknown as DashboardStats) ?? {
     active_24h: 0,
     matches_24h: 0,
     tokens_circulation: 0,
@@ -66,19 +66,19 @@ export async function adminDashboardStats(): Promise<DashboardStats> {
 export async function adminDashboardSeries(days = 14): Promise<DashboardSeriesPoint[]> {
   const { data, error } = await rpc("admin_dashboard_series", { days });
   if (error) throw error;
-  return (data as DashboardSeriesPoint[]) ?? [];
+  return (data as unknown as DashboardSeriesPoint[]) ?? [];
 }
 
 /** Top pays par nombre de joueurs, avec leur code ISO à deux lettres. */
 export async function adminDashboardTopCountries(limit = 5): Promise<DashboardTopCountry[]> {
   const { data, error } = await rpc("admin_dashboard_top_countries", { limit });
   if (error) throw error;
-  return (data as DashboardTopCountry[]) ?? [];
+  return (data as unknown as DashboardTopCountry[]) ?? [];
 }
 
 /** Top joueurs par gain de cote net sur 7 jours. */
 export async function adminDashboardTopPlayers(limit = 5): Promise<DashboardTopPlayer[]> {
   const { data, error } = await rpc("admin_dashboard_top_players", { limit });
   if (error) throw error;
-  return (data as DashboardTopPlayer[]) ?? [];
+  return (data as unknown as DashboardTopPlayer[]) ?? [];
 }

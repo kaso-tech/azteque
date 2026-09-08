@@ -52,10 +52,10 @@ export async function adminPlayerDetail(
   ]);
   return {
     recent: recentRes.status === "fulfilled"
-      ? ((recentRes.value.data as PlayerRecentMatch[]) ?? [])
+      ? ((recentRes.value.data as unknown as PlayerRecentMatch[]) ?? [])
       : [],
     rating_series: seriesRes.status === "fulfilled"
-      ? ((seriesRes.value.data as PlayerRatingPoint[]) ?? [])
+      ? ((seriesRes.value.data as unknown as PlayerRatingPoint[]) ?? [])
       : [],
     purchase_count: purchasesRes.status === "fulfilled"
       ? Number(purchasesRes.value.data ?? 0)
