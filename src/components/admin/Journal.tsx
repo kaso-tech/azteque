@@ -6,6 +6,7 @@ import {
   adminListLog,
   adminRevertLogEntry,
   type AdminLogEntryV2,
+  type AdminLogFilters,
 } from "@/lib/azteque/admin-shop-log";
 
 const TYPES_ACTIONS = [
@@ -97,7 +98,7 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
       action: filtreAction || undefined,
       since,
       limit: 50,
-    })
+    } as AdminLogFilters)
       .then(setLignes)
       .catch((e: unknown) => onErreur(describeError(e, "Journal indisponible.")));
   }, [filtreAction, since, onErreur]);

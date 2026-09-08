@@ -233,18 +233,18 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
 
       {/* Filtres + actions */}
       <div className="panel flex flex-wrap items-center gap-2 p-2">
-        <FiltrePill label="Catégorie" value={filtreKind} onChange={setFiltreKind}>
+        <FiltrePill label="Catégorie" value={filtreKind} onChange={(v) => setFiltreKind(v as FiltreKind)}>
           <option value="tous">Toutes</option>
           <option value="avatar">Avatars</option>
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
         </FiltrePill>
-        <FiltrePill label="Statut" value={filtreStatut} onChange={setFiltreStatut}>
+        <FiltrePill label="Statut" value={filtreStatut} onChange={(v) => setFiltreStatut(v as FiltreStatut)}>
           <option value="tous">Tous</option>
           <option value="en_vente">En vente</option>
           <option value="retire">Retirés</option>
         </FiltrePill>
-        <FiltrePill label="Tri" value={tri} onChange={setTri}>
+        <FiltrePill label="Tri" value={tri} onChange={(v) => setTri(v as Tri)}>
           <option value="sort">Ordre d'affichage</option>
           <option value="prix_asc">Prix ↑</option>
           <option value="prix_desc">Prix ↓</option>

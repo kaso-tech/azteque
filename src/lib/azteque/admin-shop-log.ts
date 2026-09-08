@@ -29,7 +29,7 @@ export interface ShopSalesRow {
 export async function adminShopSalesSummary(): Promise<ShopSalesRow[]> {
   const { data, error } = await rpc("admin_shop_sales_summary");
   if (error) throw error;
-  return (data as ShopSalesRow[]) ?? [];
+  return (data as unknown as ShopSalesRow[]) ?? [];
 }
 
 export interface AdminLogEntryV2 {
