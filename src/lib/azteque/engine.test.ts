@@ -646,6 +646,29 @@ describe("tactiques de l'IA", () => {
     expect(aiChooseCardAt(state, "expert").id).toBe(junk.id);
   });
 
+  it("garde l'As dont le 10 court encore, encaisse celui dont les 10 sont passés", () => {
+    // Deux As également imprenables : rien ne les départage, sinon ce qu'ils
+    // peuvent encore prendre. Le 10 de pique est dehors, les deux 10 de
+    // carreau sont ramassés — l'As de carreau n'a donc plus rien à guetter et
+    // c'est lui qu'on encaisse, en gardant l'autre en embuscade.
+    const aceSpades = card("A", "S");
+    const aceDiamonds = card("A", "D");
+    const oppTen = card("10", "S");
+    const oppLow = card("7", "C");
+    const stock = [card("8", "C"), card("9", "C")];
+    const gains = fillGains([aceSpades, aceDiamonds, oppTen, oppLow, ...stock]);
+    const state = makeState({
+      trump: "H",
+      stock,
+      hands: [
+        [oppTen, oppLow],
+        [aceSpades, aceDiamonds],
+      ],
+      gains,
+    });
+    expect(aiChooseCardAt(state, "expert").id).toBe(aceDiamonds.id);
+  });
+
   it("en fin de partie, sacrifie un pli pour remporter le dernier (la main)", () => {
     // Mener l'As gagne tout de suite mais laisse le dernier pli — et « la
     // main » — à l'adversaire. Mener le 7 d'abord garde l'As pour le pli

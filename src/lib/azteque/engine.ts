@@ -577,6 +577,11 @@ const TUNE = {
   /** ... et pour rafler un pli sans enjeu : bien plus faible. */
   wantPlainSameSuit: 0.5,
   wantPlainTrump: 0.12,
+  /**
+   * Ce qu'un As gagne à rester en main tant qu'un 10 de sa couleur court
+   * encore : l'espoir de le prendre. Voir `ambushValue`.
+   */
+  aceAmbush: 0.85,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -848,7 +853,33 @@ function trumpKeepValue(state: GameState, c: Card): number {
  * le 10 et l'on garde l'As, car jouer l'As d'abord laisserait le 10 se faire
  * manger par le second As de la couleur.
  */
-function keepValue(state: GameState, c: Card): number {
+/**
+ * L'As en embuscade.
+ *
+ * Un As dépensé pour rafler un pli sans enjeu ne rapporte presque rien : il
+ * rentre au tas pour un point qu'il valait déjà en main. Gardé, il vaut bien
+ * davantage — c'est la seule carte qui prenne un 10, et prendre un 10 adverse
+ * déplace DEUX points : un de plus pour soi, un de moins pour l'autre.
+ *
+ * D'où la tactique que les bons joueurs emploient et que l'IA ignorait : garder
+ * l'As d'une couleur dont l'adversaire peut encore tenir le 10, en espérant
+ * qu'il le pose. C'est aussi la parade au test classique — entamer petit dans
+ * une couleur pour voir si l'adversaire se précipite avec son As, puis sortir
+ * son 10 s'il ne l'a pas fait. Une IA qui prend toujours révèle son As ; une IA
+ * qui ne prend jamais révèle son absence. Celle-ci décline quand la prise ne
+ * vaut rien, si bien que refuser le pli ne prouve plus rien.
+ *
+ * La probabilité vient de la mémoire des cartes : elle tombe à zéro dès que les
+ * deux 10 de la couleur sont passés, et l'As redevient alors une carte comme
+ * une autre, à encaisser sans état d'âme.
+ */
+function ambushValue(state: GameState, c: Card, m: OppModel): number {
+  if (c.rank !== "A" || state.stock.length === 0) return 0;
+  const p = oppHas(m, (x) => x.rank === "10" && x.suit === c.suit);
+  return p > 0 ? TUNE.aceAmbush * p : 0;
+}
+
+function keepValue(state: GameState, c: Card, m?: OppModel): number {
   let v = meldValue(state, c) + trumpKeepValue(state, c);
   if (isBonne(c)) {
     // Une bonne en main est un point à moitié acquis : encore faut-il
@@ -856,6 +887,7 @@ function keepValue(state: GameState, c: Card): number {
     if (c.rank === "A") {
       const safe = state.trump === null || c.suit === state.trump;
       v += safe ? TUNE.safeAceInHand : TUNE.aceInHand;
+      if (m) v += ambushValue(state, c, m);
     } else {
       v += TUNE.tenInHand;
     }
@@ -900,7 +932,7 @@ function aiTacticalCard(state: GameState): Card {
       if (wins) {
         // Je ramasse les deux cartes : ma bonne rentre dans mon tas, et
         // j'ouvre ma fenêtre d'annonce en refermant la sienne.
-        score = ledPts + mine + stealable + myLead - keepValue(state, c);
+        score = ledPts + mine + stealable + myLead - keepValue(state, c, opp);
       } else {
         // L'adversaire ramasse : je lui offre sa carte, la mienne, et la main.
         score =
@@ -908,7 +940,7 @@ function aiTacticalCard(state: GameState): Card {
           mine -
           oppLead -
           trump10Exposure(state, c) -
-          0.2 * keepValue(state, c) +
+          0.2 * keepValue(state, c, opp) +
           deadWeight(state, c);
       }
       if (score > bestScore) {
@@ -964,7 +996,7 @@ function aiTacticalCard(state: GameState): Card {
     const score =
       (1 - risk) * (pts + myLead) -
       risk * (pts + oppLead + trump10Exposure(state, c)) -
-      keepValue(state, c) +
+      keepValue(state, c, opp) +
       deadWeight(state, c);
     if (score > bestScore) {
       bestScore = score;
