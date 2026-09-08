@@ -14,6 +14,7 @@ import {
   EmptyScreen,
   Journal,
   Joueurs,
+  Parties,
   Sons,
   type AdminTabId,
 } from "@/components/admin";
@@ -26,14 +27,15 @@ export const Route = createFileRoute("/admin")({
 /**
  * Onglets effectivement affichés par la console.
  *
- * Les onglets « Dashboard », « Joueurs » et « Boutique » sont en service.
- * Les onglets « Parties », « Signalements » et « Réglages » existent dans
+ * Les onglets « Dashboard », « Joueurs », « Parties » et « Boutique » sont
+ * en service. Les onglets « Signalements » et « Réglages » existent dans
  * la navigation, mais ne montrent qu'un écran vide tant que leur contenu
  * n'est pas livré.
  */
 const ONGLETS_DISPONIBLES: AdminTabId[] = [
   "dashboard",
   "players",
+  "matches",
   "shop",
   "sounds",
   "log",
@@ -108,6 +110,7 @@ function Administration() {
         {erreur && <p className="text-sm text-destructive">{erreur}</p>}
         {onglet === "dashboard" && <Dashboard onErreur={setErreur} />}
         {onglet === "players" && <Joueurs onErreur={setErreur} />}
+        {onglet === "matches" && <Parties onErreur={setErreur} />}
         {onglet === "shop" && <Boutique onErreur={setErreur} />}
         {onglet === "sounds" && <Sons onErreur={setErreur} />}
         {onglet === "log" && <Journal onErreur={setErreur} />}
@@ -121,18 +124,16 @@ function Placeholder({ onglet }: { onglet: AdminTabId }) {
   const textes: Record<AdminTabId, { titre: string; description: string }> = {
     dashboard: {
       titre: "Vue d'ensemble",
-      description:
-        "Le tableau de bord (activité, alertes, santé du système) sera livré avec la PR2.",
+      description: "L'écran est servi depuis un autre onglet.",
     },
     matches: {
       titre: "Parties",
-      description:
-        "L'historique détaillé des parties et la gestion des litiges arriveront ensuite.",
+      description: "L'historique et la gestion des parties sont servis depuis l'onglet Parties.",
     },
     reports: {
       titre: "Signalements",
       description:
-        "La file de modération sera livrée en même temps que la modale de décision.",
+        "La file de modération joueurs sera livrée en même temps que la modale de décision.",
     },
     settings: {
       titre: "Réglages",

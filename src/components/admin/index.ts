@@ -8,3 +8,4 @@ export { PlayerSheet } from "./PlayerSheet";
 export { Boutique } from "./Boutique";
 export { Sons } from "./Sons";
 export { Journal } from "./Journal";
+export { Parties } from "./Parties";
