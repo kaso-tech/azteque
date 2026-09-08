@@ -48,10 +48,10 @@ export interface ReportFilters {
 
 export async function adminListReports(filters: ReportFilters = {}): Promise<AdminReport[]> {
   const { data, error } = await rpc("admin_list_reports", {
-    status: filters.status ?? null,
-    reason: filters.reason ?? null,
-    limit: filters.limit ?? 50,
-    offset: filters.offset ?? 0,
+    _status: filters.status ?? null,
+    _reason: filters.reason ?? null,
+    _limit: filters.limit ?? 50,
+    _offset: filters.offset ?? 0,
   });
   if (error) throw error;
   return (data as AdminReport[]) ?? [];
@@ -62,6 +62,6 @@ export async function adminResolveReport(
   decision: ReportDecision,
   note: string,
 ): Promise<void> {
-  const { error } = await rpc("admin_resolve_report", { id, decision, note });
+  const { error } = await rpc("admin_resolve_report", { _id: id, _decision: decision, _note: note });
   if (error) throw error;
 }

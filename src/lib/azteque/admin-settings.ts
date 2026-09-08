@@ -33,13 +33,13 @@ export async function adminListSettings(): Promise<AppSetting[]> {
 }
 
 export async function adminGetSetting(key: string): Promise<unknown> {
-  const { data, error } = await rpc("admin_get_setting", { key });
+  const { data, error } = await rpc("admin_get_setting", { _key: key });
   if (error) throw error;
   return data;
 }
 
 /** Raccourci : on garde la signature existante pour ne rien casser. */
 export async function adminSetSetting(key: string, value: unknown): Promise<void> {
-  const { error } = await rpc("admin_set_setting", { key, value });
+  const { error } = await rpc("admin_set_setting", { _key: key, _value: value });
   if (error) throw error;
 }
