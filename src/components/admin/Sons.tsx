@@ -81,7 +81,18 @@ const CATEGORIES: { id: string; titre: string; ids: SoundId[] }[] = [
   {
     id: "rires",
     titre: "Rires & acclamations",
-    ids: ["snicker", "chuckle", "taunt", "cheer", "trumpLaugh", "sweepLaugh", "landslideLaugh", "streakLaugh", "streakLaugh4", "streakLaugh5"],
+    ids: [
+      "snicker",
+      "chuckle",
+      "taunt",
+      "cheer",
+      "trumpLaugh",
+      "sweepLaugh",
+      "landslideLaugh",
+      "streakLaugh",
+      "streakLaugh4",
+      "streakLaugh5",
+    ],
   },
   {
     id: "jetons",
@@ -248,30 +259,22 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
 
           <div className="space-y-2 text-xs text-muted-foreground">
             <p>
-              Chaque son se règle sur trois axes : le volume, la hauteur et la
-              vitesse. <span className="font-mono">1,00</span> est la valeur
-              d'origine.
+              Chaque son se règle sur trois axes : le volume, la hauteur et la vitesse.{" "}
+              <span className="font-mono">1,00</span> est la valeur d'origine.
             </p>
+            <p>Les réglages valent pour tous les joueurs dès l'enregistrement.</p>
             <p>
-              Les réglages valent pour tous les joueurs dès l'enregistrement.
-            </p>
-            <p>
-              Un son peut aussi être remplacé par un fichier local. Le fichier
-              s'installe aussitôt, sans passer par « Enregistrer ».{" "}
-              <span className="font-mono">{poids(SON_MAX_OCTETS)}</span> au
-              maximum, c'est un effet d'une ou deux secondes que chaque joueur
-              télécharge à l'ouverture.
+              Un son peut aussi être remplacé par un fichier local. Le fichier s'installe aussitôt,
+              sans passer par « Enregistrer ».{" "}
+              <span className="font-mono">{poids(SON_MAX_OCTETS)}</span> au maximum, c'est un effet
+              d'une ou deux secondes que chaque joueur télécharge à l'ouverture.
             </p>
           </div>
 
           <div className="divider" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              disabled={busy}
-              onClick={enregistrer}
-              className="font-semibold"
-            >
+            <Button disabled={busy} onClick={enregistrer} className="font-semibold">
               {busy ? "…" : "Enregistrer pour tous"}
             </Button>
             <Button
@@ -284,9 +287,7 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
             >
               Valeurs d'origine
             </Button>
-            {enregistre && (
-              <span className="text-xs text-emerald-400">✓ Enregistré</span>
-            )}
+            {enregistre && <span className="text-xs text-emerald-400">✓ Enregistré</span>}
           </div>
         </aside>
 
@@ -298,8 +299,7 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
             return (
               <section key={cat.id} className="space-y-2">
                 <h2 className="font-display text-sm uppercase tracking-wider text-muted-foreground">
-                  {cat.titre}{" "}
-                  <span className="text-muted-foreground/60">· {ids.length}</span>
+                  {cat.titre} <span className="text-muted-foreground/60">· {ids.length}</span>
                 </h2>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {ids.map((id) => (
@@ -308,9 +308,11 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
                       id={id}
                       fichier={fichiers[id]}
                       occupe={occupe === id}
-                      axes={fichiers[id]
-                        ? ["gain", "pitch", "speed"]
-                        : ["gain", "pitch", "speed", ...SOUND_EXTRAS[id]]}
+                      axes={
+                        fichiers[id]
+                          ? ["gain", "pitch", "speed"]
+                          : ["gain", "pitch", "speed", ...SOUND_EXTRAS[id]]
+                      }
                       valeur={(axe) => valeur(id, axe)}
                       regler={(axe, v) => regler(id, axe, v)}
                       onEcouter={() => ecouter(id)}
@@ -356,9 +358,7 @@ function CarteSon({
     <article className="panel-2 space-y-2 p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-foreground">
-            {SOUND_LABELS[id]}
-          </p>
+          <p className="text-sm font-semibold text-foreground">{SOUND_LABELS[id]}</p>
           <p className="text-[10px] text-muted-foreground/70">
             <code>{id}</code>
           </p>
@@ -415,12 +415,7 @@ function CarteSon({
             )}
           </p>
           {sampleDisponible ? (
-            <audio
-              controls
-              preload="none"
-              src={fichier.path}
-              className="h-8 w-full"
-            />
+            <audio controls preload="none" src={fichier.path} className="h-8 w-full" />
           ) : (
             <p className="text-warning">
               Fichier déposé mais pas encore téléchargé — rechargez la page.

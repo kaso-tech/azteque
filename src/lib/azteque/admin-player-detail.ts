@@ -51,14 +51,14 @@ export async function adminPlayerDetail(
     rpc("admin_player_purchase_count", { _user_id: userId }),
   ]);
   return {
-    recent: recentRes.status === "fulfilled"
-      ? ((recentRes.value.data as unknown as PlayerRecentMatch[]) ?? [])
-      : [],
-    rating_series: seriesRes.status === "fulfilled"
-      ? ((seriesRes.value.data as unknown as PlayerRatingPoint[]) ?? [])
-      : [],
-    purchase_count: purchasesRes.status === "fulfilled"
-      ? Number(purchasesRes.value.data ?? 0)
-      : 0,
+    recent:
+      recentRes.status === "fulfilled"
+        ? ((recentRes.value.data as unknown as PlayerRecentMatch[]) ?? [])
+        : [],
+    rating_series:
+      seriesRes.status === "fulfilled"
+        ? ((seriesRes.value.data as unknown as PlayerRatingPoint[]) ?? [])
+        : [],
+    purchase_count: purchasesRes.status === "fulfilled" ? Number(purchasesRes.value.data ?? 0) : 0,
   };
 }

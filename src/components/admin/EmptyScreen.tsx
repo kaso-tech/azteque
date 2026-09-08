@@ -5,13 +5,7 @@
  * qui cache ses trous, non. Ce composant tient l'emplacement de l'écran à
  * paraître, avec un titre et un sous-titre, en attendant la livraison suivante.
  */
-export function EmptyScreen({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function EmptyScreen({ title, description }: { title: string; description: string }) {
   return (
     <section className="panel mx-auto max-w-3xl px-6 py-10 text-center">
       <h2 className="font-display text-xl text-gold">{title}</h2>

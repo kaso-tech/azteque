@@ -1,10 +1,5 @@
 import { useState, type ReactNode } from "react";
-import {
-  MobileNav,
-  Sidebar,
-  Topbar,
-  type SidebarSection,
-} from "@/components/admin";
+import { MobileNav, Sidebar, Topbar, type SidebarSection } from "@/components/admin";
 
 /**
  * Coquille de la console d'administration.
@@ -19,14 +14,7 @@ import {
  * ne rendent que leur propre corps.
  */
 export type AdminTabId =
-  | "dashboard"
-  | "players"
-  | "matches"
-  | "shop"
-  | "sounds"
-  | "reports"
-  | "log"
-  | "settings";
+  "dashboard" | "players" | "matches" | "shop" | "sounds" | "reports" | "log" | "settings";
 
 export function AdminShell({
   activeTab,
@@ -44,14 +32,12 @@ export function AdminShell({
   pendingReports: number;
   adminInitial: string;
   adminName: string;
-  stats?:
-    | {
-        players?: number | undefined;
-        matches?: number | undefined;
-        items?: number | undefined;
-        logs?: number | undefined;
-      }
-    | null;
+  stats?: {
+    players?: number | undefined;
+    matches?: number | undefined;
+    items?: number | undefined;
+    logs?: number | undefined;
+  } | null;
   children: ReactNode;
 }) {
   // La nav mobile est un tiroir : on gère son état ici pour qu'il

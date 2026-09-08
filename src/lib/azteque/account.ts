@@ -1128,7 +1128,6 @@ export function trackLobbyPresence(userId: string, onOnline: (ids: Set<string>) 
   };
 }
 
-
 /* ---------- Historique des confrontations ---------- */
 
 export interface HeadToHead {

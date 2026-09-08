@@ -6,10 +6,7 @@ import { Sticker } from "@/components/azteque/stickers";
 import { describeError } from "@/lib/azteque/account";
 import { loadCatalogue, useCatalogue, type ShopItem, type ShopKind } from "@/lib/azteque/shop";
 import { adminUpsertItem, adminDeleteItem } from "@/lib/azteque/admin";
-import {
-  adminShopSalesSummary,
-  type ShopSalesRow,
-} from "@/lib/azteque/admin-shop-log";
+import { adminShopSalesSummary, type ShopSalesRow } from "@/lib/azteque/admin-shop-log";
 
 /** Les dessins que le jeu sait rendre : un article nouveau leur emprunte. */
 const DESSINS_AVATAR = ["av_marchand", "av_reine", "av_griot", "av_elegante", "av_roi"];
@@ -115,7 +112,8 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
     return [...list].sort((a, b) => {
       if (tri === "prix_asc") return a.price - b.price;
       if (tri === "prix_desc") return b.price - a.price;
-      if (tri === "ventes") return (getSales(b.id)?.ventes_7j ?? 0) - (getSales(a.id)?.ventes_7j ?? 0);
+      if (tri === "ventes")
+        return (getSales(b.id)?.ventes_7j ?? 0) - (getSales(a.id)?.ventes_7j ?? 0);
       if (tri === "ca") return (getSales(b.id)?.ca_7j ?? 0) - (getSales(a.id)?.ca_7j ?? 0);
       return a.sort - b.sort;
     });
@@ -215,31 +213,28 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       {/* KPIs boutique */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Mini label="Articles" valeur={`${catalogue.length}`} />
-        <Mini
-          label="En vente"
-          valeur={`${catalogue.filter((i) => i.active).length}`}
-          surligne
-        />
-        <Mini
-          label="Ventes (7j)"
-          valeur={String(totaux.ventes)}
-        />
-        <Mini
-          label="CA boutique (7j)"
-          valeur={`🪙 ${totaux.ca.toLocaleString("fr")}`}
-          surligne
-        />
+        <Mini label="En vente" valeur={`${catalogue.filter((i) => i.active).length}`} surligne />
+        <Mini label="Ventes (7j)" valeur={String(totaux.ventes)} />
+        <Mini label="CA boutique (7j)" valeur={`🪙 ${totaux.ca.toLocaleString("fr")}`} surligne />
       </div>
 
       {/* Filtres + actions */}
       <div className="panel flex flex-wrap items-center gap-2 p-2">
-        <FiltrePill label="Catégorie" value={filtreKind} onChange={(v) => setFiltreKind(v as FiltreKind)}>
+        <FiltrePill
+          label="Catégorie"
+          value={filtreKind}
+          onChange={(v) => setFiltreKind(v as FiltreKind)}
+        >
           <option value="tous">Toutes</option>
           <option value="avatar">Avatars</option>
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
         </FiltrePill>
-        <FiltrePill label="Statut" value={filtreStatut} onChange={(v) => setFiltreStatut(v as FiltreStatut)}>
+        <FiltrePill
+          label="Statut"
+          value={filtreStatut}
+          onChange={(v) => setFiltreStatut(v as FiltreStatut)}
+        >
           <option value="tous">Tous</option>
           <option value="en_vente">En vente</option>
           <option value="retire">Retirés</option>
@@ -258,9 +253,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
             size="sm"
             variant="outline"
             onClick={() =>
-              setBrouillon(
-                brouillonNeuf(k, Math.max(0, ...catalogue.map((i) => i.sort)) + 10),
-              )
+              setBrouillon(brouillonNeuf(k, Math.max(0, ...catalogue.map((i) => i.sort)) + 10))
             }
           >
             + {k === "avatar" ? "Avatar" : k === "sticker" ? "Sticker" : "Lot de messages"}
@@ -386,10 +379,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                   return (
                     <tr
                       key={i.id}
-                      className={cn(
-                        "border-t border-border/50",
-                        !i.active && "opacity-60",
-                      )}
+                      className={cn("border-t border-border/50", !i.active && "opacity-60")}
                     >
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2.5">
@@ -463,26 +453,13 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
   );
 }
 
-function Mini({
-  label,
-  valeur,
-  surligne,
-}: {
-  label: string;
-  valeur: string;
-  surligne?: boolean;
-}) {
+function Mini({ label, valeur, surligne }: { label: string; valeur: string; surligne?: boolean }) {
   return (
     <div className="panel p-3">
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p
-        className={cn(
-          "mt-1 font-display text-xl",
-          surligne ? "gold-text" : "text-foreground",
-        )}
-      >
+      <p className={cn("mt-1 font-display text-xl", surligne ? "gold-text" : "text-foreground")}>
         {valeur}
       </p>
     </div>

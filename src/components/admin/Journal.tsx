@@ -140,12 +140,7 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
             {lignes.length} événement{lignes.length > 1 ? "s" : ""} affiché
             {lignes.length > 1 ? "s" : ""}
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exporter}
-            disabled={lignes.length === 0}
-          >
+          <Button size="sm" variant="outline" onClick={exporter} disabled={lignes.length === 0}>
             📥 Exporter
           </Button>
         </div>
@@ -202,10 +197,7 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
             const revertible = estRevertible(l.action);
             const enCours = revertEnCours === l.id;
             return (
-              <article
-                key={l.id}
-                className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm"
-              >
+              <article key={l.id} className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm">
                 <div className="w-32 shrink-0 text-xs text-muted-foreground">
                   {formatDateTime(l.at)}
                 </div>
@@ -222,9 +214,7 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground">
                     <span className="text-muted-foreground">par</span>{" "}
-                    <span className="font-semibold">
-                      {l.admin_username ?? "—"}
-                    </span>
+                    <span className="font-semibold">{l.admin_username ?? "—"}</span>
                     {l.target && (
                       <>
                         <span className="text-muted-foreground"> → </span>
@@ -260,9 +250,9 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
       </div>
 
       <p className="text-xs text-muted-foreground">
-        L'annulation d'une action irréversible (catalogue, réglages) est
-        refusée par le serveur : on ne restaure pas un état qu'on ne
-        connaît pas. Une annulation est elle-même consignée au journal.
+        L'annulation d'une action irréversible (catalogue, réglages) est refusée par le serveur : on
+        ne restaure pas un état qu'on ne connaît pas. Une annulation est elle-même consignée au
+        journal.
       </p>
     </div>
   );

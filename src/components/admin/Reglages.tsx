@@ -2,11 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/azteque/account";
-import {
-  adminListSettings,
-  adminSetSetting,
-  type AppSetting,
-} from "@/lib/azteque/admin-settings";
+import { adminListSettings, adminSetSetting, type AppSetting } from "@/lib/azteque/admin-settings";
 
 /**
  * Réglages de l'app, gérés via la table `app_settings` (clé/valeur
@@ -137,9 +133,8 @@ export function Reglages({ onErreur }: { onErreur: (e: string | null) => void })
 
       <p className="text-xs text-muted-foreground">
         Les réglages ci-dessous sont stockés dans la base (table
-        <code> app_settings</code>) et lus par le client à l'ouverture.
-        Un changement prend effet à la prochaine ouverture de
-        l'application, pas instantanément.
+        <code> app_settings</code>) et lus par le client à l'ouverture. Un changement prend effet à
+        la prochaine ouverture de l'application, pas instantanément.
       </p>
 
       <div className="space-y-2">
@@ -176,9 +171,7 @@ function ReglageLigne({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground">{def.label}</p>
         <p className="text-xs text-muted-foreground">{def.description}</p>
-        <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
-          {def.cle}
-        </p>
+        <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">{def.cle}</p>
       </div>
       <div className="flex items-center gap-2">
         {def.type === "boolean" ? (
@@ -187,9 +180,7 @@ function ReglageLigne({
             onClick={() => onChange(!valeur)}
             className={cn(
               "relative h-6 w-11 rounded-full border transition-colors",
-              valeur
-                ? "border-emerald-500/40 bg-emerald-500/30"
-                : "border-border bg-card",
+              valeur ? "border-emerald-500/40 bg-emerald-500/30" : "border-border bg-card",
             )}
             aria-pressed={Boolean(valeur)}
             aria-label={def.label}

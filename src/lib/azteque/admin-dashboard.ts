@@ -51,15 +51,17 @@ export interface DashboardTopPlayer {
 export async function adminDashboardStats(): Promise<DashboardStats> {
   const { data, error } = await rpc("admin_dashboard_stats");
   if (error) throw error;
-  return (data as unknown as DashboardStats) ?? {
-    active_24h: 0,
-    matches_24h: 0,
-    tokens_circulation: 0,
-    revenue_7d: 0,
-    active_24h_delta: null,
-    matches_24h_delta: null,
-    stuck_matches: 0,
-  };
+  return (
+    (data as unknown as DashboardStats) ?? {
+      active_24h: 0,
+      matches_24h: 0,
+      tokens_circulation: 0,
+      revenue_7d: 0,
+      active_24h_delta: null,
+      matches_24h_delta: null,
+      stuck_matches: 0,
+    }
+  );
 }
 
 /** Série quotidienne : parties jouées + nouveaux comptes par jour. */

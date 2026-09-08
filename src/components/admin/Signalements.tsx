@@ -226,10 +226,7 @@ function ReportSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-      >
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         <SheetHeader className="border-b border-border p-4">
           <SheetTitle className="flex items-center gap-2 font-display text-lg">
             Signalement #{report.id}
@@ -266,18 +263,14 @@ function ReportSheet({
           </div>
 
           <div className="rounded-md border border-border bg-card/40 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Motif
-            </p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Motif</p>
             <p className="mt-1 text-sm font-semibold text-foreground">{report.reason}</p>
             {report.details && (
               <>
                 <p className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
                   Détails
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                  {report.details}
-                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{report.details}</p>
               </>
             )}
           </div>
@@ -318,19 +311,12 @@ function ReportSheet({
               >
                 ✓ Résoudre
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => agir("dismissed")}
-              >
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => agir("dismissed")}>
                 Rejeter
               </Button>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Ce signalement a déjà été traité.
-            </p>
+            <p className="text-xs text-muted-foreground">Ce signalement a déjà été traité.</p>
           )}
           <div className="flex-1" />
           <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>

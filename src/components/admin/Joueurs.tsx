@@ -38,9 +38,7 @@ const PAYS: Record<string, string> = {
 
 function drapeau(code: string | null): string {
   if (!code) return "🌍";
-  return code
-    .toUpperCase()
-    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
 /** « Vu il y a… », ou l'aveu qu'on ne l'a jamais vu. */
@@ -109,13 +107,10 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
     });
   }, [liste, statut, paysFiltre, gradeFiltre]);
 
-  const tousCoches =
-    filtres.length > 0 && filtres.every((j) => selection.has(j.id));
+  const tousCoches = filtres.length > 0 && filtres.every((j) => selection.has(j.id));
   const partiels = filtres.some((j) => selection.has(j.id)) && !tousCoches;
 
-  const etatCheckboxEnTete: boolean | "indeterminate" = partiels
-    ? "indeterminate"
-    : tousCoches;
+  const etatCheckboxEnTete: boolean | "indeterminate" = partiels ? "indeterminate" : tousCoches;
 
   const basculerTous = () => {
     setSelection((s) => {
@@ -232,7 +227,11 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
           <option value="suspendu">Suspendus</option>
           <option value="admin">Admins</option>
         </SelectPill>
-        <SelectPill value={paysFiltre} onChange={setPaysFiltre} disabled={paysDisponibles.length === 0}>
+        <SelectPill
+          value={paysFiltre}
+          onChange={setPaysFiltre}
+          disabled={paysDisponibles.length === 0}
+        >
           <option value="tous">Tous pays</option>
           {paysDisponibles.map((c) => (
             <option key={c} value={c}>
@@ -290,10 +289,7 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
             <tbody>
               {filtres.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={10}
-                    className="px-3 py-12 text-center text-sm text-muted-foreground"
-                  >
+                  <td colSpan={10} className="px-3 py-12 text-center text-sm text-muted-foreground">
                     Aucun joueur ne correspond à ces filtres.
                   </td>
                 </tr>
@@ -397,9 +393,7 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
-                        →
-                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">→</td>
                     </tr>
                   );
                 })
@@ -416,7 +410,11 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
             {selection.size} sélectionné{selection.size > 1 ? "s" : ""}
           </span>
           <span className="text-xs text-muted-foreground">
-            ({selectionListe.slice(0, 3).map((j) => j.username).join(", ")}
+            (
+            {selectionListe
+              .slice(0, 3)
+              .map((j) => j.username)
+              .join(", ")}
             {selection.size > 3 ? `, +${selection.size - 3}` : ""})
           </span>
           <div className="flex-1" />
@@ -463,21 +461,13 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
           >
             Suspendre / Rétablir
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setSelection(new Set())}
-          >
+          <Button size="sm" variant="ghost" onClick={() => setSelection(new Set())}>
             Annuler
           </Button>
         </div>
       )}
 
-      <PlayerSheet
-        player={sheetPlayer}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-      />
+      <PlayerSheet player={sheetPlayer} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>
   );
 }

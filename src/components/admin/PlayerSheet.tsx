@@ -41,9 +41,7 @@ const PAYS: Record<string, string> = {
 
 function drapeau(code: string | null): string {
   if (!code) return "🌍";
-  return code
-    .toUpperCase()
-    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
 function formatDate(iso: string): string {
@@ -100,18 +98,12 @@ export function PlayerSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-xl"
-      >
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
         {player ? (
           <>
             <SheetHeader className="border-b border-border p-4">
               <div className="flex items-center gap-3">
-                <PlayerAvatar
-                  className="h-12 w-12"
-                  profile={player}
-                />
+                <PlayerAvatar className="h-12 w-12" profile={player} />
                 <div className="min-w-0 flex-1">
                   <SheetTitle className="flex items-center gap-2 font-display text-lg">
                     <span className="truncate">{player.username}</span>
@@ -129,7 +121,9 @@ export function PlayerSheet({
                   <SheetDescription className="truncate">
                     {[player.first_name, player.last_name].filter(Boolean).join(" ") ||
                       "Identité non renseignée"}
-                    {player.country ? ` · ${drapeau(player.country)} ${PAYS[player.country] ?? player.country}` : ""}
+                    {player.country
+                      ? ` · ${drapeau(player.country)} ${PAYS[player.country] ?? player.country}`
+                      : ""}
                     {player.created_at ? ` · Inscrit le ${formatDate(player.created_at)}` : ""}
                   </SheetDescription>
                 </div>
@@ -173,17 +167,13 @@ export function PlayerSheet({
               {/* Courbe de cote */}
               <section className="mt-4 rounded-lg border border-border p-3">
                 <div className="mb-2 flex items-baseline justify-between">
-                  <p className="text-sm font-semibold text-foreground">
-                    Évolution de la cote
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">Évolution de la cote</p>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     60 derniers jours
                   </p>
                 </div>
                 {busy && !detail ? (
-                  <p className="py-6 text-center text-xs text-muted-foreground">
-                    Chargement…
-                  </p>
+                  <p className="py-6 text-center text-xs text-muted-foreground">Chargement…</p>
                 ) : (
                   <CourbeCote points={detail?.rating_series ?? []} />
                 )}
@@ -191,13 +181,9 @@ export function PlayerSheet({
 
               {/* Dernières parties */}
               <section className="mt-4">
-                <p className="mb-2 text-sm font-semibold text-foreground">
-                  Dernières parties
-                </p>
+                <p className="mb-2 text-sm font-semibold text-foreground">Dernières parties</p>
                 {busy && !detail ? (
-                  <p className="py-4 text-center text-xs text-muted-foreground">
-                    Chargement…
-                  </p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">Chargement…</p>
                 ) : detail && detail.recent.length > 0 ? (
                   <ul className="space-y-1.5">
                     {detail.recent.map((m) => (
@@ -239,12 +225,7 @@ function Mini({ label, value, highlight }: { label: string; value: string; highl
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p
-        className={cn(
-          "font-display text-base",
-          highlight ? "gold-text" : "text-foreground",
-        )}
-      >
+      <p className={cn("font-display text-base", highlight ? "gold-text" : "text-foreground")}>
         {value}
       </p>
     </div>
@@ -262,9 +243,7 @@ function LignePartie({ match }: { match: PlayerRecentMatch }) {
           <span className="mx-2 text-muted-foreground">·</span>
           <span className="font-mono">{match.score}</span>
         </p>
-        <p className="text-[10px] text-muted-foreground">
-          {formatDateTime(match.finished_at)}
-        </p>
+        <p className="text-[10px] text-muted-foreground">{formatDateTime(match.finished_at)}</p>
       </div>
       <span
         className={cn(
@@ -309,17 +288,11 @@ function CourbeCote({ points }: { points: PlayerRatingPoint[] }) {
   const stepX = points.length > 1 ? (w - 2 * padX) / (points.length - 1) : 0;
   const yFor = (v: number) => h - padY - ((v - minR) / range) * (h - 2 * padY);
 
-  const linePts = points
-    .map((p, i) => `${padX + i * stepX},${yFor(p.rating)}`)
-    .join(" ");
+  const linePts = points.map((p, i) => `${padX + i * stepX},${yFor(p.rating)}`).join(" ");
 
   return (
     <div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className="h-24 w-full"
-        preserveAspectRatio="none"
-      >
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-24 w-full" preserveAspectRatio="none">
         <polyline
           fill="rgba(212,168,87,0.10)"
           stroke="none"

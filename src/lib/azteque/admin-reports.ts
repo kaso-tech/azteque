@@ -62,6 +62,10 @@ export async function adminResolveReport(
   decision: ReportDecision,
   note: string,
 ): Promise<void> {
-  const { error } = await rpc("admin_resolve_report", { _id: id, _decision: decision, _note: note });
+  const { error } = await rpc("admin_resolve_report", {
+    _id: id,
+    _decision: decision,
+    _note: note,
+  });
   if (error) throw error;
 }

@@ -79,9 +79,7 @@ function SidebarContent({
                   <span
                     className={cn(
                       "rounded-full bg-background px-1.5 py-0.5 text-[10px]",
-                      item.tone === "danger"
-                        ? "text-destructive"
-                        : "text-muted-foreground",
+                      item.tone === "danger" ? "text-destructive" : "text-muted-foreground",
                     )}
                   >
                     {item.count.toLocaleString("fr")}
@@ -114,10 +112,7 @@ export function Sidebar({
   return (
     <aside className="hidden w-56 shrink-0 border-r border-border bg-sidebar md:flex md:flex-col">
       <div className="flex items-center gap-2 px-4 pb-4 pt-5">
-        <Link
-          to="/"
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-        >
+        <Link to="/" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
           ← Menu
         </Link>
       </div>
@@ -148,14 +143,9 @@ export function MobileNav({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="left"
-        className="flex w-72 flex-col gap-0 bg-sidebar p-0"
-      >
+      <SheetContent side="left" className="flex w-72 flex-col gap-0 bg-sidebar p-0">
         <SheetHeader className="border-b border-border px-4 pb-4 pt-5">
-          <SheetTitle className="font-display text-base gold-text">
-            Aztèque · Console
-          </SheetTitle>
+          <SheetTitle className="font-display text-base gold-text">Aztèque · Console</SheetTitle>
           <Link
             to="/"
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"

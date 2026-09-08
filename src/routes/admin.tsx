@@ -1,12 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  adminAccess,
-  adminStats,
-  type AdminAccess,
-  type AdminStats,
-} from "@/lib/azteque/admin";
+import { adminAccess, adminStats, type AdminAccess, type AdminStats } from "@/lib/azteque/admin";
 import {
   AdminShell,
   Boutique,
@@ -125,12 +120,7 @@ function Placeholder({ onglet }: { onglet: AdminTabId }) {
   // plus utilisé qu'en filet de sécurité pour un onglet ajouté sans
   // contenu — on garde le composant disponible, mais ce message
   // ne devrait plus s'afficher.
-  return (
-    <EmptyScreen
-      title={onglet}
-      description="Cet écran est en cours de préparation."
-    />
-  );
+  return <EmptyScreen title={onglet} description="Cet écran est en cours de préparation." />;
 }
 
 /**

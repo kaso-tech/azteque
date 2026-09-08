@@ -58,9 +58,7 @@ export function Topbar({
         </div>
         <div className="leading-tight">
           <p className="font-display text-sm gold-text">Aztèque</p>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Console
-          </p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Console</p>
         </div>
       </div>
       <div className="flex-1" />

@@ -228,8 +228,8 @@ export function Parties({ onErreur }: { onErreur: (e: string | null) => void }) 
                           m.rating_delta_host > 0
                             ? "text-success"
                             : m.rating_delta_host < 0
-                            ? "text-destructive"
-                            : "text-muted-foreground",
+                              ? "text-destructive"
+                              : "text-muted-foreground",
                         )}
                       >
                         {m.rating_delta_host > 0 ? "+" : ""}
@@ -241,8 +241,8 @@ export function Parties({ onErreur }: { onErreur: (e: string | null) => void }) 
                           m.rating_delta_guest > 0
                             ? "text-success"
                             : m.rating_delta_guest < 0
-                            ? "text-destructive"
-                            : "text-muted-foreground",
+                              ? "text-destructive"
+                              : "text-muted-foreground",
                         )}
                       >
                         {m.rating_delta_guest > 0 ? "+" : ""}
@@ -327,14 +327,10 @@ function PartieSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-      >
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         <SheetHeader className="border-b border-border p-4">
           <SheetTitle className="font-display text-lg">
-            Partie{" "}
-            <span className="font-mono text-base text-muted-foreground">{match.code}</span>
+            Partie <span className="font-mono text-base text-muted-foreground">{match.code}</span>
           </SheetTitle>
           <SheetDescription>
             Créée le {formatDateTime(match.created_at)}
@@ -346,9 +342,7 @@ function PartieSheet({
           {/* Score */}
           <div className="grid grid-cols-3 items-center gap-2 rounded-lg border border-border bg-card/40 p-4">
             <div className="text-center">
-              <p className="text-sm font-semibold text-foreground">
-                {match.host_username ?? "—"}
-              </p>
+              <p className="text-sm font-semibold text-foreground">{match.host_username ?? "—"}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Hôte</p>
             </div>
             <div className="text-center">
@@ -372,11 +366,7 @@ function PartieSheet({
             <div className="rounded-md border border-success/30 bg-success/10 p-3 text-sm">
               <span className="text-success">🏆 Vainqueur :</span>{" "}
               <span className="font-semibold">
-                {hostGagne
-                  ? match.host_username
-                  : guestGagne
-                  ? match.guest_username
-                  : "—"}
+                {hostGagne ? match.host_username : guestGagne ? match.guest_username : "—"}
               </span>
             </div>
           )}
@@ -401,8 +391,8 @@ function PartieSheet({
                   match.rating_delta_host > 0
                     ? "text-success"
                     : match.rating_delta_host < 0
-                    ? "text-destructive"
-                    : "text-muted-foreground",
+                      ? "text-destructive"
+                      : "text-muted-foreground",
                 )}
               >
                 {match.rating_delta_host > 0 ? "+" : ""}
@@ -419,8 +409,8 @@ function PartieSheet({
                   match.rating_delta_guest > 0
                     ? "text-success"
                     : match.rating_delta_guest < 0
-                    ? "text-destructive"
-                    : "text-muted-foreground",
+                      ? "text-destructive"
+                      : "text-muted-foreground",
                 )}
               >
                 {match.rating_delta_guest > 0 ? "+" : ""}
@@ -465,9 +455,7 @@ function PartieSheet({
               variant="outline"
               disabled={busy}
               onClick={() =>
-                agir(
-                  adminMatchForfeit(match.id, match.guest_id!, motif || "Forfait par l'arbitre"),
-                )
+                agir(adminMatchForfeit(match.id, match.guest_id!, motif || "Forfait par l'arbitre"))
               }
             >
               Forfait : {match.guest_username} gagne

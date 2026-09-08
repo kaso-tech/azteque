@@ -37,9 +37,7 @@ const PAYS: Record<string, string> = {
 
 function drapeau(code: string | null): string {
   if (!code) return "🌍";
-  return code
-    .toUpperCase()
-    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
 function formatNombre(n: number): string {
@@ -93,15 +91,9 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periode]);
 
-  const maxPays = useMemo(
-    () => Math.max(1, ...pays.map((p) => p.joueurs)),
-    [pays],
-  );
+  const maxPays = useMemo(() => Math.max(1, ...pays.map((p) => p.joueurs)), [pays]);
 
-  const maxSeries = useMemo(
-    () => Math.max(1, ...series.map((p) => p.parties)),
-    [series],
-  );
+  const maxSeries = useMemo(() => Math.max(1, ...series.map((p) => p.parties)), [series]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -126,12 +118,7 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
               </button>
             ))}
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void rafraichir()}
-            disabled={busy}
-          >
+          <Button size="sm" variant="outline" onClick={() => void rafraichir()} disabled={busy}>
             {busy ? "…" : "↻ Rafraîchir"}
           </Button>
         </div>
@@ -202,9 +189,7 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
                       <span className="mr-2">{drapeau(p.country)}</span>
                       <span>{PAYS[p.country] ?? p.country}</span>
                     </span>
-                    <span className="text-muted-foreground">
-                      {formatNombre(p.joueurs)}
-                    </span>
+                    <span className="text-muted-foreground">{formatNombre(p.joueurs)}</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
                     <div
@@ -247,9 +232,7 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
                       profile={{ avatar_kind: "google" }}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {j.username}
-                      </p>
+                      <p className="truncate text-sm font-semibold text-foreground">{j.username}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {j.country ? `${drapeau(j.country)} ${PAYS[j.country] ?? j.country}` : "—"}
                         {" · "}
@@ -260,7 +243,11 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
                       <p
                         className={cn(
                           "font-display text-sm font-semibold",
-                          j.delta > 0 ? "text-success" : j.delta < 0 ? "text-destructive" : "text-muted-foreground",
+                          j.delta > 0
+                            ? "text-success"
+                            : j.delta < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground",
                         )}
                       >
                         {j.delta > 0 ? "+" : ""}
@@ -302,15 +289,7 @@ export function Dashboard({ onErreur }: { onErreur: (e: string | null) => void }
   );
 }
 
-function Kpi({
-  label,
-  value,
-  delta,
-}: {
-  label: string;
-  value: string;
-  delta?: number | null;
-}) {
+function Kpi({ label, value, delta }: { label: string; value: string; delta?: number | null }) {
   return (
     <div className="panel p-4">
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -331,13 +310,7 @@ function Kpi({
   );
 }
 
-function Sparkline({
-  series,
-  maxValue,
-}: {
-  series: DashboardSeriesPoint[];
-  maxValue: number;
-}) {
+function Sparkline({ series, maxValue }: { series: DashboardSeriesPoint[]; maxValue: number }) {
   if (series.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -353,11 +326,17 @@ function Sparkline({
   const yFor = (v: number) => h - padY - (v / maxValue) * (h - 2 * padY);
 
   const pointsParties = series.map((p, i) => `${padX + i * stepX},${yFor(p.parties)}`).join(" ");
-  const pointsNouveaux = series.map((p, i) => `${padX + i * stepX},${yFor(p.nouveaux_joueurs)}`).join(" ");
+  const pointsNouveaux = series
+    .map((p, i) => `${padX + i * stepX},${yFor(p.nouveaux_joueurs)}`)
+    .join(" ");
 
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-40 w-full min-w-[480px]" preserveAspectRatio="none">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="h-40 w-full min-w-[480px]"
+        preserveAspectRatio="none"
+      >
         {/* Grille horizontale */}
         {[0, 0.25, 0.5, 0.75, 1].map((t) => (
           <line
