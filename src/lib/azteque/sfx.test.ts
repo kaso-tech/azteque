@@ -23,10 +23,10 @@ import {
  * assourdissant.
  */
 describe("réglages du son", () => {
-  beforeEach(() => applySoundSettings(DEFAULT_SOUND_SETTINGS));
+  beforeEach(() => applySoundSettings(DEFAULT_SOUND_SETTINGS, "ia"));
 
   it("part des valeurs d'origine", () => {
-    const r = currentSoundSettings();
+    const r = currentSoundSettings("ia");
     expect(r.master).toBe(1);
     for (const id of SOUND_IDS) {
       expect(r.sounds[id]).toMatchObject({ gain: 1, pitch: 1, speed: 1 });
@@ -56,54 +56,66 @@ describe("réglages du son", () => {
   });
 
   it("retient un réglage valable", () => {
-    applySoundSettings({ master: 0.8, sounds: { snicker: { gain: 1.5, pitch: 0.9 } } });
-    const r = currentSoundSettings();
+    applySoundSettings({ master: 0.8, sounds: { snicker: { gain: 1.5, pitch: 0.9 } } }, "ia");
+    const r = currentSoundSettings("ia");
     expect(r.master).toBe(0.8);
     expect(r.sounds.snicker).toMatchObject({ gain: 1.5, pitch: 0.9, speed: 1 });
   });
 
   it("ramène les valeurs hors plage dans leurs bornes", () => {
-    applySoundSettings({
-      master: 99,
-      sounds: { taunt: { gain: -5, pitch: 100, speed: 0.01 } },
-    });
-    const r = currentSoundSettings();
+    applySoundSettings(
+      {
+        master: 99,
+        sounds: { taunt: { gain: -5, pitch: 100, speed: 0.01 } },
+      },
+      "ia",
+    );
+    const r = currentSoundSettings("ia");
     expect(r.master).toBe(2);
     expect(r.sounds.taunt).toMatchObject({ gain: 0, pitch: 2, speed: 0.5 });
   });
 
   it("ignore ce qui n'est pas un nombre", () => {
-    applySoundSettings({
-      master: "fort",
-      sounds: { cheer: { gain: null, pitch: NaN, speed: Infinity } },
-    } as unknown);
-    const r = currentSoundSettings();
+    applySoundSettings(
+      {
+        master: "fort",
+        sounds: { cheer: { gain: null, pitch: NaN, speed: Infinity } },
+      } as unknown,
+      "ia",
+    );
+    const r = currentSoundSettings("ia");
     expect(r.master).toBe(1);
     expect(r.sounds.cheer).toMatchObject({ gain: 1, pitch: 1, speed: 1 });
   });
 
   it("survit à n'importe quoi", () => {
     for (const nimporte of [null, undefined, 42, "rien", [], { sounds: "non" }]) {
-      applySoundSettings(nimporte);
-      const r = currentSoundSettings();
+      applySoundSettings(nimporte, "ia");
+      const r = currentSoundSettings("ia");
       expect(r.master).toBe(1);
       expect(r.sounds.place).toEqual({ gain: 1, pitch: 1, speed: 1 });
     }
   });
 
   it("borne aussi les réglages propres aux voix", () => {
-    applySoundSettings({
-      master: 1,
-      sounds: { taunt: { syllables: 99, step: 5, vowel: 7 }, cheer: { voices: -3, claps: 9999 } },
-    });
-    const r = currentSoundSettings();
+    applySoundSettings(
+      {
+        master: 1,
+        sounds: {
+          taunt: { syllables: 99, step: 5, vowel: 7 },
+          cheer: { voices: -3, claps: 9999 },
+        },
+      },
+      "ia",
+    );
+    const r = currentSoundSettings("ia");
     expect(r.sounds.taunt).toMatchObject({ syllables: 8, step: 1.25, vowel: 2 });
     expect(r.sounds.cheer).toMatchObject({ voices: 2, claps: 200 });
   });
 
   it("ne garde rien d'un son inconnu", () => {
-    applySoundSettings({ master: 1, sounds: { inexistant: { gain: 3 } } } as unknown);
-    expect(Object.keys(currentSoundSettings().sounds).sort()).toEqual([...SOUND_IDS].sort());
+    applySoundSettings({ master: 1, sounds: { inexistant: { gain: 3 } } } as unknown, "ia");
+    expect(Object.keys(currentSoundSettings("ia").sounds).sort()).toEqual([...SOUND_IDS].sort());
   });
 });
 
@@ -128,13 +140,13 @@ describe("sons locaux", () => {
     // Sans appareil audio — un rendu serveur, un test — le décodage échoue.
     // Il doit échouer bruyamment : la console s'en sert pour ne pas envoyer à
     // la base un fichier qu'elle n'a pas su ouvrir.
-    await expect(registerSample("cheer", new ArrayBuffer(8))).rejects.toThrow();
-    expect(hasSample("cheer")).toBe(false);
+    await expect(registerSample("cheer", new ArrayBuffer(8), "ia")).rejects.toThrow();
+    expect(hasSample("cheer", "ia")).toBe(false);
   });
 
   it("retirer un son qui n'a pas de fichier ne fait rien de fâcheux", () => {
-    clearSample("taunt");
-    expect(hasSample("taunt")).toBe(false);
+    clearSample("taunt", "ia");
+    expect(hasSample("taunt", "ia")).toBe(false);
   });
 
   it("joue sans appareil audio plutôt que de tomber", () => {

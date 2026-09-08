@@ -412,16 +412,52 @@ export interface SoundSettings {
 
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = { master: 1, sounds: {} };
 
-let reglages: SoundSettings = DEFAULT_SOUND_SETTINGS;
+/**
+ * Deux jeux de sons totalement indépendants, l'un pour affronter l'IA, l'autre
+ * pour le jeu en ligne — chacun réglable séparément depuis la console, avec
+ * ses propres fichiers de remplacement.
+ *
+ * La synthèse elle-même (`noise`, `tone`, `syllabe`…) reste unique et
+ * partagée : ce qui est dédoublé, ce sont seulement les RÉGLAGES et les
+ * fichiers déposés par-dessus. Le contexte « ia » reprend exactement ce que
+ * la console proposait avant ce dédoublement — même clé de réglages, mêmes
+ * fichiers, sans aucune migration de données — pour que rien ne change côté
+ * jeu contre l'IA.
+ */
+export const SOUND_CONTEXTS = ["ia", "en_ligne"] as const;
+export type SoundContext = (typeof SOUND_CONTEXTS)[number];
+export const SOUND_CONTEXT_LABELS: Record<SoundContext, string> = {
+  ia: "Contre l'IA",
+  en_ligne: "En ligne",
+};
 
 /**
- * Applique des réglages venus de la base.
+ * Le contexte dont on entend actuellement les sons.
+ *
+ * Chaque écran de jeu l'annonce une fois monté (voir `setSoundContext`), et
+ * tout le reste — `sfx.place()`, `sfx.cheer()`… — continue de s'appeler sans
+ * jamais mentionner de contexte : c'est lui qui choisit en coulisse dans quel
+ * jeu de réglages et de fichiers puiser.
+ */
+let contexteActif: SoundContext = "ia";
+
+export function setSoundContext(contexte: SoundContext): void {
+  contexteActif = contexte;
+}
+
+const reglagesParContexte: Record<SoundContext, SoundSettings> = {
+  ia: DEFAULT_SOUND_SETTINGS,
+  en_ligne: DEFAULT_SOUND_SETTINGS,
+};
+
+/**
+ * Applique des réglages venus de la base, pour UN des deux contextes.
  *
  * Ils arrivent d'une colonne `jsonb` que seul un administrateur écrit, mais
  * une valeur aberrante — négative, immense, absente — ne doit pas rendre le jeu
  * muet ou assourdissant : chaque nombre est ramené dans une plage tenable.
  */
-export function applySoundSettings(raw: unknown): void {
+export function applySoundSettings(raw: unknown, contexte: SoundContext): void {
   const borne = (v: unknown, min: number, max: number, defaut: number) =>
     typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : defaut;
   const o = (raw ?? {}) as { master?: unknown; sounds?: Record<string, unknown> };
@@ -440,7 +476,7 @@ export function applySoundSettings(raw: unknown): void {
     }
     sounds[id] = regle;
   }
-  reglages = { master: borne(o.master, 0, 2, 1), sounds };
+  reglagesParContexte[contexte] = { master: borne(o.master, 0, 2, 1), sounds };
 }
 
 /**
@@ -471,18 +507,20 @@ const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
   coin: {},
 };
 
-/** Les réglages en vigueur, tels que la console doit les afficher. */
-export function currentSoundSettings(): SoundSettings {
-  return { master: reglages.master, sounds: { ...reglages.sounds } };
+/** Les réglages en vigueur pour un contexte, tels que la console doit les afficher. */
+export function currentSoundSettings(contexte: SoundContext): SoundSettings {
+  const r = reglagesParContexte[contexte];
+  return { master: r.master, sounds: { ...r.sounds } };
 }
 
-/** Les trois facteurs d'un son : volume, hauteur, vitesse. */
+/** Les trois facteurs d'un son : volume, hauteur, vitesse, pour le contexte actif. */
 function reglage(id: SoundId) {
-  const t = reglages.sounds[id] ?? {};
+  const r = reglagesParContexte[contexteActif];
+  const t = r.sounds[id] ?? {};
   const d = DEFAUTS_PAR_SON[id];
   const VOYELLE = ["a", "e", "o"] as const;
   return {
-    g: (t.gain ?? 1) * reglages.master,
+    g: (t.gain ?? 1) * r.master,
     p: t.pitch ?? 1,
     s: t.speed ?? 1,
     syllabes: Math.round(t.syllables ?? d.syllables ?? 3),
@@ -501,7 +539,10 @@ function reglage(id: SoundId) {
  * correspondante ne joue plus. Le retirer suffit à la faire revenir — rien
  * n'est perdu, puisqu'elle n'a jamais été qu'un peu de code.
  */
-const echantillons = new Map<SoundId, AudioBuffer>();
+const echantillonsParContexte: Record<SoundContext, Map<SoundId, AudioBuffer>> = {
+  ia: new Map(),
+  en_ligne: new Map(),
+};
 
 /** Vrai si cette chaîne nomme un son du jeu. */
 export function isSoundId(v: string): v is SoundId {
@@ -509,13 +550,17 @@ export function isSoundId(v: string): v is SoundId {
 }
 
 /**
- * Installe un fichier à la place d'un son synthétisé.
+ * Installe un fichier à la place d'un son synthétisé, pour un contexte donné.
  *
  * Le décodage sert aussi de contrôle : un fichier que le navigateur ne sait
  * pas ouvrir lève ici, avant d'être envoyé à la base et de rendre le son muet
  * chez tout le monde.
  */
-export async function registerSample(id: SoundId, bytes: ArrayBuffer): Promise<void> {
+export async function registerSample(
+  id: SoundId,
+  bytes: ArrayBuffer,
+  contexte: SoundContext,
+): Promise<void> {
   const ac = creerContexte();
   if (!ac) throw new Error("Ce navigateur ne sait pas lire de son.");
   // `decodeAudioData` vide le tampon qu'on lui passe : on lui en donne une
@@ -525,17 +570,17 @@ export async function registerSample(id: SoundId, bytes: ArrayBuffer): Promise<v
     // et sans dire quoi faire.
     throw new Error("Ce fichier ne s'ouvre pas comme un son. Essayez un MP3, un WAV ou un OGG.");
   });
-  echantillons.set(id, buffer);
+  echantillonsParContexte[contexte].set(id, buffer);
 }
 
-/** Rend un son à sa synthèse. */
-export function clearSample(id: SoundId): void {
-  echantillons.delete(id);
+/** Rend un son à sa synthèse, pour un contexte donné. */
+export function clearSample(id: SoundId, contexte: SoundContext): void {
+  echantillonsParContexte[contexte].delete(id);
 }
 
-/** Vrai si ce son est joué depuis un fichier. */
-export function hasSample(id: SoundId): boolean {
-  return echantillons.has(id);
+/** Vrai si ce son est joué depuis un fichier, pour un contexte donné. */
+export function hasSample(id: SoundId, contexte: SoundContext): boolean {
+  return echantillonsParContexte[contexte].has(id);
 }
 
 /**
@@ -546,7 +591,7 @@ export function hasSample(id: SoundId): boolean {
  * le relais dans le dos de l'administrateur.
  */
 function echantillon(id: SoundId): boolean {
-  const buffer = echantillons.get(id);
+  const buffer = echantillonsParContexte[contexteActif].get(id);
   if (!buffer) return false;
   const ac = audio();
   if (!ac) return true;

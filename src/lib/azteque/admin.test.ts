@@ -63,7 +63,17 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
     storage: {
       from: () => ({
-        list: () => Promise.resolve({ data: base.seau, error: base.seauListeErreur }),
+        // Comme le vrai Storage, les noms rendus sont RELATIFS au préfixe
+        // demandé : c'est ce qui permet à `admin.ts` de partager un même seau
+        // entre les deux contextes sans qu'ils ne se voient l'un l'autre.
+        list: (prefixe: string) => {
+          if (base.seauListeErreur)
+            return Promise.resolve({ data: null, error: base.seauListeErreur });
+          const data = base.seau
+            .filter((o) => o.name.startsWith(prefixe ?? ""))
+            .map((o) => ({ ...o, name: o.name.slice((prefixe ?? "").length) }));
+          return Promise.resolve({ data, error: null });
+        },
         upload: (path: string, bytes: ArrayBuffer, opts: { contentType: string }) => {
           if (base.seauEcritureErreur) return Promise.resolve({ error: base.seauEcritureErreur });
           base.seau.push({
@@ -222,11 +232,11 @@ describe("liste des joueurs quand la base est en retard", () => {
  */
 describe("sons locaux", () => {
   it("dépose un fichier et le retrouve dans le catalogue", async () => {
-    const info = await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(64));
+    const info = await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(64), "ia");
     expect(info).toMatchObject({ id: "cheer", mime: "audio/mpeg", bytes: 64 });
     expect(info.path).toMatch(/^cheer-\d+\.mp3$/);
 
-    const liste = await listSoundFiles();
+    const liste = await listSoundFiles("ia");
     expect(liste).toHaveLength(1);
     expect(liste[0]).toMatchObject({ id: "cheer", path: info.path });
   });
@@ -237,34 +247,54 @@ describe("sons locaux", () => {
       // Un fichier déposé par erreur, ou par un autre usage du même projet.
       { name: "notes-de-service.pdf", metadata: { mimetype: "", size: 0 }, updated_at: "x" },
     ];
-    const liste = await listSoundFiles();
+    const liste = await listSoundFiles("ia");
     expect(liste.map((f) => f.id)).toEqual(["cheer"]);
   });
 
   it("remplacer un son retire l'ancienne version, il n'en reste qu'une", async () => {
-    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
-    await adminSetSoundFile("cheer", "audio/wav", new ArrayBuffer(20));
-    const liste = await listSoundFiles();
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10), "ia");
+    await adminSetSoundFile("cheer", "audio/wav", new ArrayBuffer(20), "ia");
+    const liste = await listSoundFiles("ia");
     expect(liste).toHaveLength(1);
     expect(liste[0]).toMatchObject({ mime: "audio/wav", bytes: 20 });
   });
 
   it("garde un son de chaque, sans mélanger les identifiants", async () => {
-    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
-    await adminSetSoundFile("taunt", "audio/wav", new ArrayBuffer(20));
-    const liste = await listSoundFiles();
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10), "ia");
+    await adminSetSoundFile("taunt", "audio/wav", new ArrayBuffer(20), "ia");
+    const liste = await listSoundFiles("ia");
     expect(liste.map((f) => f.id).sort()).toEqual(["cheer", "taunt"]);
   });
 
+  it("isole un contexte de l'autre : même seau, préfixes distincts", async () => {
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10), "ia");
+    await adminSetSoundFile("cheer", "audio/wav", new ArrayBuffer(20), "en_ligne");
+
+    const ia = await listSoundFiles("ia");
+    const enLigne = await listSoundFiles("en_ligne");
+    expect(ia).toHaveLength(1);
+    expect(enLigne).toHaveLength(1);
+    expect(ia[0]).toMatchObject({ mime: "audio/mpeg", bytes: 10 });
+    expect(enLigne[0]).toMatchObject({ mime: "audio/wav", bytes: 20 });
+    expect(enLigne[0]!.path.startsWith("en_ligne/")).toBe(true);
+    expect(ia[0]!.path.startsWith("en_ligne/")).toBe(false);
+
+    await adminClearSoundFile("cheer", "ia");
+    expect(await listSoundFiles("ia")).toEqual([]);
+    expect(await listSoundFiles("en_ligne")).toHaveLength(1);
+  });
+
   it("retire le fichier d'un son : le catalogue l'oublie", async () => {
-    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10));
-    await adminClearSoundFile("cheer");
-    expect(await listSoundFiles()).toEqual([]);
+    await adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10), "ia");
+    await adminClearSoundFile("cheer", "ia");
+    expect(await listSoundFiles("ia")).toEqual([]);
   });
 
   it("répercute un refus du seau — un joueur ordinaire, par exemple", async () => {
     base.seauEcritureErreur = { message: "new row violates row-level security policy" };
-    await expect(adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10))).rejects.toThrow();
+    await expect(
+      adminSetSoundFile("cheer", "audio/mpeg", new ArrayBuffer(10), "ia"),
+    ).rejects.toThrow();
   });
 
   it("laisse la synthèse en place quand le seau ne répond rien", async () => {
@@ -272,6 +302,6 @@ describe("sons locaux", () => {
     // s'ouvrir quand même, avec les sons du code.
     base.seauListeErreur = { code: "404" };
     await expect(loadSoundFiles()).resolves.toBeUndefined();
-    expect(await listSoundFiles()).toEqual([]);
+    expect(await listSoundFiles("ia")).toEqual([]);
   });
 });

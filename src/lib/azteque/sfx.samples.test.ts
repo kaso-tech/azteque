@@ -95,14 +95,14 @@ const { DEFAULT_SOUND_SETTINGS, applySoundSettings, clearSample, hasSample, regi
 beforeEach(() => {
   demarres.length = 0;
   oscillateurs = 0;
-  clearSample("cheer");
-  applySoundSettings(DEFAULT_SOUND_SETTINGS);
+  clearSample("cheer", "ia");
+  applySoundSettings(DEFAULT_SOUND_SETTINGS, "ia");
 });
 
 describe("un son remplacé par un fichier", () => {
   it("refuse un fichier que l'appareil audio n'ouvre pas", async () => {
-    await expect(registerSample("cheer", new ArrayBuffer(0))).rejects.toThrow();
-    expect(hasSample("cheer")).toBe(false);
+    await expect(registerSample("cheer", new ArrayBuffer(0), "ia")).rejects.toThrow();
+    expect(hasSample("cheer", "ia")).toBe(false);
   });
 
   it("se joue à la place de la synthèse", async () => {
@@ -114,8 +114,8 @@ describe("un son remplacé par un fichier", () => {
 
     demarres.length = 0;
     oscillateurs = 0;
-    await registerSample("cheer", new ArrayBuffer(64));
-    expect(hasSample("cheer")).toBe(true);
+    await registerSample("cheer", new ArrayBuffer(64), "ia");
+    expect(hasSample("cheer", "ia")).toBe(true);
     sfx.cheer();
     // Un seul démarrage : le fichier, et rien de la synthèse par-dessus.
     expect(oscillateurs).toBe(0);
@@ -124,8 +124,11 @@ describe("un son remplacé par un fichier", () => {
   });
 
   it("obéit encore au volume, à la hauteur et à la vitesse", async () => {
-    await registerSample("cheer", new ArrayBuffer(64));
-    applySoundSettings({ master: 0.5, sounds: { cheer: { gain: 2, pitch: 1.5, speed: 0.75 } } });
+    await registerSample("cheer", new ArrayBuffer(64), "ia");
+    applySoundSettings(
+      { master: 0.5, sounds: { cheer: { gain: 2, pitch: 1.5, speed: 0.75 } } },
+      "ia",
+    );
     sfx.cheer();
     // Un enregistrement n'a qu'une commande pour la hauteur et la vitesse :
     // les deux curseurs se combinent, 1,5 / 0,75 = 2.
@@ -134,21 +137,21 @@ describe("un son remplacé par un fichier", () => {
   });
 
   it("se tait sans réveiller la synthèse quand le volume tombe à zéro", async () => {
-    await registerSample("cheer", new ArrayBuffer(64));
-    applySoundSettings({ master: 1, sounds: { cheer: { gain: 0 } } });
+    await registerSample("cheer", new ArrayBuffer(64), "ia");
+    applySoundSettings({ master: 1, sounds: { cheer: { gain: 0 } } }, "ia");
     sfx.cheer();
     expect(demarres).toHaveLength(0);
   });
 
   it("rend le son à sa synthèse quand on retire le fichier", async () => {
-    await registerSample("cheer", new ArrayBuffer(64));
-    clearSample("cheer");
+    await registerSample("cheer", new ArrayBuffer(64), "ia");
+    clearSample("cheer", "ia");
     sfx.cheer();
     expect(demarres.length).toBeGreaterThan(10);
   });
 
   it("ne touche pas aux autres sons", async () => {
-    await registerSample("cheer", new ArrayBuffer(64));
+    await registerSample("cheer", new ArrayBuffer(64), "ia");
     demarres.length = 0;
     sfx.taunt();
     // Le rire moqueur reste synthétisé : rien de ce qui démarre n'est le
@@ -184,12 +187,12 @@ describe("les rires des moments forts", () => {
   });
 
   it("se remplacent comme n'importe quel autre son", async () => {
-    await registerSample("streakLaugh", new ArrayBuffer(64));
+    await registerSample("streakLaugh", new ArrayBuffer(64), "ia");
     demarres.length = 0;
     oscillateurs = 0;
     sfx.streakLaugh();
     expect(oscillateurs).toBe(0);
     expect(demarres).toHaveLength(1);
-    clearSample("streakLaugh");
+    clearSample("streakLaugh", "ia");
   });
 });

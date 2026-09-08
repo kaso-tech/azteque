@@ -4,6 +4,8 @@ import {
   clearSample,
   isSoundId,
   registerSample,
+  SOUND_CONTEXTS,
+  type SoundContext,
   type SoundId,
   type SoundSettings,
 } from "@/lib/azteque/sfx";
@@ -324,10 +326,19 @@ export async function adminLog(limit = 50): Promise<AdminLogEntry[]> {
 
 /* ---------- Réglages du son ---------- */
 
-const CLE_SONS = "sounds";
+/**
+ * Une clé `app_settings` par contexte. Celle du contexte « ia » est
+ * inchangée depuis avant ce dédoublement : le jeu contre l'IA continue de
+ * lire exactement ce qu'il lisait déjà, sans migration.
+ */
+const CLE_SONS: Record<SoundContext, string> = {
+  ia: "sounds",
+  en_ligne: "sounds_en_ligne",
+};
 
 /**
- * Charge les réglages du son, puis les fichiers qui en remplacent certains.
+ * Charge les réglages du son des deux contextes, puis les fichiers qui en
+ * remplacent certains.
  *
  * Appelée à l'ouverture, pour tout le monde : les deux tables sont lisibles
  * sans compte, puisque le jeu contre l'IA n'en demande pas. Un échec — table
@@ -335,25 +346,32 @@ const CLE_SONS = "sounds";
  * code, et la synthèse à sa place.
  */
 export async function loadSoundSettings(): Promise<void> {
-  try {
-    const { data, error } = await anyTable("app_settings")
-      .select("value")
-      .eq("key", CLE_SONS)
-      .maybeSingle();
-    if (!error && data) applySoundSettings((data as unknown as { value: unknown }).value);
-  } catch {
-    /* les valeurs du code font foi */
+  for (const contexte of SOUND_CONTEXTS) {
+    try {
+      const { data, error } = await anyTable("app_settings")
+        .select("value")
+        .eq("key", CLE_SONS[contexte])
+        .maybeSingle();
+      if (!error && data) {
+        applySoundSettings((data as unknown as { value: unknown }).value, contexte);
+      }
+    } catch {
+      /* les valeurs du code font foi */
+    }
   }
   await loadSoundFiles();
 }
 
-export async function adminSaveSoundSettings(settings: SoundSettings): Promise<void> {
+export async function adminSaveSoundSettings(
+  settings: SoundSettings,
+  contexte: SoundContext,
+): Promise<void> {
   const { error } = await rpc("admin_set_setting", {
-    _key: CLE_SONS,
+    _key: CLE_SONS[contexte],
     _value: settings as unknown as Record<string, unknown>,
   });
   if (error) throw error;
-  applySoundSettings(settings);
+  applySoundSettings(settings, contexte);
 }
 
 /* ---------- Sons locaux ---------- */
@@ -369,6 +387,19 @@ export const SON_MAX_OCTETS = 700 * 1024;
 
 /** Le seau Supabase Storage où vivent les fichiers de remplacement. */
 const SEAU_SONS = "sounds";
+
+/**
+ * Préfixe de chemin propre à chaque contexte, à l'intérieur du même seau.
+ *
+ * Créer un second seau avait déjà échoué à l'exécution d'une migration ; les
+ * policies du seau existant ne restreignent pas les chemins, un simple
+ * préfixe suffit donc à isoler les fichiers d'un contexte sans rien
+ * migrer. Celui du contexte « ia » reste vide : les fichiers déjà déposés
+ * avant ce dédoublement restent visibles sans déplacement.
+ */
+function prefixeDuContexte(contexte: SoundContext): string {
+  return contexte === "ia" ? "" : `${contexte}/`;
+}
 
 export interface SoundFileInfo {
   id: SoundId;
@@ -388,20 +419,22 @@ export interface SoundFileInfo {
  * même en tient le compte. Si un remplacement a été interrompu et qu'il en
  * reste deux pour le même son, le plus récent l'emporte.
  */
-async function fichiersDuSeau(): Promise<SoundFileInfo[]> {
-  const { data, error } = await supabase.storage.from(SEAU_SONS).list("", { limit: 200 });
+async function fichiersDuSeau(contexte: SoundContext): Promise<SoundFileInfo[]> {
+  const prefixe = prefixeDuContexte(contexte);
+  const { data, error } = await supabase.storage.from(SEAU_SONS).list(prefixe, { limit: 200 });
   if (error || !data) return [];
   const parSon = new Map<SoundId, SoundFileInfo>();
   for (const objet of data) {
     const correspond = /^([a-zA-Z][a-zA-Z0-9]{1,39})-\d+\.[a-z0-9]+$/.exec(objet.name);
     const id = correspond?.[1];
     if (!id || !isSoundId(id)) continue;
+    const chemin = prefixe + objet.name;
     const existant = parSon.get(id);
-    if (existant && existant.path >= objet.name) continue;
+    if (existant && existant.path >= chemin) continue;
     const meta = (objet as unknown as { metadata?: Record<string, unknown> }).metadata ?? {};
     parSon.set(id, {
       id,
-      path: objet.name,
+      path: chemin,
       mime: typeof meta["mimetype"] === "string" ? (meta["mimetype"] as string) : "audio/mpeg",
       bytes: typeof meta["size"] === "number" ? (meta["size"] as number) : 0,
       updated_at:
@@ -421,30 +454,32 @@ async function fichiersDuSeau(): Promise<SoundFileInfo[]> {
  * la synthèse en place, et un fichier illisible n'emporte que lui-même.
  */
 export async function loadSoundFiles(): Promise<void> {
-  try {
-    const fichiers = await fichiersDuSeau();
-    await Promise.all(
-      fichiers.map(async (f) => {
-        try {
-          // Le seau est privé : pas d'adresse publique. La policy « Sons
-          // lisibles de tous » laisse néanmoins quiconque télécharger, même
-          // sans compte — le jeu contre l'IA s'entend pareil pour tous.
-          const { data, error } = await supabase.storage.from(SEAU_SONS).download(f.path);
-          if (error || !data) throw error ?? new Error("vide");
-          await registerSample(f.id, await data.arrayBuffer());
-        } catch {
-          clearSample(f.id);
-        }
-      }),
-    );
-  } catch {
-    /* la synthèse reste en place */
+  for (const contexte of SOUND_CONTEXTS) {
+    try {
+      const fichiers = await fichiersDuSeau(contexte);
+      await Promise.all(
+        fichiers.map(async (f) => {
+          try {
+            // Le seau est privé : pas d'adresse publique. La policy « Sons
+            // lisibles de tous » laisse néanmoins quiconque télécharger, même
+            // sans compte — le jeu contre l'IA s'entend pareil pour tous.
+            const { data, error } = await supabase.storage.from(SEAU_SONS).download(f.path);
+            if (error || !data) throw error ?? new Error("vide");
+            await registerSample(f.id, await data.arrayBuffer(), contexte);
+          } catch {
+            clearSample(f.id, contexte);
+          }
+        }),
+      );
+    } catch {
+      /* la synthèse reste en place */
+    }
   }
 }
 
-/** Ce qui est installé : de quoi renseigner la console. */
-export async function listSoundFiles(): Promise<SoundFileInfo[]> {
-  return fichiersDuSeau();
+/** Ce qui est installé pour un contexte : de quoi renseigner la console. */
+export async function listSoundFiles(contexte: SoundContext): Promise<SoundFileInfo[]> {
+  return fichiersDuSeau(contexte);
 }
 
 /**
@@ -459,10 +494,15 @@ export async function listSoundFiles(): Promise<SoundFileInfo[]> {
 async function journaliserSon(
   id: SoundId,
   action: string,
+  contexte: SoundContext,
   details: Record<string, unknown> = {},
 ): Promise<void> {
   try {
-    await rpc("admin_log_sound_change", { _id: id, _action: action, _details: details });
+    await rpc("admin_log_sound_change", {
+      _id: id,
+      _action: action,
+      _details: { ...details, contexte },
+    });
   } catch {
     /* ignoré */
   }
@@ -481,9 +521,10 @@ export async function adminSetSoundFile(
   id: SoundId,
   mime: string,
   bytes: ArrayBuffer,
+  contexte: SoundContext,
 ): Promise<SoundFileInfo> {
   const ext = mime.split("/")[1]?.replace("mpeg", "mp3") || "mp3";
-  const path = `${id}-${Date.now()}.${ext}`;
+  const path = `${prefixeDuContexte(contexte)}${id}-${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from(SEAU_SONS).upload(path, bytes, {
     contentType: mime,
     cacheControl: "31536000",
@@ -491,9 +532,9 @@ export async function adminSetSoundFile(
   });
   if (error) throw error;
 
-  await journaliserSon(id, "sound_file", { mime, bytes: bytes.byteLength });
+  await journaliserSon(id, "sound_file", contexte, { mime, bytes: bytes.byteLength });
 
-  const anciens = (await fichiersDuSeau())
+  const anciens = (await fichiersDuSeau(contexte))
     .filter((f) => f.id === id && f.path !== path)
     .map((f) => f.path);
   if (anciens.length) await supabase.storage.from(SEAU_SONS).remove(anciens);
@@ -501,12 +542,12 @@ export async function adminSetSoundFile(
   return { id, path, mime, bytes: bytes.byteLength, updated_at: new Date().toISOString() };
 }
 
-/** Retire le fichier d'un son : il revient à sa synthèse. */
-export async function adminClearSoundFile(id: SoundId): Promise<void> {
-  const chemins = (await fichiersDuSeau()).filter((f) => f.id === id).map((f) => f.path);
+/** Retire le fichier d'un son pour un contexte : il revient à sa synthèse. */
+export async function adminClearSoundFile(id: SoundId, contexte: SoundContext): Promise<void> {
+  const chemins = (await fichiersDuSeau(contexte)).filter((f) => f.id === id).map((f) => f.path);
   if (chemins.length) {
     const { error } = await supabase.storage.from(SEAU_SONS).remove(chemins);
     if (error) throw error;
   }
-  await journaliserSon(id, "sound_file_clear");
+  await journaliserSon(id, "sound_file_clear", contexte);
 }

@@ -29,7 +29,7 @@ import {
   FlyingCard,
   SweepCard,
 } from "@/components/azteque/animations";
-import { sfx } from "@/lib/azteque/sfx";
+import { sfx, setSoundContext } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
 import { Recap } from "@/components/azteque/panels";
@@ -195,6 +195,12 @@ function OnlineTable() {
   const applyRow = useCallback((next: MatchRow) => {
     setRow(next);
     setState((next.state as GameState | null) ?? null);
+  }, []);
+
+  // Cet écran est exclusivement le jeu en ligne : ses sons ne doivent jamais
+  // puiser dans les réglages du profil « contre l'IA ».
+  useEffect(() => {
+    setSoundContext("en_ligne");
   }, []);
 
   useEffect(() => {

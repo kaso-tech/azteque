@@ -34,7 +34,7 @@ import {
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { InstallPrompt } from "@/components/azteque/install-prompt";
 import { cn } from "@/lib/utils";
-import { sfx, setSoundEnabled } from "@/lib/azteque/sfx";
+import { sfx, setSoundContext, setSoundEnabled } from "@/lib/azteque/sfx";
 import { amIAdmin, touchLastSeen } from "@/lib/azteque/admin";
 import {
   awardAiWin,
@@ -177,6 +177,12 @@ function Azteque() {
     player: null,
     count: 0,
   });
+
+  // Cet écran est exclusivement le jeu contre l'IA : ses sons ne doivent
+  // jamais puiser dans les réglages du profil « en ligne ».
+  useEffect(() => {
+    setSoundContext("ia");
+  }, []);
 
   // Réglages persistants
   useEffect(() => {

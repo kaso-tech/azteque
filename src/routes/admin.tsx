@@ -10,17 +10,21 @@ import { describeError } from "@/lib/azteque/account";
 import { loadCatalogue, useCatalogue, type ShopItem, type ShopKind } from "@/lib/azteque/shop";
 import {
   DEFAULT_SOUND_SETTINGS,
+  SOUND_CONTEXTS,
+  SOUND_CONTEXT_LABELS,
   SOUND_EXTRAS,
   SOUND_IDS,
   SOUND_LABELS,
   SOUND_RANGES,
   SOUND_TUNING_LABELS,
   currentSoundSettings,
+  setSoundContext,
   sfx,
   applySoundSettings,
   clearSample,
   hasSample,
   registerSample,
+  type SoundContext,
   type SoundId,
   type SoundSettings,
   type SoundTuning,
@@ -765,24 +769,27 @@ function poids(octets: number): string {
 }
 
 function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
-  const [reglages, setReglages] = useState<SoundSettings>(() => currentSoundSettings());
+  const [profil, setProfil] = useState<SoundContext>("ia");
+  const [reglages, setReglages] = useState<SoundSettings>(() => currentSoundSettings("ia"));
   const [busy, setBusy] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
   const [fichiers, setFichiers] = useState<Record<string, SoundFileInfo>>({});
   const [occupe, setOccupe] = useState<SoundId | null>(null);
 
-  // Ce qui est déjà installé : la console doit dire ce qu'on entend, pas ce
-  // que le code produirait. Une table absente n'est pas une panne — la
-  // migration des sons locaux n'est peut-être pas encore passée.
+  // Le profil affiché doit aussi être celui qu'on entend en cliquant sur
+  // « Écouter » : la console bascule le contexte actif en même temps qu'elle
+  // recharge ses réglages et ses fichiers.
   useEffect(() => {
-    listSoundFiles()
+    setSoundContext(profil);
+    setReglages(currentSoundSettings(profil));
+    listSoundFiles(profil)
       .then((l) => setFichiers(Object.fromEntries(l.map((f) => [f.id, f]))))
       .catch(() => setFichiers({}));
-  }, []);
+  }, [profil]);
 
   // L'aperçu doit s'entendre tel qu'il sera : on applique avant de jouer.
   const ecouter = (id: SoundId) => {
-    applySoundSettings(reglages);
+    applySoundSettings(reglages, profil);
     sfx[id]();
   };
 
@@ -804,14 +811,14 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
         );
       }
       const octets = await f.arrayBuffer();
-      await registerSample(id, octets);
+      await registerSample(id, octets, profil);
       const mime = typeDuFichier(f);
-      const info = await adminSetSoundFile(id, mime, octets);
+      const info = await adminSetSoundFile(id, mime, octets, profil);
       setFichiers((x) => ({ ...x, [id]: info }));
       sfx[id]();
     } catch (e: unknown) {
       // Le son revient à sa synthèse : mieux vaut l'ancien effet qu'un silence.
-      clearSample(id);
+      clearSample(id, profil);
       setFichiers((x) => {
         const { [id]: _, ...reste } = x;
         return reste;
@@ -825,9 +832,9 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const retirer = (id: SoundId) => {
     onErreur(null);
     setOccupe(id);
-    adminClearSoundFile(id)
+    adminClearSoundFile(id, profil)
       .then(() => {
-        clearSample(id);
+        clearSample(id, profil);
         setFichiers((x) => {
           const { [id]: _, ...reste } = x;
           return reste;
@@ -849,7 +856,7 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
   const enregistrer = () => {
     setBusy(true);
     onErreur(null);
-    adminSaveSoundSettings(reglages)
+    adminSaveSoundSettings(reglages, profil)
       .then(() => {
         setEnregistre(true);
         setTimeout(() => setEnregistre(false), 2500);
@@ -886,6 +893,24 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
 
   return (
     <section className="panel space-y-4 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {SOUND_CONTEXTS.map((c) => (
+          <Button
+            key={c}
+            size="sm"
+            variant={profil === c ? "default" : "outline"}
+            onClick={() => setProfil(c)}
+            className={cn(profil === c && "font-semibold")}
+          >
+            {SOUND_CONTEXT_LABELS[c]}
+          </Button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Deux jeux de sons indépendants : l'un pour affronter l'IA, l'autre pour le jeu en ligne.
+        Chaque réglage et chaque fichier ci-dessous ne vaut que pour le profil sélectionné.
+      </p>
+
       <div>
         <p className="text-sm text-foreground">Volume général</p>
         {curseur("Tous", reglages.master, 0, 2, 0.05, (v) =>
@@ -958,7 +983,7 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
                   🎵 {(fichier.path.split(".").pop() ?? "").toUpperCase()} · {poids(fichier.bytes)}
                   {/* Le fichier est déposé mais pas dans cette page : elle a
                       été ouverte avant qu'il n'y soit. */}
-                  {!hasSample(id) && " · rechargez la page pour l'entendre"}
+                  {!hasSample(id, profil) && " · rechargez la page pour l'entendre"}
                 </p>
               )}
 
@@ -992,8 +1017,8 @@ function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
         <Button
           variant="outline"
           onClick={() => {
-            applySoundSettings(DEFAULT_SOUND_SETTINGS);
-            setReglages(currentSoundSettings());
+            applySoundSettings(DEFAULT_SOUND_SETTINGS, profil);
+            setReglages(currentSoundSettings(profil));
           }}
         >
           Valeurs d'origine
