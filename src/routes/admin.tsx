@@ -82,16 +82,6 @@ function Administration() {
   // sans contenu tant que leur écran n'est pas livré.
   const placeholder = !ONGLETS_DISPONIBLES.includes(onglet);
 
-  const setTab = useCallback((id: AdminTabId) => {
-    setOnglet(id);
-    // On remonte en haut de la zone de contenu à chaque changement
-    // d'onglet, sinon on reste à la position de scroll précédente et
-    // le nouvel écran apparaît coupé.
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    }
-  }, []);
-
   const adminInitial = "A";
   const adminName = "Administrateur";
   const onlineCount = 0;
