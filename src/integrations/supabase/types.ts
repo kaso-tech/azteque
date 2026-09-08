@@ -172,6 +172,45 @@ export type Database = {
         }
         Relationships: []
       }
+      player_reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: number
+          reason: string
+          reporter_id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          target_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: number
+          reason: string
+          reporter_id: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: number
+          reason?: string
+          reporter_id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_kind: string
@@ -463,6 +502,7 @@ export type Database = {
         }[]
       }
       admin_delete_item: { Args: { _id: string }; Returns: undefined }
+      admin_get_setting: { Args: { _key: string }; Returns: Json }
       admin_grant_tokens: {
         Args: { _amount: number; _reason?: string; _user: string }
         Returns: number
@@ -507,6 +547,37 @@ export type Database = {
           username: string
         }[]
       }
+      admin_list_reports: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _reason?: string
+          _status?: string
+        }
+        Returns: {
+          created_at: string
+          details: string
+          id: number
+          reason: string
+          reporter_id: string
+          reporter_username: string
+          resolution_note: string
+          resolved_at: string
+          resolved_by: string
+          status: string
+          target_banned: boolean
+          target_id: string
+          target_username: string
+        }[]
+      }
+      admin_list_settings: {
+        Args: never
+        Returns: {
+          key: string
+          updated_at: string
+          value: Json
+        }[]
+      }
       admin_log_sound_change: {
         Args: { _action: string; _details?: Json; _id: string }
         Returns: undefined
@@ -532,6 +603,10 @@ export type Database = {
           result: string
           score: string
         }[]
+      }
+      admin_resolve_report: {
+        Args: { _decision: string; _id: number; _note?: string }
+        Returns: undefined
       }
       admin_revert_log_entry: { Args: { _id: number }; Returns: string }
       admin_set_admin: {
@@ -662,6 +737,10 @@ export type Database = {
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      submit_player_report: {
+        Args: { _details?: string; _reason: string; _target: string }
+        Returns: number
+      }
       sync_google_identity: {
         Args: never
         Returns: {
