@@ -190,6 +190,7 @@ export type Database = {
           peak_rating: number
           rated_games: number
           rating: number
+          referral_code: string | null
           rounds_played: number
           tokens: number
           updated_at: string
@@ -212,6 +213,7 @@ export type Database = {
           peak_rating?: number
           rated_games?: number
           rating?: number
+          referral_code?: string | null
           rounds_played?: number
           tokens?: number
           updated_at?: string
@@ -234,6 +236,7 @@ export type Database = {
           peak_rating?: number
           rated_games?: number
           rating?: number
+          referral_code?: string | null
           rounds_played?: number
           tokens?: number
           updated_at?: string
@@ -263,6 +266,62 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "shop_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          invited_id: string
+          reward: number
+          sponsor_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          invited_id: string
+          reward: number
+          sponsor_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          invited_id?: string
+          reward?: number
+          sponsor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_invited_id_fkey"
+            columns: ["invited_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_invited_id_fkey"
+            columns: ["invited_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -444,10 +503,43 @@ export type Database = {
       buy_item: { Args: { _item_id: string }; Returns: Json }
       claim_daily_bonus: { Args: never; Returns: Json }
       claim_local_tokens: { Args: { _amount: number }; Returns: number }
+      create_profile: {
+        Args: { _referral_code?: string; _username: string }
+        Returns: {
+          avatar_kind: string
+          avatar_url: string | null
+          banned: boolean
+          claimed_local_tokens: boolean
+          country: string | null
+          created_at: string
+          daily_bonus_at: string
+          first_name: string | null
+          id: string
+          is_admin: boolean
+          last_name: string | null
+          last_seen_at: string | null
+          local_tokens_total: number
+          peak_rating: number
+          rated_games: number
+          rating: number
+          referral_code: string | null
+          rounds_played: number
+          tokens: number
+          updated_at: string
+          username: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       elo_k: {
         Args: { _rated_games: number; _rating: number }
         Returns: number
       }
+      generate_referral_code: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       join_match_by_code: {
         Args: { _code: string; _guest_name: string }
@@ -480,6 +572,15 @@ export type Database = {
         Args: { _action: string; _details: Json; _target: string }
         Returns: undefined
       }
+      my_referral_code: { Args: never; Returns: string }
+      my_referrals: {
+        Args: never
+        Returns: {
+          created_at: string
+          reward: number
+          username: string
+        }[]
+      }
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
@@ -502,6 +603,7 @@ export type Database = {
           peak_rating: number
           rated_games: number
           rating: number
+          referral_code: string | null
           rounds_played: number
           tokens: number
           updated_at: string
