@@ -22,16 +22,20 @@ export function addTokens(delta: number): number {
 /* ---------- Bienvenue et parrainage ---------- */
 
 /**
- * Jetons offerts à la création d'un compte, et jetons versés au parrain pour
- * chaque filleul inscrit avec son code.
+ * Jetons offerts à la création d'un compte, jetons versés au parrain pour
+ * chaque filleul inscrit avec son code, et bonus supplémentaire touché par ce
+ * filleul lui-même (en plus de ses jetons de bienvenue : 300 au total pour
+ * qui s'inscrit avec un code valide).
  *
- * Ces deux nombres ne servent ICI qu'à l'affichage. Les versements eux-mêmes
- * sont faits par la base (`create_profile`, migration 20260908000000), qui
- * seule fait foi : les jetons ne s'écrivent jamais depuis le navigateur. Les
- * changer d'un seul côté ferait donc mentir l'interface, pas les comptes.
+ * Ces trois nombres ne servent ICI qu'à l'affichage. Les versements eux-mêmes
+ * sont faits par la base (`create_profile`, migrations 20260908000000 et
+ * 20260908010000), qui seule fait foi : les jetons ne s'écrivent jamais
+ * depuis le navigateur. Les changer d'un seul côté ferait donc mentir
+ * l'interface, pas les comptes.
  */
 export const WELCOME_BONUS = 100;
 export const REFERRAL_REWARD = 500;
+export const REFERRAL_INVITEE_BONUS = 200;
 
 const PARRAIN_KEY = "azteque-parrain";
 

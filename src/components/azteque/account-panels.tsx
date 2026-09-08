@@ -6,6 +6,7 @@ import { RankBadge } from "@/components/azteque/rank";
 import { AVATAR_CHOICES, PlayerAvatar } from "@/components/azteque/avatar";
 import { itemsOfKind, useCatalogue } from "@/lib/azteque/shop";
 import {
+  REFERRAL_INVITEE_BONUS,
   REFERRAL_REWARD,
   WELCOME_BONUS,
   clearPendingReferralCode,
@@ -128,8 +129,13 @@ export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void })
           className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-center font-display tracking-[0.2em] outline-none focus:border-gold focus:ring-1 focus:ring-ring"
         />
         <p className="mt-2 text-[0.7rem] text-muted-foreground">
-          Si un joueur vous a invité, son code lui rapporte {REFERRAL_REWARD} jetons. Vous commencez
-          de toute façon avec vos {WELCOME_BONUS} jetons de bienvenue.
+          {parrain.trim()
+            ? `Avec un code valide, vous recevez ${WELCOME_BONUS + REFERRAL_INVITEE_BONUS} jetons ` +
+              `au lieu de ${WELCOME_BONUS} (votre bienvenue plus ${REFERRAL_INVITEE_BONUS} de ` +
+              `parrainage), et son propriétaire en reçoit ${REFERRAL_REWARD}.`
+            : `Vous commencez avec ${WELCOME_BONUS} jetons de bienvenue — ${
+                WELCOME_BONUS + REFERRAL_INVITEE_BONUS
+              } avec un code de parrainage valide. Son propriétaire reçoit alors ${REFERRAL_REWARD} jetons.`}
         </p>
       </div>
 
