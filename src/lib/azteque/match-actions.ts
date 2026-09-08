@@ -197,14 +197,42 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       if (state) throw new Error("La mise se fixe avant le début du champ.");
       const bet = settings["bet"] as BetNegotiation | undefined;
       if (bet?.status === "accepted") throw new Error("La mise du champ est déjà fixée.");
+
+      // Une mise n'engage que si les DEUX joueurs peuvent la couvrir.
+      //
+      // Sans ce contrôle, un compte vide pouvait miser n'importe quoi : le
+      // règlement de fin de champ (`settle_match`) ne prélève jamais plus que
+      // ce que le perdant possède, si bien qu'un joueur sans jetons empochait
+      // la mise entière en cas de victoire sans jamais rien risquer. Le pari
+      // n'en était plus un.
+      const soldeDe = async (id: string | null): Promise<number> => {
+        if (!id) return 0;
+        const { data: profil, error } = await supabaseAdmin
+          .from("profiles")
+          .select("tokens")
+          .eq("id", id)
+          .maybeSingle();
+        if (error) throw error;
+        return Math.max(0, Number(profil?.tokens ?? 0));
+      };
+
       let nextBet: BetNegotiation;
       if (data.type === "propose_bet") {
         if (!BET_STEPS.includes(data.amount as (typeof BET_STEPS)[number]))
           throw new Error("Mise invalide.");
+        if ((await soldeDe(userId)) < data.amount)
+          throw new Error("Solde insuffisant : vous ne pouvez pas miser plus que vos jetons.");
         nextBet = { amount: data.amount, by: seat, status: "pending" };
       } else {
         if (!bet) throw new Error("Aucune mise à accepter.");
         if (bet.by === seat) throw new Error("Vous ne pouvez pas accepter votre propre mise.");
+        // Les deux soldes sont relus À L'ACCEPTATION : celui du proposant a pu
+        // fondre entre sa proposition et cette réponse.
+        if ((await soldeDe(userId)) < bet.amount)
+          throw new Error("Solde insuffisant : proposez une mise plus basse.");
+        const idAdverse = seat === "host" ? row.guest_id : row.host_id;
+        if ((await soldeDe(idAdverse)) < bet.amount)
+          throw new Error("Votre adversaire n'a plus de quoi couvrir cette mise.");
         nextBet = { ...bet, status: "accepted" };
       }
       const nextSettings = { ...settings, bet: nextBet };

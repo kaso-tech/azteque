@@ -42,7 +42,8 @@ export function BetPanel({
         {!live && (
           <p className="mt-3 text-sm text-muted-foreground">
             Proposez une mise pour toute la partie. L'adversaire doit l'accepter ou contre-proposer
-            avant la première donne. Les jetons ne changent de main qu'à la fin du champ.
+            avant la première donne. Chacun doit posséder la mise pour l'engager ; les jetons ne
+            changent de main qu'à la fin du champ.
           </p>
         )}
 
@@ -75,16 +76,21 @@ export function BetPanel({
           <div className="mt-4 grid grid-cols-3 gap-2">
             {BET_STEPS.map((amount) => {
               const active = live?.amount === amount && mine;
+              // On ne mise que ce qu'on possède : le serveur refuse de toute
+              // façon, autant le dire ici plutôt que par un message d'erreur.
+              const tropCher = amount > balance;
               return (
                 <button
                   key={amount}
                   type="button"
+                  disabled={tropCher}
+                  title={tropCher ? "Solde insuffisant" : undefined}
                   onClick={() => {
                     setCounter(false);
                     onPropose(amount);
                   }}
                   className={
-                    "rounded-md border px-2 py-2 text-xs font-semibold " +
+                    "rounded-md border px-2 py-2 text-xs font-semibold disabled:opacity-35 " +
                     (active
                       ? "border-gold bg-gold/20 text-gold"
                       : "border-border text-muted-foreground")
@@ -95,6 +101,11 @@ export function BetPanel({
               );
             })}
           </div>
+        )}
+        {choosing && balance < BET_STEPS[0] && (
+          <p className="mt-2 text-[0.65rem] text-destructive">
+            Vous n'avez pas assez de jetons pour miser : il en faut au moins {BET_STEPS[0]}.
+          </p>
         )}
 
         {live && mine && (
