@@ -53,7 +53,13 @@ import {
   todayKey,
 } from "@/lib/azteque/tokens";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
-import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
+import {
+  CoinBurst,
+  CollectCard,
+  DrawCard,
+  FlyingCard,
+  SweepCard,
+} from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import {
   AiProfilePanel,
@@ -143,6 +149,14 @@ function Azteque() {
   >([]);
 
   const tableRef = useRef<HTMLDivElement | null>(null);
+  // Cibles du vol de jetons : l'avatar du joueur, sur l'accueil comme en jeu.
+  const accueilAvatarRef = useRef<HTMLButtonElement | null>(null);
+  const jeuAvatarRef = useRef<HTMLButtonElement | null>(null);
+  const [coinFlight, setCoinFlight] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    amount: number;
+  } | null>(null);
   const stockRef = useRef<HTMLDivElement | null>(null);
   const opponentHandRef = useRef<HTMLDivElement | null>(null);
   const playerHandRef = useRef<HTMLDivElement | null>(null);
@@ -256,19 +270,47 @@ function Azteque() {
     if (due) setShowBonus(true);
   }, [accountChecked, account]);
 
+  /** Le cadeau a bien été versé : les jetons voleront à la fermeture. */
+  const bonusEncaisse = useRef(false);
   const collectBonus = useCallback(async () => {
     if (account) {
       const { granted, tokens: solde } = await claimDailyBonus();
       if (granted <= 0) return null;
       setTokens(solde);
       setAccount((a) => (a ? { ...a, tokens: solde, daily_bonus_at: todayKey() } : a));
+      bonusEncaisse.current = true;
       return solde;
     }
     const solde = claimLocalDailyBonus();
     if (solde === null) return null;
     setTokens(solde);
+    bonusEncaisse.current = true;
     return solde;
   }, [account]);
+
+  /**
+   * Fait voler la récompense jusqu'au compte.
+   *
+   * Le solde n'est visible que dans le panneau de profil : sans ce vol, des
+   * jetons gagnés changeraient un nombre que personne ne regarde. Les pièces
+   * partent donc du centre de l'écran — là où l'annonce du gain vient de
+   * s'afficher — et rejoignent l'avatar, chacune avec son tintement.
+   */
+  const flyTokens = useCallback((amount: number) => {
+    const cible = (jeuAvatarRef.current ?? accueilAvatarRef.current)?.getBoundingClientRect();
+    if (!cible || amount <= 0) return;
+    setCoinFlight({
+      // Le vol doit se voir : sur l'accueil, l'avatar est lui aussi au milieu de
+      // l'écran, et partir du centre ne laisserait aux jetons que quelques pixels
+      // à parcourir. On les fait donc toujours monter depuis le bas.
+      from: {
+        x: window.innerWidth / 2,
+        y: Math.max(window.innerHeight * 0.62, cible.bottom + 200),
+      },
+      to: { x: cible.left + cible.width / 2, y: cible.top + cible.height / 2 },
+      amount,
+    });
+  }, []);
 
   useEffect(() => {
     if (!profileReady || accountBound) return;
@@ -282,6 +324,7 @@ function Azteque() {
   useEffect(() => {
     if (state.phase !== "gameEnd" || state.champWinner !== 0 || tokenAwarded.current) return;
     tokenAwarded.current = true;
+    flyTokens(TOKEN_REWARDS[settings.difficulty]);
     if (!accountBound) {
       setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]);
       return;
@@ -293,7 +336,7 @@ function Azteque() {
         if (balance !== null) setTokens(balance);
       })
       .catch(() => setTokens((t) => t + TOKEN_REWARDS[settings.difficulty]));
-  }, [state.phase, state.champWinner, settings.difficulty, accountBound]);
+  }, [state.phase, state.champWinner, settings.difficulty, accountBound, flyTokens]);
 
   useEffect(() => {
     if (state.phase !== "playing" || state.gains[0].length === 0) setShowMyGains(false);
@@ -711,6 +754,7 @@ function Azteque() {
         </p>
         <div className="mt-9 flex w-full max-w-xs flex-col items-center gap-4">
           <ProfileButton
+            innerRef={accueilAvatarRef}
             name={playerName}
             icon="player"
             account={account}
@@ -729,20 +773,20 @@ function Azteque() {
           >
             Jouer en ligne
           </Link>
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="w-full rounded-full border border-gold/25 px-8 py-2 text-center font-display text-xs font-semibold uppercase tracking-widest text-gold/70 transition-transform hover:scale-105"
-            >
-              Administration
-            </Link>
-          )}
           <Link
             to="/boutique"
             className="w-full rounded-full border border-gold/35 px-8 py-2.5 text-center font-display text-sm font-semibold text-gold/90 transition-transform hover:scale-105"
           >
             Boutique
           </Link>
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="w-full rounded-full border border-orange px-8 py-2 text-center font-display text-xs font-semibold uppercase tracking-widest text-orange transition-transform hover:scale-105"
+            >
+              Administration
+            </Link>
+          )}
         </div>
 
         {/* Le cadeau attend que la table soit libre : au tout premier lancement,
@@ -752,7 +796,20 @@ function Azteque() {
           <DailyBonusPanel
             amount={DAILY_BONUS}
             onCollect={collectBonus}
-            onClose={() => setShowBonus(false)}
+            onClose={() => {
+              setShowBonus(false);
+              if (!bonusEncaisse.current) return;
+              bonusEncaisse.current = false;
+              flyTokens(DAILY_BONUS);
+            }}
+          />
+        )}
+        {coinFlight && (
+          <CoinBurst
+            from={coinFlight.from}
+            to={coinFlight.to}
+            amount={coinFlight.amount}
+            onDone={() => setCoinFlight(null)}
           />
         )}
         {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
@@ -794,6 +851,7 @@ function Azteque() {
           icon="player"
           account={account}
           align="left"
+          innerRef={jeuAvatarRef}
           onClick={() => setShowPlayerProfile(true)}
         />
         <div className="min-w-16 text-center">
@@ -968,12 +1026,6 @@ function Azteque() {
             )}
           </div>
         )}
-
-        {state.stock.length === 0 && state.phase === "playing" && (
-          <p className="text-[0.7rem] uppercase tracking-widest text-accent">
-            Pioche épuisée — fournir, battre, protéger ses bonnes
-          </p>
-        )}
       </section>
 
       {/* Votre main */}
@@ -1051,6 +1103,16 @@ function Azteque() {
       {sweepFlights.map((flight) => (
         <SweepCard key={flight.id} {...flight} />
       ))}
+
+      {/* La récompense rejoint le compte : une pluie de jetons vers l'avatar. */}
+      {coinFlight && (
+        <CoinBurst
+          from={coinFlight.from}
+          to={coinFlight.to}
+          amount={coinFlight.amount}
+          onDone={() => setCoinFlight(null)}
+        />
+      )}
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") &&
         (state.roundScore || state.forfeit) && (

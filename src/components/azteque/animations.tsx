@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
+import { sfx } from "@/lib/azteque/sfx";
 import type { Card, PlayerIndex } from "@/lib/azteque/engine";
 
 /** Déclenche la transition à la frame suivante (mouvement toujours joué). */
@@ -166,5 +167,86 @@ export function DrawCard({
     >
       <PlayingCard faceDown size="sm" />
     </div>
+  );
+}
+
+/* ---------- Jetons ---------- */
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+/** Un jeton isolé, du point de départ jusqu'au compte. */
+function Coin({ from, to, delay, arc }: { from: Point; to: Point; delay: number; arc: number }) {
+  const departed = useDeparture(delay);
+  // Chaque jeton part un peu de travers puis se recentre : sans cet écart, la
+  // rafale se superpose en une seule pièce et ne se lit plus.
+  const start = { x: from.x + arc, y: from.y - Math.abs(arc) * 0.35 };
+  return (
+    <div
+      className="pointer-events-none fixed z-[60] select-none text-2xl drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)]"
+      aria-hidden="true"
+      style={{
+        ...flightStyle(start, to, departed, {
+          scale: 0.45,
+          rotate: arc > 0 ? 220 : -220,
+          duration: 620,
+          ease: "cubic-bezier(.4,.02,.2,1)",
+        }),
+        opacity: departed ? 0.15 : 1,
+      }}
+    >
+      🪙
+    </div>
+  );
+}
+
+/**
+ * La récompense rejoint le compte du joueur.
+ *
+ * Un solde qui change tout seul dans un panneau fermé ne se voit pas : les
+ * jetons gagnés — victoire sur l'IA, mise remportée, cadeau du jour — volent
+ * donc jusqu'à l'avatar du joueur, chacun avec son tintement. Le nombre de
+ * pièces suit le montant sans le suivre exactement : au-delà d'une douzaine,
+ * l'œil ne compte plus, il ne voit qu'une pluie.
+ */
+export function CoinBurst({
+  from,
+  to,
+  amount,
+  onDone,
+}: {
+  from: Point;
+  to: Point;
+  amount: number;
+  onDone: () => void;
+}) {
+  const coins = useMemo(() => {
+    const n = Math.max(5, Math.min(14, Math.round(Math.sqrt(Math.max(1, amount)) * 1.6)));
+    return Array.from({ length: n }, (_, i) => ({
+      delay: i * 65,
+      arc: (i % 2 ? 1 : -1) * (12 + ((i * 37) % 46)),
+    }));
+  }, [amount]);
+
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    const timers = coins.map((c) => setTimeout(() => sfx.coin(), c.delay));
+    const last = coins[coins.length - 1]?.delay ?? 0;
+    const fin = setTimeout(() => done.current(), last + 700);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(fin);
+    };
+  }, [coins]);
+
+  return (
+    <>
+      {coins.map((c, i) => (
+        <Coin key={i} from={from} to={to} delay={c.delay} arc={c.arc} />
+      ))}
+    </>
   );
 }

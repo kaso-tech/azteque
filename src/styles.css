@@ -92,6 +92,9 @@
   --felt-deep: oklch(0.31 0.065 162);
   --gold: oklch(0.87 0.145 84);
   --gold-soft: oklch(0.74 0.12 80);
+  /* Orange de service : signale ce qui n'appartient pas au jeu (console
+     d'administration), sans se confondre avec l'or des actions. */
+  --orange: oklch(0.74 0.175 55);
   --card-face: oklch(0.97 0.012 90);
   --card-ink: oklch(0.22 0.02 60);
   --card-red: oklch(0.53 0.21 27);
@@ -167,6 +170,7 @@
   --color-felt-deep: var(--felt-deep);
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
+  --color-orange: var(--orange);
   --color-card-face: var(--card-face);
   --color-card-ink: var(--card-ink);
   --color-card-red: var(--card-red);

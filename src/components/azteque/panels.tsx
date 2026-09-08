@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { useState } from "react";
 import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function ProfileButton({
   align,
   account = null,
   onClick,
+  innerRef,
 }: {
   name: string;
   icon: "player" | "ai";
@@ -50,10 +52,13 @@ export function ProfileButton({
   /** Pour un joueur connecté : son avatar remplace l'icône générique. */
   account?: AvatarSource | null;
   onClick: () => void;
+  /** Cible des jetons qui rejoignent le compte (voir `CoinBurst`). */
+  innerRef?: Ref<HTMLButtonElement>;
 }) {
   const Icon = icon === "ai" ? Bot : UserRound;
   return (
     <button
+      ref={innerRef}
       type="button"
       onClick={onClick}
       className={cn(
@@ -329,16 +334,21 @@ export function AiProfilePanel({
             <p className="text-xs text-muted-foreground">Choisir le niveau de l'adversaire</p>
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {DIFFICULTIES.map((level) => (
+        {/* Une seule colonne, du plus fort au plus faible : la liste se lit
+            comme une échelle, et la récompense justifie la marche. */}
+        <div className="mt-6 flex flex-col gap-2">
+          {[...DIFFICULTIES].reverse().map((level) => (
             <Button
               key={level}
               type="button"
               variant={difficulty === level ? "default" : "outline"}
               onClick={() => onChange(level)}
-              className="w-full"
+              className="flex w-full items-center justify-between gap-3"
             >
-              {DIFFICULTY_LABEL[level]}
+              <span>{DIFFICULTY_LABEL[level]}</span>
+              <span className="text-xs font-semibold tabular-nums">
+                🪙 {TOKEN_REWARDS[level]} jetons
+              </span>
             </Button>
           ))}
         </div>

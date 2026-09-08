@@ -22,7 +22,13 @@ import {
   TrickPosition,
   TurnBar,
 } from "@/components/azteque/table";
-import { CollectCard, DrawCard, FlyingCard, SweepCard } from "@/components/azteque/animations";
+import {
+  CoinBurst,
+  CollectCard,
+  DrawCard,
+  FlyingCard,
+  SweepCard,
+} from "@/components/azteque/animations";
 import { sfx } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
@@ -248,6 +254,15 @@ function OnlineTable() {
   );
 
   /* ---------- Mise de jetons ---------- */
+  // Mise remportée : les jetons volent vers le nom du joueur, qui tient lieu
+  // de compte dans l'en-tête d'une table en ligne.
+  const monNomRef = useRef<HTMLParagraphElement | null>(null);
+  const [coinFlight, setCoinFlight] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    amount: number;
+  } | null>(null);
+
   const { bet, betReady, balance, proposeBet, acceptBet } = useBetNegotiation({
     matchId: id,
     row,
@@ -259,6 +274,29 @@ function OnlineTable() {
   // L'hôte distribue la PREMIÈRE donne dès que la mise du champ est acceptée :
   // cet accord vaut lancement de la partie. Les tours suivants ne s'enchaînent
   // qu'une fois que les deux joueurs ont demandé à rejouer (`ready_next_round`).
+  // La mise gagnée rejoint le compte : sans ce vol, un solde change dans un
+  // panneau que personne n'a ouvert.
+  const gainEnvole = useRef(false);
+  useEffect(() => {
+    if (gainEnvole.current) return;
+    if (!state || state.phase !== "gameEnd" || state.champWinner !== me) return;
+    if (bet?.status !== "accepted" || bet.amount <= 0) return;
+    const cible = monNomRef.current?.getBoundingClientRect();
+    if (!cible) return;
+    gainEnvole.current = true;
+    setCoinFlight({
+      // Le vol doit se voir : sur l'accueil, l'avatar est lui aussi au milieu de
+      // l'écran, et partir du centre ne laisserait aux jetons que quelques pixels
+      // à parcourir. On les fait donc toujours monter depuis le bas.
+      from: {
+        x: window.innerWidth / 2,
+        y: Math.max(window.innerHeight * 0.62, cible.bottom + 200),
+      },
+      to: { x: cible.left + cible.width / 2, y: cible.top + cible.height / 2 },
+      amount: bet.amount,
+    });
+  }, [state, me, bet]);
+
   useEffect(() => {
     if (!isHost || !row?.guest_name || !betReady || state) return;
     void runAction({ type: "new_round" }, { silent: true });
@@ -726,7 +764,9 @@ function OnlineTable() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
-        <p className="truncate text-left text-xs font-semibold text-foreground">{myName}</p>
+        <p ref={monNomRef} className="truncate text-left text-xs font-semibold text-foreground">
+          {myName}
+        </p>
         <div className="min-w-16 text-center">
           <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
@@ -1109,6 +1149,15 @@ function OnlineTable() {
       {collect.map((flight) => (
         <CollectCard key={flight.id} {...flight} />
       ))}
+
+      {coinFlight && (
+        <CoinBurst
+          from={coinFlight.from}
+          to={coinFlight.to}
+          amount={coinFlight.amount}
+          onDone={() => setCoinFlight(null)}
+        />
+      )}
 
       {/* Atout 10 : transfert du tas adverse */}
       {sweepFlights.map((flight) => (

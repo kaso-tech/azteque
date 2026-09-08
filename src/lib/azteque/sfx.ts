@@ -309,6 +309,7 @@ export const SOUND_IDS = [
   "streakLaugh",
   "streakLaugh4",
   "streakLaugh5",
+  "coin",
 ] as const;
 
 export type SoundId = (typeof SOUND_IDS)[number];
@@ -332,6 +333,7 @@ export const SOUND_LABELS: Record<SoundId, string> = {
   streakLaugh: "Rire — trois bonnes d'affilée",
   streakLaugh4: "Rire — quatre bonnes d'affilée",
   streakLaugh5: "Rire — cinq bonnes d'affilée ou plus",
+  coin: "Jeton crédité",
 };
 
 export interface SoundTuning {
@@ -376,6 +378,7 @@ export const SOUND_EXTRAS: Record<SoundId, (keyof SoundTuning)[]> = {
   streakLaugh: ["syllables", "step", "vowel"],
   streakLaugh4: ["syllables", "step", "vowel"],
   streakLaugh5: ["syllables", "step", "vowel"],
+  coin: [],
 };
 
 /** Bornes de chaque réglage : au-delà, le son cesse d'être un son. */
@@ -465,6 +468,7 @@ const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
   streakLaugh: { syllables: 4, step: 0.97, vowel: 1 },
   streakLaugh4: { syllables: 5, step: 0.95, vowel: 1 },
   streakLaugh5: { syllables: 6, step: 0.93, vowel: 1 },
+  coin: {},
 };
 
 /** Les réglages en vigueur, tels que la console doit les afficher. */
@@ -654,6 +658,22 @@ export const sfx = {
    * se disperse. Une foule qui commencerait et finirait d'un bloc s'entendrait
    * comme un effet ; celle-ci monte et retombe.
    */
+  /**
+   * Un jeton tombe dans la cagnotte.
+   *
+   * Deux harmoniques métalliques très courtes, légèrement désaccordées d'un
+   * jeton à l'autre : joué en rafale sur les jetons qui volent vers le compte,
+   * cela sonne comme une pluie de pièces plutôt que comme un métronome.
+   */
+  coin() {
+    if (echantillon("coin")) return;
+    const { g, p, s } = reglage("coin");
+    const detune = 0.94 + Math.random() * 0.12;
+    const f = 1180 * p * detune;
+    tone(0, f, 0.1 * s, 0.055 * g, "triangle", f * 1.45);
+    tone(0.012, f * 2.02, 0.14 * s, 0.03 * g, "sine");
+    noise(0, 0.045 * s, 0.05 * g, 5200 * p, 2200 * p, "bandpass");
+  },
   cheer() {
     if (echantillon("cheer")) return;
     const { g, p, s, voix, claps } = reglage("cheer");
