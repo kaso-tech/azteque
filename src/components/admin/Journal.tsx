@@ -97,7 +97,7 @@ export function Journal({ onErreur }: { onErreur: (e: string | null) => void }) 
       action: filtreAction || undefined,
       since,
       limit: 50,
-    })
+    } as AdminLogFilters)
       .then(setLignes)
       .catch((e: unknown) => onErreur(describeError(e, "Journal indisponible.")));
   }, [filtreAction, since, onErreur]);
