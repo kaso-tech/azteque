@@ -6,6 +6,7 @@ import {
   adminListLog,
   adminRevertLogEntry,
   type AdminLogEntryV2,
+  type AdminLogFilters,
 } from "@/lib/azteque/admin-shop-log";
 
 const TYPES_ACTIONS = [
