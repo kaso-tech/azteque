@@ -52,6 +52,9 @@ import {
   getPublicProfile,
   listPurchases,
   headToHead,
+  friendshipStatus,
+  requestFriend,
+  type FriendshipStatus,
   type HeadToHead,
   type PublicProfile,
 } from "@/lib/azteque/account";
@@ -407,6 +410,42 @@ function OnlineTable() {
     }, 900);
     return () => clearTimeout(t);
   }, [state, oppUserId]);
+
+  /**
+   * Se retrouver après le champ.
+   *
+   * Les deux adversaires ont passé un moment ensemble et s'apprêtent chacun
+   * de leur côté à quitter la table : c'est le moment de leur proposer de
+   * s'ajouter en ami, plutôt que de les laisser se recroiser une prochaine
+   * fois sans moyen de se retrouver. Rien ne s'affiche s'ils le sont déjà,
+   * si une demande est déjà en cours, ou si l'un des deux a supprimé son
+   * compte entre-temps.
+   */
+  const [friendState, setFriendState] = useState<FriendshipStatus | null>(null);
+  useEffect(() => {
+    if (!state || state.phase !== "gameEnd" || !oppUserId) return;
+    let alive = true;
+    friendshipStatus(oppUserId)
+      .then((s) => alive && setFriendState(s))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [state, oppUserId]);
+
+  const [addingFriend, setAddingFriend] = useState(false);
+  const addOppAsFriend = () => {
+    if (!oppUserId) return;
+    setAddingFriend(true);
+    requestFriend(oppUserId)
+      .then(() => setFriendState("pending-sent"))
+      .catch(() => {
+        // Rien à afficher : au pire la proposition reste offerte, et un
+        // second essai suffit — ce n'est pas une action assez cruciale pour
+        // mériter un message d'erreur au sortir d'un champ.
+      })
+      .finally(() => setAddingFriend(false));
+  };
 
   // Grades des deux joueurs. Celui de l'adversaire s'affiche dès l'entrée à la
   // table : c'est ce qui permet de savoir contre qui l'on mise. Les deux sont
@@ -1181,6 +1220,26 @@ function OnlineTable() {
                   : `Mise du champ : 🪙 ${bet.amount} jetons — réglée à la fin de la partie.`}
               </p>
             )}
+
+            {state.phase === "gameEnd" && friendState === "none" && (
+              <div className="mt-4 rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 text-left">
+                <p className="text-xs text-foreground">
+                  Envie de retrouver {oppName} plus facilement la prochaine fois ?
+                </p>
+                <button
+                  type="button"
+                  disabled={addingFriend}
+                  onClick={addOppAsFriend}
+                  className="mt-2 w-full rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  Ajouter {oppName} en ami
+                </button>
+              </div>
+            )}
+            {state.phase === "gameEnd" && friendState === "pending-sent" && (
+              <p className="mt-4 text-xs text-gold">Demande d'ami envoyée à {oppName}.</p>
+            )}
+
             {state.phase === "roundEnd" ? (
               iAmReady ? (
                 <p className="mt-5 text-xs text-muted-foreground">

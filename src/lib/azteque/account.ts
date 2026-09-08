@@ -898,6 +898,31 @@ export async function listFriends(): Promise<Friend[]> {
   });
 }
 
+export type FriendshipStatus = "none" | "pending-sent" | "pending-received" | "accepted";
+
+/**
+ * Ce qui lie déjà (ou non) le joueur connecté à un autre, en une lecture
+ * ciblée sur la seule paire qui compte — typiquement l'adversaire qu'on
+ * vient d'affronter, pour proposer de l'ajouter en ami sans redemander la
+ * liste entière.
+ */
+export async function friendshipStatus(otherId: string): Promise<FriendshipStatus> {
+  const me = await currentUserId();
+  if (!me || me === otherId) return "none";
+  const { data, error } = await anyTable("friendships")
+    .select("requester_id, addressee_id, status")
+    .or(
+      `and(requester_id.eq.${me},addressee_id.eq.${otherId}),` +
+        `and(requester_id.eq.${otherId},addressee_id.eq.${me})`,
+    )
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { requester_id: string; status: "pending" | "accepted" } | null;
+  if (!row) return "none";
+  if (row.status === "accepted") return "accepted";
+  return row.requester_id === me ? "pending-sent" : "pending-received";
+}
+
 export async function requestFriend(otherId: string): Promise<void> {
   const me = await currentUserId();
   if (!me) throw new Error("Connectez-vous d'abord.");
