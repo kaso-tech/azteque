@@ -179,10 +179,25 @@ function Azteque() {
   });
 
   // Cet écran est exclusivement le jeu contre l'IA : ses sons ne doivent
-  // jamais puiser dans les réglages du profil « en ligne ».
+  // jamais puiser dans les réglages du profil « en ligne ». Par défaut on
+  // écoute le profil « joueur » — les sons neutres de la table (battage,
+  // distribution, jetons) n'appartiennent à aucun des deux camps — mais
+  // chaque action d'un camp bascule explicitement vers son propre profil
+  // avant de jouer son son (voir `jouerPour` plus bas).
   useEffect(() => {
-    setSoundContext("ia");
+    setSoundContext("joueur");
   }, []);
+
+  /**
+   * Un même geste — poser une carte, annoncer un compte, gagner un pli — doit
+   * sonner différemment selon qui l'a joué : l'IA (joueur 1) ou l'utilisateur
+   * (joueur 0). On bascule donc le profil actif juste avant de jouer le son
+   * de CE geste précis, plutôt qu'une fois pour tout l'écran.
+   */
+  const jouerPour = (acteur: PlayerIndex | null, son: () => void) => {
+    setSoundContext(acteur === 1 ? "ia" : "joueur");
+    son();
+  };
 
   // Réglages persistants
   useEffect(() => {
@@ -471,15 +486,16 @@ function Azteque() {
             delay: lastDelay,
           });
 
-        if (winner === second.player) sfx.beat();
-        else sfx.collect();
+        // Le son du pli — battu ou ramassé — appartient à qui l'a emporté.
+        if (winner === second.player) jouerPour(winner, () => sfx.beat());
+        else jouerPour(winner, () => sfx.collect());
         setCollect(flights);
-        timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+        timers.push(setTimeout(() => jouerPour(winner, () => sfx.collect()), lastDelay + 120));
         // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : ramasser
         // sa propre bonne n'a rien d'un exploit, et le rire à chaque pli en
-        // perdait tout son sel.
+        // perdait tout son sel. C'est le vainqueur qui rit — son profil fait foi.
         if (stealsBonne([first, second], winner))
-          timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
+          timers.push(setTimeout(() => jouerPour(winner, () => sfx.snicker()), lastDelay + 240));
 
         // Série de bonnes : au premier pli du tour (aucun tas encore entamé),
         // on repart de zéro — y compris après un Pont rejoué.
@@ -491,10 +507,12 @@ function Azteque() {
           const compte = precedent.player === winner ? precedent.count + 1 : 1;
           bonneStreak.current = { player: winner, count: compte };
           // Trois, quatre, cinq bonnes ou plus d'affilée : un rire de plus en
-          // plus franc, tant que l'adversaire n'en reprend aucune.
+          // plus franc, tant que l'adversaire n'en reprend aucune. C'est celui
+          // qui enchaîne la série qui rit.
           const rireDeSerie =
             compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
-          if (compte >= 3) timers.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
+          if (compte >= 3)
+            timers.push(setTimeout(() => jouerPour(winner, rireDeSerie), lastDelay + 420));
         }
 
         // Règle « Atout 10 » : transfert animé de tout le tas adverse
@@ -509,8 +527,10 @@ function Azteque() {
             setCollect([]);
             if (sweeps > 0 && loserPile && winnerPile) {
               const layers = Math.min(6, sweeps);
-              sfx.sweep();
-              sfx.sweepLaugh();
+              jouerPour(winner, () => {
+                sfx.sweep();
+                sfx.sweepLaugh();
+              });
               setSweepFlights(
                 Array.from({ length: layers }, (_, i) => ({
                   id: i,
@@ -557,9 +577,12 @@ function Azteque() {
             const a = aiAnnounceAt(s, settings.difficulty);
             if (!a) return { ...s, canAnnounce: null };
             // L'atout se fixe sur cette annonce précisément quand il n'était
-            // pas encore choisi : un rire différent salue ce moment-là.
-            if (s.trump === null) sfx.trumpLaugh();
-            else sfx.chuckle();
+            // pas encore choisi : un rire différent salue ce moment-là. C'est
+            // l'IA qui annonce ici : son profil, pas celui du joueur.
+            jouerPour(1, () => {
+              if (s.trump === null) sfx.trumpLaugh();
+              else sfx.chuckle();
+            });
             return announce(s, 1, a.suits, a.trump);
           });
         }, 650);
@@ -579,7 +602,7 @@ function Azteque() {
       const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
       if (from && to) {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
-        sfx.draw();
+        jouerPour(player, () => sfx.draw());
       }
       // La carte rejoint la main seulement quand l'animation est terminée
       timers.push(
@@ -604,7 +627,7 @@ function Azteque() {
         if (s.phase !== "playing" || s.turn !== 1 || s.trick.length >= 2) return s;
         if (s.drawPending.length > 0 || s.canAnnounce === 1) return s;
         const card = aiChooseCardAt(s, settings.difficulty);
-        sfx.place();
+        jouerPour(1, () => sfx.place());
         return playCard(s, 1, card.id);
       });
     }, 750);
@@ -617,13 +640,18 @@ function Azteque() {
     if (state.phase !== "roundEnd" && state.phase !== "gameEnd") return;
     const won = state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
     const lost = state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
+    // Les acclamations saluent la victoire de l'utilisateur, la moquerie
+    // celle de l'IA : chacune dans son propre profil.
     const t = setTimeout(() => {
-      if (won) sfx.cheer();
-      else if (lost) sfx.taunt();
+      if (won) jouerPour(0, () => sfx.cheer());
+      else if (lost) jouerPour(1, () => sfx.taunt());
     }, 350);
     // Treize bonnes ou plus en un tour : un rire à part, qui suit l'acclamation
-    // ou la moquerie plutôt que de s'y mélanger.
-    const t2 = state.instantWin ? setTimeout(() => sfx.landslideLaugh(), 1000) : null;
+    // ou la moquerie plutôt que de s'y mélanger — dans le profil de qui l'a
+    // emporté.
+    const t2 = state.instantWin
+      ? setTimeout(() => jouerPour(won ? 0 : 1, () => sfx.landslideLaugh()), 1000)
+      : null;
     return () => {
       clearTimeout(t);
       if (t2) clearTimeout(t2);
@@ -730,8 +758,11 @@ function Azteque() {
       ),
     );
     setChoosingTrump(false);
-    if (fixeLAtout) sfx.trumpLaugh();
-    else sfx.chuckle();
+    // C'est l'utilisateur qui annonce ici : son profil, pas celui de l'IA.
+    jouerPour(0, () => {
+      if (fixeLAtout) sfx.trumpLaugh();
+      else sfx.chuckle();
+    });
   };
 
   const announceMelds = () => {
@@ -754,7 +785,7 @@ function Azteque() {
       });
       setTimeout(() => setFlying(null), 380);
     }
-    sfx.place();
+    jouerPour(0, () => sfx.place());
     setState((s) => playCard(s, 0, card.id));
   };
 

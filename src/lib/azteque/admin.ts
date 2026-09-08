@@ -328,11 +328,12 @@ export async function adminLog(limit = 50): Promise<AdminLogEntry[]> {
 
 /**
  * Une clé `app_settings` par contexte. Celle du contexte « ia » est
- * inchangée depuis avant ce dédoublement : le jeu contre l'IA continue de
- * lire exactement ce qu'il lisait déjà, sans migration.
+ * inchangée depuis avant ce dédoublement : les actions de l'IA continuent de
+ * lire exactement ce qu'elles lisaient déjà, sans migration.
  */
 const CLE_SONS: Record<SoundContext, string> = {
   ia: "sounds",
+  joueur: "sounds_joueur",
   en_ligne: "sounds_en_ligne",
 };
 

@@ -89,8 +89,22 @@ beforeAll(() => {
   (globalThis as unknown as { window: unknown }).window = { AudioContext: FauxContexte };
 });
 
-const { DEFAULT_SOUND_SETTINGS, applySoundSettings, clearSample, hasSample, registerSample, sfx } =
-  await import("./sfx");
+const {
+  DEFAULT_SOUND_SETTINGS,
+  applySoundSettings,
+  clearSample,
+  hasSample,
+  registerSample,
+  setSoundContext,
+  sfx,
+} = await import("./sfx");
+
+// Ce carnet éprouve un seul contexte ; le choix de « ia » plutôt qu'un autre
+// n'a pas d'importance ici, seule leur indépendance compte, et elle est
+// éprouvée à part (admin.test.ts, sfx.test.ts).
+beforeAll(() => {
+  setSoundContext("ia");
+});
 
 beforeEach(() => {
   demarres.length = 0;

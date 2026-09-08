@@ -413,33 +413,42 @@ export interface SoundSettings {
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = { master: 1, sounds: {} };
 
 /**
- * Deux jeux de sons totalement indépendants, l'un pour affronter l'IA, l'autre
- * pour le jeu en ligne — chacun réglable séparément depuis la console, avec
- * ses propres fichiers de remplacement.
+ * Trois jeux de sons totalement indépendants, chacun réglable séparément
+ * depuis la console, avec ses propres fichiers de remplacement :
+ * - « ia » : les actions de l'IA elle-même, dans une partie contre l'IA.
+ *   Reprend exactement ce que la console proposait avant ce dédoublement —
+ *   même clé de réglages, mêmes fichiers, sans aucune migration de données —
+ *   pour que rien ne change côté IA.
+ * - « joueur » : les actions de l'utilisateur, dans cette même partie contre
+ *   l'IA. Une copie indépendante, partant des mêmes valeurs d'origine, pour
+ *   qu'un même geste (poser une carte, annoncer un compte…) puisse sonner
+ *   différemment selon qui l'a joué.
+ * - « en_ligne » : le jeu en ligne, où les deux camps sont humains.
  *
  * La synthèse elle-même (`noise`, `tone`, `syllabe`…) reste unique et
  * partagée : ce qui est dédoublé, ce sont seulement les RÉGLAGES et les
- * fichiers déposés par-dessus. Le contexte « ia » reprend exactement ce que
- * la console proposait avant ce dédoublement — même clé de réglages, mêmes
- * fichiers, sans aucune migration de données — pour que rien ne change côté
- * jeu contre l'IA.
+ * fichiers déposés par-dessus.
  */
-export const SOUND_CONTEXTS = ["ia", "en_ligne"] as const;
+export const SOUND_CONTEXTS = ["ia", "joueur", "en_ligne"] as const;
 export type SoundContext = (typeof SOUND_CONTEXTS)[number];
 export const SOUND_CONTEXT_LABELS: Record<SoundContext, string> = {
-  ia: "Contre l'IA",
+  ia: "L'IA",
+  joueur: "Vous, contre l'IA",
   en_ligne: "En ligne",
 };
 
 /**
  * Le contexte dont on entend actuellement les sons.
  *
- * Chaque écran de jeu l'annonce une fois monté (voir `setSoundContext`), et
- * tout le reste — `sfx.place()`, `sfx.cheer()`… — continue de s'appeler sans
- * jamais mentionner de contexte : c'est lui qui choisit en coulisse dans quel
- * jeu de réglages et de fichiers puiser.
+ * Le jeu en ligne l'annonce une fois pour toutes au montage de son écran
+ * (voir `setSoundContext`). La partie contre l'IA, elle, le bascule à chaque
+ * action selon qui vient de jouer — l'IA ou l'utilisateur — puisque c'est
+ * précisément ce qui doit sonner différemment. Dans tous les cas, le reste —
+ * `sfx.place()`, `sfx.cheer()`… — continue de s'appeler sans jamais
+ * mentionner de contexte : c'est lui qui choisit en coulisse dans quel jeu de
+ * réglages et de fichiers puiser.
  */
-let contexteActif: SoundContext = "ia";
+let contexteActif: SoundContext = "joueur";
 
 export function setSoundContext(contexte: SoundContext): void {
   contexteActif = contexte;
@@ -447,6 +456,7 @@ export function setSoundContext(contexte: SoundContext): void {
 
 const reglagesParContexte: Record<SoundContext, SoundSettings> = {
   ia: DEFAULT_SOUND_SETTINGS,
+  joueur: DEFAULT_SOUND_SETTINGS,
   en_ligne: DEFAULT_SOUND_SETTINGS,
 };
 
@@ -541,6 +551,7 @@ function reglage(id: SoundId) {
  */
 const echantillonsParContexte: Record<SoundContext, Map<SoundId, AudioBuffer>> = {
   ia: new Map(),
+  joueur: new Map(),
   en_ligne: new Map(),
 };
 
