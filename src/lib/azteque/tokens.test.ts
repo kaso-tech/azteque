@@ -3,7 +3,10 @@ import {
   DAILY_BONUS,
   claimLocalDailyBonus,
   getTokens,
+  clearPendingReferralCode,
   localBonusDay,
+  pendingReferralCode,
+  rememberReferralCode,
   setTokens,
   todayKey,
 } from "./tokens";
@@ -70,5 +73,52 @@ describe("cadeau quotidien du navigateur", () => {
   it("compte les journées sur la même horloge que le serveur", () => {
     expect(todayKey()).toBe(new Date().toISOString().slice(0, 10));
     expect(todayKey()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+/**
+ * Le code de parrainage aperçu dans l'adresse.
+ *
+ * Le lien mène à l'accueil, l'inscription se fait dans le salon, et Google
+ * ramène entre-temps sur la racine du site : le code doit survivre à ces
+ * trois sauts, faute de quoi le parrain n'est jamais crédité et personne ne
+ * comprend pourquoi.
+ */
+describe("code de parrainage retenu du lien", () => {
+  const installe = (search: string) => {
+    const map = installStorage();
+    vi.stubGlobal("window", {
+      localStorage: globalThis.localStorage,
+      location: { search },
+    });
+    return map;
+  };
+
+  it("retient le code de l'adresse, en majuscules", () => {
+    installe("?parrain=k7m2pq4b");
+    rememberReferralCode();
+    expect(pendingReferralCode()).toBe("K7M2PQ4B");
+  });
+
+  it("survit à la disparition de l'adresse", () => {
+    installe("?parrain=K7M2PQ4B");
+    rememberReferralCode();
+    // Page suivante : plus rien dans l'adresse, le code doit tenir.
+    vi.stubGlobal("window", { localStorage: globalThis.localStorage, location: { search: "" } });
+    rememberReferralCode();
+    expect(pendingReferralCode()).toBe("K7M2PQ4B");
+  });
+
+  it("ne retient rien sans code", () => {
+    installe("");
+    rememberReferralCode();
+    expect(pendingReferralCode()).toBe("");
+  });
+
+  it("s'efface une fois le compte créé", () => {
+    installe("?parrain=K7M2PQ4B");
+    rememberReferralCode();
+    clearPendingReferralCode();
+    expect(pendingReferralCode()).toBe("");
   });
 });

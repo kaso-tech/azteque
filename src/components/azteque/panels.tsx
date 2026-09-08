@@ -4,7 +4,7 @@ import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DIFFICULTY_LABEL, type Difficulty, type PlayerIndex } from "@/lib/azteque/engine";
-import { AccountIdentity } from "@/components/azteque/account-panels";
+import { AccountIdentity, ReferralCard } from "@/components/azteque/account-panels";
 import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
 import type { Profile } from "@/lib/azteque/account";
 import { RankLadder, RankProgressCard } from "@/components/azteque/rank";
@@ -240,6 +240,10 @@ export function PlayerProfilePanel({
             Connectez-vous pour être classé : votre grade se gagne sur les parties en ligne.
           </p>
         )}
+
+        {/* Le parrainage suppose un compte : sans lui, il n'y a ni code à
+            partager ni solde où verser la récompense. */}
+        {account && <ReferralCard />}
 
         {account && onAccountChange ? (
           <AccountIdentity profile={account} onChange={onAccountChange} />

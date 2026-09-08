@@ -19,6 +19,62 @@ export function addTokens(delta: number): number {
   return next;
 }
 
+/* ---------- Bienvenue et parrainage ---------- */
+
+/**
+ * Jetons offerts à la création d'un compte, et jetons versés au parrain pour
+ * chaque filleul inscrit avec son code.
+ *
+ * Ces deux nombres ne servent ICI qu'à l'affichage. Les versements eux-mêmes
+ * sont faits par la base (`create_profile`, migration 20260908000000), qui
+ * seule fait foi : les jetons ne s'écrivent jamais depuis le navigateur. Les
+ * changer d'un seul côté ferait donc mentir l'interface, pas les comptes.
+ */
+export const WELCOME_BONUS = 100;
+export const REFERRAL_REWARD = 500;
+
+const PARRAIN_KEY = "azteque-parrain";
+
+/**
+ * Retient le code de parrainage aperçu dans l'adresse.
+ *
+ * Un lien de parrainage mène à l'accueil, mais l'inscription se fait dans le
+ * salon en ligne, après un aller-retour chez Google qui ramène sur la racine
+ * du site. Le code ne survivrait donc ni à la navigation ni à la redirection
+ * s'il ne tenait qu'à la barre d'adresse : on le met de côté dès qu'on le
+ * voit, et on ne le relit qu'au moment de créer le compte.
+ */
+export function rememberReferralCode(): void {
+  if (typeof window === "undefined") return;
+  const vu = new URLSearchParams(window.location.search).get("parrain")?.trim().toUpperCase();
+  if (!vu) return;
+  try {
+    localStorage.setItem(PARRAIN_KEY, vu.slice(0, 12));
+  } catch {
+    // Stockage refusé : le champ du formulaire reste saisissable à la main.
+  }
+}
+
+/** Le code mis de côté, s'il y en a un. */
+export function pendingReferralCode(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(PARRAIN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Le compte est créé : le code a joué son rôle. */
+export function clearPendingReferralCode(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(PARRAIN_KEY);
+  } catch {
+    /* rien à faire */
+  }
+}
+
 /* ---------- Cadeau quotidien ---------- */
 
 /** Montant offert une fois par jour à l'ouverture du jeu. */

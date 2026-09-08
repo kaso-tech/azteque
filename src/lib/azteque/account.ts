@@ -115,6 +115,7 @@ const MIGRATION_PAR_COLONNE: Record<string, string> = {
   is_admin: "20260907160000_administration.sql",
   banned: "20260907160000_administration.sql",
   active: "20260907160000_administration.sql",
+  referral_code: "20260908000000_parrainage.sql",
 };
 
 /**
@@ -371,22 +372,61 @@ export async function getMyProfile(): Promise<Profile | null> {
  * vérifie donc pas la disponibilité au préalable — entre la vérification et
  * l'insertion, le pseudo pourrait de toute façon être pris.
  */
-export async function createProfile(username: string): Promise<Profile> {
+export async function createProfile(username: string, referralCode?: string): Promise<Profile> {
   const id = await currentUserId();
   if (!id) throw new Error("Connectez-vous pour choisir un pseudo.");
   const name = username.trim();
   if (!USERNAME_RULE.test(name)) {
     throw new Error("Pseudo : 3 à 20 caractères, lettres, chiffres, tiret ou souligné.");
   }
-  const { data, error } = await anyTable("profiles")
-    .insert({ id, username: name } as never)
-    .select()
-    .single();
+  const { data, error } = await rpc("create_profile", {
+    _username: name,
+    _referral_code: referralCode?.trim() || null,
+  });
   if (error) {
     if (error.code === "23505") throw new Error("Ce pseudo est déjà pris.");
     throw error;
   }
   return data as unknown as Profile;
+}
+
+/* ---------- Parrainage ---------- */
+
+/**
+ * Le code de parrainage du joueur, créé au premier appel.
+ *
+ * Les comptes ouverts avant la mise en service du parrainage n'en ont pas :
+ * plutôt qu'un remplissage massif de la table, le code naît la première fois
+ * que son propriétaire ouvre son panneau.
+ */
+export async function myReferralCode(): Promise<string> {
+  const { data, error } = await rpc("my_referral_code", {});
+  if (error) throw error;
+  return (data as unknown as string | null) ?? "";
+}
+
+export interface Referral {
+  username: string;
+  reward: number;
+  created_at: string;
+}
+
+/** Les filleuls du joueur, du plus récent au plus ancien. */
+export async function myReferrals(): Promise<Referral[]> {
+  const { data, error } = await rpc("my_referrals", {});
+  if (error) throw error;
+  return (data as unknown as Referral[] | null) ?? [];
+}
+
+/**
+ * Le lien à partager, code compris.
+ *
+ * Le filleul arrive alors sur le jeu avec le code déjà rempli : lui demander
+ * de le recopier à la main, c'est perdre la moitié des parrainages en route.
+ */
+export function referralLink(code: string): string {
+  const base = typeof window === "undefined" ? "" : window.location.origin;
+  return `${base}/?parrain=${encodeURIComponent(code)}`;
 }
 
 /* ---------- Lecture des profils ---------- */

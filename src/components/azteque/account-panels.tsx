@@ -6,6 +6,12 @@ import { RankBadge } from "@/components/azteque/rank";
 import { AVATAR_CHOICES, PlayerAvatar } from "@/components/azteque/avatar";
 import { itemsOfKind, useCatalogue } from "@/lib/azteque/shop";
 import {
+  REFERRAL_REWARD,
+  WELCOME_BONUS,
+  clearPendingReferralCode,
+  pendingReferralCode,
+} from "@/lib/azteque/tokens";
+import {
   USERNAME_RULE,
   describeError,
   isUsernameFree,
@@ -17,6 +23,10 @@ import {
   acceptFriend,
   createProfile,
   listFriends,
+  myReferralCode,
+  myReferrals,
+  referralLink,
+  type Referral,
   removeFriend,
   requestFriend,
   searchPlayers,
@@ -63,6 +73,9 @@ export function SignInCard({ error }: { error?: string | null }) {
 
 export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void }) {
   const [name, setName] = useState("");
+  // Un lien de parrainage porte le code dans l'adresse : le filleul n'a rien à
+  // recopier, et le champ reste ouvert pour celui qui l'a reçu autrement.
+  const [parrain, setParrain] = useState(pendingReferralCode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = USERNAME_RULE.test(name.trim());
@@ -71,8 +84,11 @@ export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void })
     if (!valid || busy) return;
     setBusy(true);
     setError(null);
-    createProfile(name)
-      .then(onCreated)
+    createProfile(name, parrain)
+      .then((p) => {
+        clearPendingReferralCode();
+        onCreated(p);
+      })
       .catch((e: unknown) => setError(describeError(e, "Création impossible.")))
       .finally(() => setBusy(false));
   };
@@ -97,10 +113,147 @@ export function UsernameCard({ onCreated }: { onCreated: (p: Profile) => void })
       <p className="text-xs text-muted-foreground">
         3 à 20 caractères : lettres, chiffres, tiret ou souligné.
       </p>
+
+      <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-3">
+        <label htmlFor="parrain" className="block text-xs font-semibold text-foreground">
+          Code de parrainage <span className="font-normal text-muted-foreground">(facultatif)</span>
+        </label>
+        <input
+          id="parrain"
+          value={parrain}
+          maxLength={12}
+          onChange={(e) => setParrain(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder="ex. K7M2PQ4B"
+          className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-center font-display tracking-[0.2em] outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+        />
+        <p className="mt-2 text-[0.7rem] text-muted-foreground">
+          Si un joueur vous a invité, son code lui rapporte {REFERRAL_REWARD} jetons. Vous commencez
+          de toute façon avec vos {WELCOME_BONUS} jetons de bienvenue.
+        </p>
+      </div>
+
       <Button className="w-full font-semibold" disabled={!valid || busy} onClick={submit}>
         Valider
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/* ---------- Parrainage ---------- */
+
+/**
+ * Le tableau de bord du parrain : son code, son lien, ses filleuls.
+ *
+ * Le code n'est demandé à la base qu'à l'ouverture de ce panneau, et c'est
+ * cette demande qui le crée pour les comptes ouverts avant le parrainage.
+ *
+ * Le lien est affiché en clair sous le bouton de copie, et non caché derrière
+ * lui : le presse-papiers est refusé dans bien des contextes — page non
+ * sécurisée, permission retirée, navigateur intégré à une application — et un
+ * bouton qui échoue sans rien montrer laisse le joueur sans recours.
+ */
+export function ReferralCard() {
+  const [code, setCode] = useState<string | null>(null);
+  const [filleuls, setFilleuls] = useState<Referral[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [copie, setCopie] = useState(false);
+
+  useEffect(() => {
+    let vivant = true;
+    myReferralCode()
+      .then((c) => {
+        if (!vivant) return;
+        setCode(c);
+        return myReferrals().then((r) => vivant && setFilleuls(r));
+      })
+      .catch((e: unknown) => vivant && setError(describeError(e, "Parrainage indisponible.")));
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
+  const lien = code ? referralLink(code) : "";
+  const gagnes = filleuls.reduce((somme, f) => somme + f.reward, 0);
+
+  const partager = async () => {
+    if (!lien) return;
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) {
+      // Un partage annulé n'est pas une erreur : l'utilisateur a changé d'avis.
+      await nav
+        .share({ title: "Aztèque", text: "Viens jouer à l'Aztèque avec moi.", url: lien })
+        .catch(() => {});
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lien);
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2000);
+    } catch {
+      setError("Copie refusée par le navigateur : sélectionnez le lien ci-dessous.");
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-lg border border-gold/35 bg-gold/5 px-4 py-4">
+      <p className="text-sm font-semibold text-foreground">Parrainage</p>
+      <p className="mt-1 text-[0.7rem] text-muted-foreground">
+        Chaque joueur qui crée son compte avec votre code vous rapporte {REFERRAL_REWARD} jetons.
+        Sans limite de nombre.
+      </p>
+
+      {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+
+      {code === null && !error && (
+        <p className="mt-3 text-xs text-muted-foreground">Chargement de votre code…</p>
+      )}
+
+      {code && (
+        <>
+          <p className="mt-3 select-all text-center font-display text-2xl tracking-[0.3em] text-gold">
+            {code}
+          </p>
+          <Button
+            type="button"
+            className="mt-3 w-full font-semibold"
+            onClick={() => void partager()}
+          >
+            {copie ? "Lien copié" : "Partager mon lien"}
+          </Button>
+          <input
+            readOnly
+            value={lien}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-label="Lien de parrainage"
+            className="mt-2 h-8 w-full select-all rounded-md border border-input bg-background px-2 text-[0.65rem] text-muted-foreground outline-none"
+          />
+
+          <div className="mt-4 flex items-center justify-between text-xs text-foreground">
+            <span>
+              {filleuls.length} filleul{filleuls.length > 1 ? "s" : ""}
+            </span>
+            <span className="font-semibold text-gold">🪙 {gagnes} gagnés</span>
+          </div>
+
+          {filleuls.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {filleuls.map((f) => (
+                <li
+                  key={f.username + f.created_at}
+                  className="flex items-center justify-between rounded-md bg-secondary/40 px-2 py-1 text-[0.7rem]"
+                >
+                  <span className="truncate text-foreground">{f.username}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {new Date(f.created_at).toLocaleDateString("fr-FR")} · +{f.reward}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

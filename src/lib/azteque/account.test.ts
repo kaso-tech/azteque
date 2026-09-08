@@ -17,6 +17,8 @@ const base = {
   rpc: { data: null as unknown, error: null as { code?: string; message?: string } | null },
   /** Ce que le dernier `update(...)` a reçu, pour vérifier ce qu'il ne doit pas contenir. */
   dernierUpdate: null as Record<string, unknown> | null,
+  /** Nom et arguments du dernier appel de fonction serveur. */
+  dernierRpc: null as { nom: string; args: Record<string, unknown> } | null,
 };
 
 const TOUTES = ["id", "username", "rating", "avatar_kind", "avatar_url", "tokens"];
@@ -27,7 +29,10 @@ vi.mock("@/integrations/supabase/client", () => ({
       getSession: () =>
         Promise.resolve({ data: { session: { user: { id: base.moi, is_anonymous: false } } } }),
     },
-    rpc: () => Promise.resolve(base.rpc),
+    rpc: (nom: string, args: Record<string, unknown>) => {
+      base.dernierRpc = { nom, args };
+      return Promise.resolve(base.rpc);
+    },
     from: () => {
       const q = { cols: [] as string[], motif: "", like: "" };
       const repondre = () => {
@@ -86,6 +91,10 @@ const {
   nomDeColonne,
   syncGoogleIdentity,
   updateCountry,
+  createProfile,
+  myReferralCode,
+  myReferrals,
+  referralLink,
 } = await import("./account");
 
 beforeEach(() => {
@@ -102,6 +111,7 @@ beforeEach(() => {
   ];
   base.rpc = { data: null, error: null };
   base.dernierUpdate = null;
+  base.dernierRpc = null;
 });
 
 describe("disponibilité d'un pseudo", () => {
@@ -257,5 +267,61 @@ describe("changement de pays", () => {
   it("efface le pays avec une valeur vide", async () => {
     await updateCountry(null);
     expect(base.dernierUpdate).toEqual({ country: null });
+  });
+});
+
+/**
+ * Parrainage et jetons de bienvenue.
+ *
+ * Les deux versements sont faits par la base : ce qui se vérifie ici, c'est
+ * que le client lui transmet exactement ce qu'il faut — et rien d'autre. Un
+ * code vide doit devenir un vrai « pas de parrain », pas la chaîne vide, sans
+ * quoi la fonction serveur chercherait un parrain nommé « » et refuserait
+ * l'inscription.
+ */
+describe("parrainage", () => {
+  it("crée le compte par la fonction serveur, code compris", async () => {
+    base.rpc = { data: { id: base.moi, username: "kofi_92", tokens: 100 }, error: null };
+    const profil = await createProfile("  kofi_92  ", " k7m2pq4b ");
+    expect(base.dernierRpc).toEqual({
+      nom: "create_profile",
+      args: { _username: "kofi_92", _referral_code: "k7m2pq4b" },
+    });
+    expect(profil).toMatchObject({ tokens: 100 });
+  });
+
+  it("sans code, n'envoie pas de chaîne vide mais rien du tout", async () => {
+    base.rpc = { data: { id: base.moi, username: "kofi_92" }, error: null };
+    await createProfile("kofi_92");
+    expect(base.dernierRpc?.args["_referral_code"]).toBeNull();
+    await createProfile("kofi_92", "   ");
+    expect(base.dernierRpc?.args["_referral_code"]).toBeNull();
+  });
+
+  it("refuse un pseudo invalide sans rien demander à la base", async () => {
+    await expect(createProfile("ab")).rejects.toThrow(/3 à 20/);
+    expect(base.dernierRpc).toBeNull();
+  });
+
+  it("traduit le pseudo déjà pris", async () => {
+    base.rpc = { data: null, error: { code: "23505", message: "duplicate key" } };
+    await expect(createProfile("kofi_92")).rejects.toThrow(/déjà pris/);
+  });
+
+  it("rend le code et la liste des filleuls", async () => {
+    base.rpc = { data: "K7M2PQ4B", error: null };
+    expect(await myReferralCode()).toBe("K7M2PQ4B");
+    base.rpc = { data: [{ username: "ama", reward: 500, created_at: "2026-09-08" }], error: null };
+    expect(await myReferrals()).toHaveLength(1);
+  });
+
+  it("supporte une base qui n'a encore rien à rendre", async () => {
+    base.rpc = { data: null, error: null };
+    expect(await myReferralCode()).toBe("");
+    expect(await myReferrals()).toEqual([]);
+  });
+
+  it("construit un lien partageable", () => {
+    expect(referralLink("K7M2PQ4B")).toContain("parrain=K7M2PQ4B");
   });
 });

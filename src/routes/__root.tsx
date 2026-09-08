@@ -158,6 +158,13 @@ function RootComponent() {
     void import("@/lib/azteque/admin").then((m) => m.loadSoundSettings());
   }, []);
 
+  // Un lien de parrainage porte le code dans l'adresse. Il faut le mettre de
+  // côté tout de suite : le joueur va naviguer vers le salon puis passer par
+  // Google, et l'adresse n'aura pas survécu au voyage.
+  useEffect(() => {
+    void import("@/lib/azteque/tokens").then((m) => m.rememberReferralCode());
+  }, []);
+
   useEffect(() => {
     void import("@/lib/azteque/account").then(async (m) => {
       const handled = await m.completeOAuthRedirect().catch(() => false);
