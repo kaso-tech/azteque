@@ -21,5 +21,21 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/accueil.png",
+      "sizes": "1081x1999",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Écran d'accueil"
+    },
+    {
+      "src": "/screenshots/partie.png",
+      "sizes": "1081x1999",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Partie contre l'IA"
+    }
   ]
 }
