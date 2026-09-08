@@ -1093,20 +1093,41 @@ export function subscribeOutgoingInvites(
 /**
  * Salon de présence commun à tous les joueurs connectés. Chacun s'y annonce,
  * ce qui permet d'afficher les amis actuellement disponibles.
+ *
+ * Le canal est unique pour toute l'application : la présence exige un même
+ * nom de salon, et un second abonnement au même nom se voit refuser ses
+ * écouteurs (« cannot add presence callbacks after subscribe »). On garde
+ * donc un seul canal partagé, avec la liste de ses auditeurs.
  */
+let lobbyChannel: ReturnType<typeof supabase.channel> | null = null;
+const lobbyListeners = new Set<(ids: Set<string>) => void>();
+
 export function trackLobbyPresence(userId: string, onOnline: (ids: Set<string>) => void) {
-  const channel = supabase.channel("lobby", { config: { presence: { key: userId } } });
-  channel
-    .on("presence", { event: "sync" }, () => {
-      onOnline(new Set(Object.keys(channel.presenceState())));
-    })
-    .subscribe((status) => {
-      if (status === "SUBSCRIBED") void channel.track({ at: Date.now() });
-    });
+  lobbyListeners.add(onOnline);
+  if (!lobbyChannel) {
+    const channel = supabase.channel("lobby", { config: { presence: { key: userId } } });
+    lobbyChannel = channel;
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const ids = new Set(Object.keys(channel.presenceState()));
+        for (const fn of lobbyListeners) fn(ids);
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void channel.track({ at: Date.now() });
+      });
+  } else {
+    onOnline(new Set(Object.keys(lobbyChannel.presenceState())));
+  }
   return () => {
-    void supabase.removeChannel(channel);
+    lobbyListeners.delete(onOnline);
+    if (lobbyListeners.size === 0 && lobbyChannel) {
+      const channel = lobbyChannel;
+      lobbyChannel = null;
+      void supabase.removeChannel(channel);
+    }
   };
 }
+
 
 /* ---------- Historique des confrontations ---------- */
 

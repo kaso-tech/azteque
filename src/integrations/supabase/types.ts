@@ -172,6 +172,45 @@ export type Database = {
         }
         Relationships: []
       }
+      player_reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: number
+          reason: string
+          reporter_id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          target_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: number
+          reason: string
+          reporter_id: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: number
+          reason?: string
+          reporter_id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_kind: string
@@ -435,10 +474,86 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_dashboard_series: {
+        Args: { _days?: number }
+        Returns: {
+          jour: string
+          nouveaux_joueurs: number
+          parties: number
+        }[]
+      }
+      admin_dashboard_stats: { Args: never; Returns: Json }
+      admin_dashboard_top_countries: {
+        Args: { _limit?: number }
+        Returns: {
+          country: string
+          joueurs: number
+        }[]
+      }
+      admin_dashboard_top_players: {
+        Args: { _limit?: number }
+        Returns: {
+          country: string
+          delta: number
+          parties: number
+          rating: number
+          user_id: string
+          username: string
+        }[]
+      }
       admin_delete_item: { Args: { _id: string }; Returns: undefined }
+      admin_get_setting: { Args: { _key: string }; Returns: Json }
       admin_grant_tokens: {
         Args: { _amount: number; _reason?: string; _user: string }
         Returns: number
+      }
+      admin_list_log: {
+        Args: {
+          _action?: string
+          _admin_id?: string
+          _limit?: number
+          _offset?: number
+          _since?: string
+          _until?: string
+        }
+        Returns: {
+          action: string
+          admin_id: string
+          admin_username: string
+          at: string
+          details: Json
+          id: number
+          target: string
+        }[]
+      }
+      admin_list_matches: {
+        Args: {
+          _guest?: string
+          _host?: string
+          _limit?: number
+          _offset?: number
+          _since?: string
+          _status?: string
+          _until?: string
+        }
+        Returns: {
+          bet_amount: number
+          code: string
+          created_at: string
+          finished_at: string
+          guest_id: string
+          guest_username: string
+          host_id: string
+          host_username: string
+          id: string
+          rating_delta_guest: number
+          rating_delta_host: number
+          rounds_guest: number
+          rounds_host: number
+          settled_at: string
+          status: string
+          winner_id: string
+        }[]
       }
       admin_list_players: {
         Args: { _limit?: number; _query?: string }
@@ -461,10 +576,76 @@ export type Database = {
           username: string
         }[]
       }
+      admin_list_reports: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _reason?: string
+          _status?: string
+        }
+        Returns: {
+          created_at: string
+          details: string
+          id: number
+          reason: string
+          reporter_id: string
+          reporter_username: string
+          resolution_note: string
+          resolved_at: string
+          resolved_by: string
+          status: string
+          target_banned: boolean
+          target_id: string
+          target_username: string
+        }[]
+      }
+      admin_list_settings: {
+        Args: never
+        Returns: {
+          key: string
+          updated_at: string
+          value: Json
+        }[]
+      }
       admin_log_sound_change: {
         Args: { _action: string; _details?: Json; _id: string }
         Returns: undefined
       }
+      admin_match_forfeit: {
+        Args: { _id: string; _reason?: string; _winner_id: string }
+        Returns: undefined
+      }
+      admin_match_void: {
+        Args: { _id: string; _reason?: string }
+        Returns: undefined
+      }
+      admin_player_purchase_count: {
+        Args: { _user_id: string }
+        Returns: number
+      }
+      admin_player_rating_series: {
+        Args: { _days?: number; _user_id: string }
+        Returns: {
+          jour: string
+          rating: number
+        }[]
+      }
+      admin_player_recent_matches: {
+        Args: { _limit?: number; _user_id: string }
+        Returns: {
+          finished_at: string
+          id: string
+          opponent: string
+          rating_delta: number
+          result: string
+          score: string
+        }[]
+      }
+      admin_resolve_report: {
+        Args: { _decision: string; _id: number; _note?: string }
+        Returns: undefined
+      }
+      admin_revert_log_entry: { Args: { _id: number }; Returns: string }
       admin_set_admin: {
         Args: { _is_admin: boolean; _user: string }
         Returns: undefined
@@ -480,6 +661,15 @@ export type Database = {
       admin_set_setting: {
         Args: { _key: string; _value: Json }
         Returns: undefined
+      }
+      admin_shop_sales_summary: {
+        Args: never
+        Returns: {
+          ca_7j: number
+          dernier_achat: string
+          item_id: string
+          ventes_7j: number
+        }[]
       }
       admin_stats: { Args: never; Returns: Json }
       admin_upsert_item: {
@@ -584,6 +774,10 @@ export type Database = {
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      submit_player_report: {
+        Args: { _details?: string; _reason: string; _target: string }
+        Returns: number
+      }
       sync_google_identity: {
         Args: never
         Returns: {
