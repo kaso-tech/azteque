@@ -9,3 +9,5 @@ export { Boutique } from "./Boutique";
 export { Sons } from "./Sons";
 export { Journal } from "./Journal";
 export { Parties } from "./Parties";
+export { Signalements } from "./Signalements";
+export { Reglages } from "./Reglages";
