@@ -435,6 +435,33 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_dashboard_series: {
+        Args: { _days?: number }
+        Returns: {
+          jour: string
+          nouveaux_joueurs: number
+          parties: number
+        }[]
+      }
+      admin_dashboard_stats: { Args: never; Returns: Json }
+      admin_dashboard_top_countries: {
+        Args: { _limit?: number }
+        Returns: {
+          country: string
+          joueurs: number
+        }[]
+      }
+      admin_dashboard_top_players: {
+        Args: { _limit?: number }
+        Returns: {
+          country: string
+          delta: number
+          parties: number
+          rating: number
+          user_id: string
+          username: string
+        }[]
+      }
       admin_delete_item: { Args: { _id: string }; Returns: undefined }
       admin_grant_tokens: {
         Args: { _amount: number; _reason?: string; _user: string }
@@ -464,6 +491,28 @@ export type Database = {
       admin_log_sound_change: {
         Args: { _action: string; _details?: Json; _id: string }
         Returns: undefined
+      }
+      admin_player_purchase_count: {
+        Args: { _user_id: string }
+        Returns: number
+      }
+      admin_player_rating_series: {
+        Args: { _days?: number; _user_id: string }
+        Returns: {
+          jour: string
+          rating: number
+        }[]
+      }
+      admin_player_recent_matches: {
+        Args: { _limit?: number; _user_id: string }
+        Returns: {
+          finished_at: string
+          id: string
+          opponent: string
+          rating_delta: number
+          result: string
+          score: string
+        }[]
       }
       admin_set_admin: {
         Args: { _is_admin: boolean; _user: string }
