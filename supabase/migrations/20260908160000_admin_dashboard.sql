@@ -46,7 +46,7 @@ BEGIN
       SELECT COALESCE(sum(si.price), 0)::bigint
       FROM public.purchases pu
       JOIN public.shop_items si ON si.id = pu.item_id
-      WHERE pu.created_at > now() - interval '7 days'
+      WHERE pu.bought_at > now() - interval '7 days'
     ),
     -- Tendances sur 24 h vs les 24 h précédentes. Calculées ici pour que
     -- le client n'ait qu'à afficher.
@@ -83,10 +83,10 @@ BEGIN
     -- plus d'une heure : un signal de panne plus fiable qu'un taux d'erreur
     -- agrégé.
     'stuck_matches', (
-      SELECT count(*) FROM public.matches
-      WHERE settled_at IS NULL
-        AND finished_at IS NULL
-        AND created_at < now() - interval '1 hour'
+      SELECT count(*) FROM public.matches m
+      WHERE m.settled_at IS NULL
+        AND m.finished_at IS NULL
+        AND m.created_at < now() - interval '1 hour'
     )
   ) INTO _r;
   RETURN _r;
