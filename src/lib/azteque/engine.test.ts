@@ -138,6 +138,69 @@ describe("legalCards", () => {
     expect(legalCards(state, 0)).toEqual([tenH]);
   });
 
+  it("deux exemplaires d'une même carte sont interchangeables (jumelles)", () => {
+    // Vécu en partie : deux Dames d'atout en main, l'une posée pour le compte.
+    // Refuser la jumelle non annoncée n'a aucun fondement — même couleur, même
+    // rang, même force.
+    const queenA = card("Q", "S", "qa");
+    const queenB = card("Q", "S", "qb");
+    const state = makeState({
+      trump: "S",
+      hands: [[queenA, queenB], []],
+      exposed: [["qa"], []],
+      trick: [{ player: 1, card: card("K", "S") }],
+    });
+    expect(
+      legalCards(state, 0)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(["qa", "qb"]);
+  });
+
+  it("la jumelle de la plus forte carte reste jouable quand on ne peut pas battre", () => {
+    const nineA = card("9", "H", "na");
+    const nineB = card("9", "H", "nb");
+    const state = makeState({
+      hands: [[nineA, card("7", "H"), nineB], []],
+      trick: [{ player: 1, card: card("K", "H") }],
+    });
+    expect(
+      legalCards(state, 0)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(["na", "nb"]);
+  });
+
+  it("protection d'une bonne : le substitut est la plus forte carte NON bonne", () => {
+    // Deux 10 de cœur et un Roi : lâcher le second 10 n'est pas une protection.
+    const tenA = card("10", "H", "ta");
+    const tenB = card("10", "H", "tb");
+    const kingH = card("K", "H", "k");
+    const state = makeState({
+      hands: [[tenA, tenB, kingH], []],
+      trick: [{ player: 1, card: card("A", "H") }],
+    });
+    expect(
+      legalCards(state, 0)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(["k", "ta", "tb"]);
+  });
+
+  it("une couleur qui ne tient que des bonnes retombe sur la carte inférieure", () => {
+    const aceH = card("A", "H", "a");
+    const tenH = card("10", "H", "t");
+    const state = makeState({
+      hands: [[aceH, tenH], []],
+      trick: [{ player: 1, card: card("A", "H", "lead") }],
+    });
+    expect(
+      legalCards(state, 0)
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(["a", "t"]);
+  });
+
   it("sans la couleur demandée, joue un atout si possible", () => {
     const trumpCard = card("7", "S");
     const other = card("9", "D");

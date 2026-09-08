@@ -234,6 +234,37 @@ export function beats(a: Card, b: Card, trump: Suit | null): boolean {
   return rankValue(a.rank) > rankValue(b.rank); // cartes identiques : la 1re gagne
 }
 
+/**
+ * Réponse imposée quand on fournit la couleur sans pouvoir surpasser.
+ *
+ * Le règlement oblige à livrer sa plus forte carte de la couleur, mais tolère
+ * un substitut pour PROTÉGER une bonne. Deux précisions, toutes deux issues de
+ * parties réelles :
+ *
+ *  - Le jeu compte DEUX exemplaires de chaque carte. Deux cartes de même
+ *    couleur et de même rang sont rigoureusement équivalentes : si l'une est
+ *    jouable, l'autre l'est aussi. Trier la couleur et ne retenir que le
+ *    premier élément désignait arbitrairement l'un des deux jumeaux et
+ *    refusait l'autre — c'est ce qui rendait injouable la Dame d'atout restée
+ *    en main quand sa jumelle avait servi à annoncer le compte.
+ *
+ *  - Le substitut de protection est la plus forte carte NON bonne de la
+ *    couleur, et non simplement la carte immédiatement inférieure. Avec 10, 10
+ *    et Roi en main, l'ancienne règle imposait de lâcher un 10 — le second —
+ *    alors que la protection existe précisément pour garder ses bonnes.
+ */
+function forcedFollow(same: Card[]): Card[] {
+  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
+  const top = sorted[0]!;
+  const twins = (r: Rank) => same.filter((c) => c.rank === r);
+  const topTwins = twins(top.rank);
+  if (!isBonne(top) || topTwins.length === sorted.length) return topTwins;
+  // Substitut : la plus forte carte non bonne, à défaut la carte immédiatement
+  // inférieure (une couleur qui ne tient que des bonnes).
+  const sub = sorted.find((c) => !isBonne(c)) ?? sorted.find((c) => c.rank !== top.rank)!;
+  return [...topTwins, ...twins(sub.rank)];
+}
+
 export function legalCards(state: GameState, p: PlayerIndex): Card[] {
   const hand = state.hands[p];
   if (state.trick.length === 0 || state.stock.length > 0) return hand;
@@ -245,10 +276,7 @@ export function legalCards(state: GameState, p: PlayerIndex): Card[] {
   }
   const winning = same.filter((c) => beats(c, led, state.trump));
   if (winning.length) return winning;
-  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
-  const top = sorted[0]!;
-  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!]; // protection d'une bonne
-  return [top];
+  return forcedFollow(same);
 }
 
 function clone(s: GameState): GameState {
@@ -749,11 +777,11 @@ function endgameLead(
   const winning = same.filter((x) => beats(x, c, state.trump));
   if (winning.length) return { wins: false, captured: 0, given: null };
 
-  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
-  const top = sorted[0]!;
-  // Protection d'une bonne : il peut lui substituer la carte immédiatement
-  // inférieure de la couleur.
-  const given = isBonne(top) && sorted.length > 1 ? sorted[1]! : top;
+  // Il livre la moins chère des cartes que le règlement lui laisse : c'est la
+  // protection d'une bonne quand elle lui est ouverte.
+  const given = forcedFollow(same).reduce((a, b) =>
+    rankValue(b.rank) < rankValue(a.rank) ? b : a,
+  );
   return { wins: true, captured: isBonne(given) ? 1 : 0, given };
 }
 
@@ -1021,10 +1049,7 @@ function simLegal(s: SimState, p: PlayerIndex): Card[] {
   }
   const winning = same.filter((c) => beats(c, led, s.trump));
   if (winning.length) return winning;
-  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
-  const top = sorted[0]!;
-  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!]; // protection d'une bonne
-  return [top];
+  return forcedFollow(same);
 }
 
 /** Deux exemplaires d'une même carte sont interchangeables : on n'en teste qu'un. */
