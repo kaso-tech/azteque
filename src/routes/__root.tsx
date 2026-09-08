@@ -135,6 +135,19 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="fr">
       <head>
         <HeadContent />
+        {/* Rend l'application installable (icône, plein écran, hors ligne
+            partiel). Un script en ligne plutôt qu'un effet React : un audit
+            comme celui de PWABuilder n'attend pas que le bundle s'hydrate, et
+            l'enregistrement doit donc se faire dès le premier chargement de
+            la page, pas après. Un échec ici — navigateur trop ancien,
+            contexte non sécurisé — laisse simplement l'application
+            fonctionner comme une page web ordinaire. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}",
+          }}
+        />
       </head>
       <body>
         {children}
@@ -175,17 +188,6 @@ function RootComponent() {
       }
     });
   }, [router]);
-
-  // Rend l'application installable (icône, plein écran, hors ligne partiel).
-  // Un échec ici — navigateur trop ancien, contexte non sécurisé — laisse
-  // simplement l'application fonctionner comme une page web ordinaire.
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* pas grave : seule l'installation en est privée */
-      });
-    }
-  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
