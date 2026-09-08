@@ -10,6 +10,7 @@ import {
 import {
   AdminShell,
   Boutique,
+  Dashboard,
   EmptyScreen,
   Journal,
   Joueurs,
@@ -25,13 +26,13 @@ export const Route = createFileRoute("/admin")({
 /**
  * Onglets effectivement affichés par la console.
  *
- * Les onglets « Dashboard », « Parties », « Signalements » et « Réglages »
- * existent dans la navigation dès PR1, mais ne montrent qu'un écran vide :
- * ils prendront leur contenu dans les livraisons suivantes. Les garder dans
- * la nav permet d'ancrer l'attente de l'administrateur — l'emplacement ne
- * bouge plus quand l'écran s'étoffe.
+ * Les onglets « Dashboard », « Joueurs » et « Boutique » sont en service.
+ * Les onglets « Parties », « Signalements » et « Réglages » existent dans
+ * la navigation, mais ne montrent qu'un écran vide tant que leur contenu
+ * n'est pas livré.
  */
 const ONGLETS_DISPONIBLES: AdminTabId[] = [
+  "dashboard",
   "players",
   "shop",
   "sounds",
@@ -40,7 +41,7 @@ const ONGLETS_DISPONIBLES: AdminTabId[] = [
 
 function Administration() {
   const [acces, setAcces] = useState<AdminAccess | null>(null);
-  const [onglet, setOnglet] = useState<AdminTabId>("players");
+  const [onglet, setOnglet] = useState<AdminTabId>("dashboard");
   const [erreur, setErreur] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
 
@@ -97,6 +98,7 @@ function Administration() {
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
         {erreur && <p className="text-sm text-destructive">{erreur}</p>}
+        {onglet === "dashboard" && <Dashboard onErreur={setErreur} />}
         {onglet === "players" && <Joueurs onErreur={setErreur} />}
         {onglet === "shop" && <Boutique onErreur={setErreur} />}
         {onglet === "sounds" && <Sons onErreur={setErreur} />}
