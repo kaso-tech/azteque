@@ -119,6 +119,59 @@ const MIGRATION_PAR_COLONNE: Record<string, string> = {
 };
 
 /**
+ * Quelle migration apporte quelle fonction.
+ *
+ * Même raison que pour les colonnes : quand la base est en retard, le message
+ * doit nommer le fichier à passer. Sans lui, « une migration reste à
+ * appliquer » envoie chercher parmi une quarantaine de fichiers.
+ */
+const MIGRATION_PAR_FONCTION: Record<string, string> = {
+  claim_local_tokens: "20260906230000_sync_offline_tokens.sql",
+  claim_daily_bonus: "20260907090000_daily_bonus.sql",
+  admin_grant_tokens: "20260907160000_administration.sql",
+  admin_set_admin: "20260907160000_administration.sql",
+  admin_set_banned: "20260907160000_administration.sql",
+  admin_set_setting: "20260907160000_administration.sql",
+  admin_stats: "20260907160000_administration.sql",
+  award_ai_win: "20260907160000_administration.sql",
+  buy_item: "20260907160000_administration.sql",
+  is_admin: "20260907160000_administration.sql",
+  admin_delete_item: "20260907190000_console_complete.sql",
+  admin_list_players: "20260907190000_console_complete.sql",
+  admin_upsert_item: "20260907190000_console_complete.sql",
+  settle_match: "20260907190000_console_complete.sql",
+  touch_last_seen: "20260907190000_console_complete.sql",
+  admin_log_sound_change: "20260907230000_sons_storage.sql",
+  admin_set_sound_file: "20260907230000_sons_storage.sql",
+  admin_clear_sound_file: "20260907230000_sons_storage.sql",
+  sync_google_identity: "20260907240000_identite_google_verrouillee.sql",
+  create_profile: "20260908000000_parrainage.sql",
+  my_referral_code: "20260908000000_parrainage.sql",
+  my_referrals: "20260908000000_parrainage.sql",
+};
+
+/**
+ * Extrait le nom de la fonction d'un message d'erreur.
+ *
+ * PostgREST cite la fonction absente de son cache de schéma (« Could not find
+ * the function public.x without parameters », ou avec la liste de ses
+ * arguments), le moteur la cite autrement (« function public.x(text) does not
+ * exist »), et la version française encore autrement.
+ */
+export function nomDeFonction(message: string): string {
+  const formes = [
+    /function public\.([a-z_0-9]+)/i,
+    /fonction public\.([a-z_0-9]+)/i,
+    /function ([a-z_0-9]+)\(/i,
+  ];
+  for (const f of formes) {
+    const m = f.exec(message);
+    if (m?.[1]) return m[1];
+  }
+  return "";
+}
+
+/**
  * Extrait le nom de la colonne d'un message d'erreur.
  *
  * Trois formulations selon qui répond : PostgREST consultant son cache de
@@ -171,9 +224,16 @@ export function describeError(e: unknown, fallback: string): string {
       );
     }
     if (code === "PGRST202" || code === "42883") {
+      const fonction = nomDeFonction(o.message ?? "");
+      const fichier = MIGRATION_PAR_FONCTION[fonction];
       return (
-        "La base ne connaît pas encore cette fonction : une migration reste à " +
-        `appliquer sur le projet Supabase. (${o.message ?? code})`
+        (fonction
+          ? `La base ne connaît pas encore la fonction « ${fonction} ». `
+          : "La base ne connaît pas encore cette fonction. ") +
+        (fichier
+          ? `Appliquez la migration ${fichier} sur le projet Supabase, puis rechargez. `
+          : "Une migration reste à appliquer sur le projet Supabase, puis rechargez. ") +
+        `(${o.message ?? code})`
       );
     }
     if (code === "42501" || code === "PGRST301") {

@@ -89,6 +89,7 @@ const {
   searchPlayers,
   describeError,
   nomDeColonne,
+  nomDeFonction,
   syncGoogleIdentity,
   updateCountry,
   createProfile,
@@ -323,5 +324,57 @@ describe("parrainage", () => {
 
   it("construit un lien partageable", () => {
     expect(referralLink("K7M2PQ4B")).toContain("parrain=K7M2PQ4B");
+  });
+});
+
+/**
+ * Message d'une fonction manquante.
+ *
+ * Vécu : « une migration reste à appliquer » sans dire laquelle, devant une
+ * quarantaine de fichiers. Le message doit nommer le fichier.
+ */
+describe("message d'une fonction manquante", () => {
+  it("lit le nom que PostgREST donne à une fonction sans paramètres", () => {
+    expect(
+      nomDeFonction(
+        "Could not find the function public.my_referral_code without parameters in the schema cache",
+      ),
+    ).toBe("my_referral_code");
+  });
+
+  it("lit aussi le nom quand les arguments sont cités", () => {
+    expect(
+      nomDeFonction(
+        "Could not find the function public.create_profile(_referral_code, _username) in the schema cache",
+      ),
+    ).toBe("create_profile");
+  });
+
+  it("lit le nom que donne le moteur lui-même", () => {
+    expect(nomDeFonction("function public.sync_google_identity() does not exist")).toBe(
+      "sync_google_identity",
+    );
+  });
+
+  it("nomme le fichier de migration à appliquer", () => {
+    const message = describeError(
+      {
+        code: "PGRST202",
+        message:
+          "Could not find the function public.my_referral_code without parameters in the schema cache",
+      },
+      "raté",
+    );
+    expect(message).toContain("my_referral_code");
+    expect(message).toContain("20260908000000_parrainage.sql");
+  });
+
+  it("reste utile pour une fonction qu'on ne sait pas rattacher", () => {
+    const message = describeError(
+      { code: "42883", message: "function public.inconnue() does not exist" },
+      "raté",
+    );
+    expect(message).toContain("inconnue");
+    expect(message).toContain("migration");
   });
 });
