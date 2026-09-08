@@ -41,13 +41,13 @@ export interface AdminMatchRow {
 }
 
 export interface MatchFilters {
-  status?: MatchStatusFilter;
-  since?: string;
-  until?: string;
-  hostId?: string;
-  guestId?: string;
-  limit?: number;
-  offset?: number;
+  status?: MatchStatusFilter | undefined;
+  since?: string | undefined;
+  until?: string | undefined;
+  hostId?: string | undefined;
+  guestId?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
 }
 
 export async function adminListMatches(filters: MatchFilters = {}): Promise<AdminMatchRow[]> {
@@ -61,7 +61,7 @@ export async function adminListMatches(filters: MatchFilters = {}): Promise<Admi
     offset: filters.offset ?? 0,
   });
   if (error) throw error;
-  return (data as AdminMatchRow[]) ?? [];
+  return (data as unknown as AdminMatchRow[]) ?? [];
 }
 
 export async function adminMatchVoid(matchId: string, reason: string): Promise<void> {
