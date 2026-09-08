@@ -467,6 +467,25 @@ export type Database = {
         Args: { _amount: number; _reason?: string; _user: string }
         Returns: number
       }
+      admin_list_log: {
+        Args: {
+          _action?: string
+          _admin_id?: string
+          _limit?: number
+          _offset?: number
+          _since?: string
+          _until?: string
+        }
+        Returns: {
+          action: string
+          admin_id: string
+          admin_username: string
+          at: string
+          details: Json
+          id: number
+          target: string
+        }[]
+      }
       admin_list_players: {
         Args: { _limit?: number; _query?: string }
         Returns: {
@@ -514,6 +533,7 @@ export type Database = {
           score: string
         }[]
       }
+      admin_revert_log_entry: { Args: { _id: number }; Returns: string }
       admin_set_admin: {
         Args: { _is_admin: boolean; _user: string }
         Returns: undefined
@@ -529,6 +549,15 @@ export type Database = {
       admin_set_setting: {
         Args: { _key: string; _value: Json }
         Returns: undefined
+      }
+      admin_shop_sales_summary: {
+        Args: never
+        Returns: {
+          ca_7j: number
+          dernier_achat: string
+          item_id: string
+          ventes_7j: number
+        }[]
       }
       admin_stats: { Args: never; Returns: Json }
       admin_upsert_item: {
