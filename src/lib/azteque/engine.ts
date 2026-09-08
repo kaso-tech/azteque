@@ -253,7 +253,7 @@ export function beats(a: Card, b: Card, trump: Suit | null): boolean {
  *    et Roi en main, l'ancienne règle imposait de lâcher un 10 — le second —
  *    alors que la protection existe précisément pour garder ses bonnes.
  */
-function forcedFollow(same: Card[]): Card[] {
+export function forcedFollow(same: Card[]): Card[] {
   const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
   const top = sorted[0]!;
   const twins = (r: Rank) => same.filter((c) => c.rank === r);

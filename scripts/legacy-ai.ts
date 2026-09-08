@@ -8,6 +8,7 @@ import {
   aiChooseCard,
   availableMelds,
   beats,
+  forcedFollow,
   isBonne,
   legalCards,
   rankValue,
@@ -119,10 +120,9 @@ function endgameLegal(hand: Card[], led: Card | null, trump: Suit | null): Card[
   }
   const winning = same.filter((c) => beats(c, led, trump));
   if (winning.length) return winning;
-  const sorted = [...same].sort((x, y) => rankValue(y.rank) - rankValue(x.rank));
-  const top = sorted[0]!;
-  if (isBonne(top) && sorted.length > 1) return [top, sorted[1]!];
-  return [top];
+  // La règle vient du moteur : cette copie est figée sur les HEURISTIQUES de
+  // l'ancienne IA, pas sur le règlement, qu'elle doit suivre comme l'autre.
+  return forcedFollow(same);
 }
 
 function endgameBest(state: GameState): Card | null {
