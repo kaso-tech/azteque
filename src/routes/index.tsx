@@ -119,6 +119,9 @@ function Azteque() {
   const [isAdmin, setIsAdmin] = useState(false);
   const accountBound = account !== null;
   const [choosingTrump, setChoosingTrump] = useState(false);
+  // Comptes retenus pour l'annonce en cours. `null` = tous ceux que la main
+  // permet : le joueur peut en retirer un pour n'en annoncer qu'un seul.
+  const [selectedSuits, setSelectedSuits] = useState<Suit[] | null>(null);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
@@ -408,6 +411,15 @@ function Azteque() {
     state.hands[0].length === 5 &&
     myMelds.length > 0 &&
     state.stock.length > 0;
+
+  // La sélection ne vaut que pour l'annonce en cours.
+  useEffect(() => {
+    if (!meldDecisionPending) {
+      setSelectedSuits(null);
+      setChoosingTrump(false);
+    }
+  }, [meldDecisionPending]);
+
 
   const freshRound =
     state.phase === "playing" &&
@@ -768,15 +780,22 @@ function Azteque() {
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
-  // Un compte s'annonce en bloc : tous ceux que la main permet, d'un seul clic
-  // — c'est toujours l'intérêt du joueur, chacun valant des points. L'atout
-  // n'est à désigner que s'il est réellement ambigu : plusieurs comptes
-  // annonçables alors qu'il n'est pas encore fixé. Avec un seul compte, la
-  // couleur se déduit d'elle-même.
-  const needsTrumpChoice = state.trump === null && myMelds.length > 1;
+  // Le joueur retient les comptes qu'il veut annoncer : les deux, ou l'un et
+  // pas l'autre. Tous sont cochés au départ, chacun valant des points.
+  const meldSuits = myMelds.map((m) => m.suit);
+  const chosenSuits = (selectedSuits ?? meldSuits).filter((s) => meldSuits.includes(s));
+  // L'atout n'est à désigner que s'il est réellement ambigu : au moins deux
+  // comptes retenus alors qu'il n'est pas encore fixé.
+  const needsTrumpChoice = state.trump === null && chosenSuits.length > 1;
   const meldSummary = myMelds
+    .filter((m) => chosenSuits.includes(m.suit))
     .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
     .join(" + ");
+  const toggleMeld = (s: Suit) =>
+    setSelectedSuits((cur) => {
+      const base = cur ?? meldSuits;
+      return base.includes(s) ? base.filter((x) => x !== s) : [...base, s];
+    });
 
   // Changer de niveau en cours de partie reviendrait à finir en Légende un
   // champ commencé en Facile — et à empocher la récompense du niveau le plus
@@ -796,18 +815,14 @@ function Azteque() {
   }, [settings.difficulty, showAiProfile, started, restart]);
 
   const doAnnounce = (trumpChoice: Suit | null) => {
+    const suits = chosenSuits;
+    if (suits.length === 0) return;
     // L'atout se fixe sur cette annonce précisément quand il n'était pas
     // encore choisi : un rire différent salue ce moment-là.
     const fixeLAtout = state.trump === null;
-    setState((s) =>
-      announce(
-        s,
-        0,
-        availableMelds(s, 0).map((m) => m.suit),
-        trumpChoice,
-      ),
-    );
+    setState((s) => announce(s, 0, suits, trumpChoice));
     setChoosingTrump(false);
+    setSelectedSuits(null);
     // C'est l'utilisateur qui annonce ici : son profil, pas celui de l'IA.
     jouerPour(0, () => {
       if (fixeLAtout) sfx.trumpLaugh();
@@ -816,11 +831,12 @@ function Azteque() {
   };
 
   const announceMelds = () => {
+    if (chosenSuits.length === 0) return;
     if (needsTrumpChoice) {
       setChoosingTrump(true);
       return;
     }
-    doAnnounce(state.trump === null ? (myMelds[0]?.suit ?? null) : null);
+    doAnnounce(state.trump === null ? (chosenSuits[0] ?? null) : null);
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
@@ -1079,10 +1095,10 @@ function Azteque() {
           </div>
         )}
 
-        {/* Annonce de comptes : un seul clic dans le cas courant. Le choix de
-            l'atout n'est demandé que s'il est réellement ambigu — deux comptes
-            annonçables et l'atout pas encore fixé. Avec un seul compte, ou
-            l'atout déjà fixé, il n'y a rien à choisir. */}
+        {/* Annonce de comptes : avec plusieurs comptes possibles, le joueur
+            choisit ceux qu'il annonce (les deux, ou un seul). Le choix de
+            l'atout n'est demandé que s'il n'est pas encore fixé et qu'au moins
+            deux comptes sont retenus. */}
         {meldDecisionPending && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2 shadow-[var(--shadow-card)]">
             {choosingTrump ? (
@@ -1091,38 +1107,65 @@ function Azteque() {
                   Quel compte fixe l'atout ?
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {myMelds.map((m) => (
-                    <button
-                      key={m.suit}
-                      onClick={() => doAnnounce(m.suit)}
-                      className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
-                    >
-                      {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
-                    </button>
-                  ))}
+                  {myMelds
+                    .filter((m) => chosenSuits.includes(m.suit))
+                    .map((m) => (
+                      <button
+                        key={m.suit}
+                        onClick={() => doAnnounce(m.suit)}
+                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                      >
+                        {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
+                      </button>
+                    ))}
                 </div>
               </>
             ) : (
               <>
                 <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-                  Annoncer {meldSummary} ?
+                  {myMelds.length > 1
+                    ? "Quels comptes annoncer ?"
+                    : `Annoncer ${meldSummary} ?`}
                 </p>
+                {myMelds.length > 1 && (
+                  <div className="mb-1 flex flex-wrap gap-1">
+                    {myMelds.map((m) => {
+                      const on = chosenSuits.includes(m.suit);
+                      return (
+                        <button
+                          key={m.suit}
+                          onClick={() => toggleMeld(m.suit)}
+                          className={`rounded border px-2 py-1 text-[0.6rem] font-semibold leading-none transition-colors ${
+                            on
+                              ? "border-gold bg-gold/25 text-gold"
+                              : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          {on ? "✓ " : ""}
+                          {SUIT_SYMBOL[m.suit]} {m.type === "triple" ? "trio" : "simple"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1">
                   <button
                     onClick={announceMelds}
-                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                    disabled={chosenSuits.length === 0}
+                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground disabled:opacity-40"
                   >
                     Annoncer
                   </button>
                   <button
                     onClick={() => {
                       setChoosingTrump(false);
+                      setSelectedSuits(null);
                       // Clôturer la fenêtre d'annonce : la pioche se déroule ensuite.
                       setState((s) => (s.canAnnounce === 0 ? { ...s, canAnnounce: null } : s));
                     }}
                     className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground transition-colors hover:bg-secondary"
                   >
-                    Passer
+                    Tout passer
                   </button>
                 </div>
               </>
