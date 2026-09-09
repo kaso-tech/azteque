@@ -190,6 +190,9 @@
   --color-card-face: var(--card-face);
   --color-card-ink: var(--card-ink);
   --color-card-red: var(--card-red);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
 }
