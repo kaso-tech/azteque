@@ -61,6 +61,7 @@ import {
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
 import { PlayerAvatar } from "@/components/azteque/avatar";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
+import { useTapisSurface } from "@/lib/azteque/tapis";
 
 export const Route = createFileRoute("/match/$id")({
   validateSearch: (search: Record<string, unknown>): { seat?: "host" | "guest" } =>
@@ -485,6 +486,9 @@ function OnlineTable() {
   }, []);
 
   const [myRank, setMyRank] = useState<number | null>(null);
+  // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
+  // chacun voyant la table avec le sien.
+  const [myTapis, setMyTapis] = useState<string | null>(null);
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
@@ -492,7 +496,11 @@ function OnlineTable() {
     let alive = true;
     const read = () => {
       getMyProfile()
-        .then((p) => alive && setMyRank(p?.rating ?? null))
+        .then((p) => {
+          if (!alive) return;
+          setMyRank(p?.rating ?? null);
+          setMyTapis(p?.background_kind ?? null);
+        })
         .catch(() => {});
       if (oppUserId) {
         getPublicProfile(oppUserId)
@@ -751,6 +759,8 @@ function OnlineTable() {
   // qui déclare le dépassement de son adversaire, donc c'est bien lui qui doit
   // suspendre son propre décompte.
   const dealing = useDealCeremony(state, !!state, "duo");
+
+  const tapis = useTapisSurface(myTapis);
 
   const [oppOnline, setOppOnline] = useState(true);
   useEffect(() => {
@@ -1019,6 +1029,7 @@ function OnlineTable() {
       {/* Tapis */}
       <section
         ref={tableRef}
+        style={tapis}
         className="game-table-surface relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 rounded-xl p-4"
       >
         <div className="absolute left-3 top-3" ref={pileRefs[opp]}>

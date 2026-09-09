@@ -13,14 +13,14 @@ import { adminShopSalesSummary, type ShopSalesRow } from "@/lib/azteque/admin-sh
 const DESSINS_AVATAR = ["av_marchand", "av_reine", "av_griot", "av_elegante", "av_roi"];
 const DESSINS_STICKER = ["st_bravo", "st_rire", "st_pitie", "st_atout", "st_feu", "st_couronne"];
 
-/** Les fonds livrés avec le jeu, proposés comme point de départ. */
+/** Les tapis livrés avec le jeu, proposés comme point de départ. */
 const FONDS_LIVRES = Object.keys(BACKGROUND_PRESETS);
 
 const KIND_LABEL: Record<ShopKind, string> = {
   avatar: "Avatar",
   sticker: "Sticker",
   messages: "Lot de messages",
-  background: "Fond de salon",
+  background: "Tapis de jeu",
 };
 
 type FiltreKind = "tous" | ShopKind;
@@ -73,14 +73,14 @@ function brouillonNeuf(kind: ShopKind, sort: number): Brouillon {
   };
 }
 
-/** Le fond tel qu'il sera vu : posé sur le feutre, comme dans le salon. */
+/** Le tapis tel qu'il sera vu : posé sur le feutre de la table. */
 function ApercuFond({ css, className }: { css: string; className: string }) {
   const image = sanitizeBackground(css);
   return (
     <span
       aria-hidden="true"
       className={cn("block rounded-md border border-border bg-cover bg-center", className)}
-      style={{ backgroundImage: `${image ?? ""}, var(--gradient-felt)` }}
+      style={{ backgroundImage: `${image ?? ""}, var(--gradient-table)` }}
     />
   );
 }
@@ -271,7 +271,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           <option value="avatar">Avatars</option>
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
-          <option value="background">Fonds de salon</option>
+          <option value="background">Tapis de jeu</option>
         </FiltrePill>
         <FiltrePill
           label="Statut"
@@ -342,7 +342,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           ) : brouillon.kind === "background" ? (
             <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
               <label className="block text-[0.68rem] text-muted-foreground">
-                Image — dégradés CSS empilés, ou url("https://…") vers un fichier
+                Image du tapis — dégradés CSS empilés, ou url("https://…") vers un fichier
                 <textarea
                   value={brouillon.css}
                   onChange={(e) => setBrouillon({ ...brouillon, css: e.target.value })}
@@ -352,10 +352,10 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                 />
               </label>
               <div>
-                <p className="text-[0.68rem] text-muted-foreground">Aperçu sur le feutre</p>
+                <p className="text-[0.68rem] text-muted-foreground">Aperçu sur la table</p>
                 <ApercuFond css={brouillon.css} className="mt-0.5 h-28 w-full sm:w-44" />
                 <p className="mt-2 text-[0.68rem] text-muted-foreground">
-                  Repartir d'un fond livré
+                  Repartir d'un tapis livré
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {FONDS_LIVRES.map((f) => (
@@ -581,7 +581,7 @@ function PillKind({ kind }: { kind: ShopKind }) {
     avatar: { label: "Avatar", cls: "border-info/40 bg-info/10 text-info" },
     sticker: { label: "Sticker", cls: "border-warning/40 bg-warning/10 text-warning" },
     messages: { label: "Messages", cls: "border-success/40 bg-success/10 text-success" },
-    background: { label: "Fond", cls: "border-gold/40 bg-gold/10 text-gold" },
+    background: { label: "Tapis", cls: "border-gold/40 bg-gold/10 text-gold" },
   };
   const c = config[kind];
   return (

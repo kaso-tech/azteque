@@ -107,7 +107,7 @@ function Boutique() {
     setProfile((p) => (p ? { ...p, background_kind: id } : p));
     setBackgroundKind(id).catch((e: unknown) => {
       void charger();
-      setErreur(describeError(e, "Changement de fond impossible."));
+      setErreur(describeError(e, "Changement de tapis impossible."));
     });
   };
 
@@ -167,7 +167,7 @@ function Boutique() {
         {extra}
         {acquis ? (
           fond ? (
-            // Un fond posé doit pouvoir être retiré : sans quoi le halo
+            // Un tapis posé doit pouvoir être retiré : sans quoi le feutre
             // d'origine serait perdu au premier achat.
             <Button
               size="sm"
@@ -225,9 +225,9 @@ function Boutique() {
       </section>
 
       <section className="panel px-4 py-4">
-        <h2 className="font-display text-lg text-gold">Fonds de salon</h2>
+        <h2 className="font-display text-lg text-gold">Tapis de jeu</h2>
         <p className="text-xs text-muted-foreground">
-          L'image posée sur le halo central de l'accueil, derrière le titre et les boutons.
+          Le carré central où les cartes se posent, contre l'ordinateur comme en ligne.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {visibles("background").map((f) =>
@@ -237,9 +237,9 @@ function Boutique() {
                 aria-hidden="true"
                 className="block h-20 w-full rounded-md border border-border bg-cover bg-center"
                 style={{
-                  // L'aperçu montre le fond tel qu'il sera vu : posé sur le
-                  // feutre, pas sur du blanc.
-                  backgroundImage: `${equippedBackground(f.id, catalogue) ?? ""}, var(--gradient-felt)`,
+                  // L'aperçu montre le tapis tel qu'il sera vu : posé sur le
+                  // feutre de la table, pas sur du blanc.
+                  backgroundImage: `${equippedBackground(f.id, catalogue) ?? ""}, var(--gradient-table)`,
                 }}
               />,
             ),

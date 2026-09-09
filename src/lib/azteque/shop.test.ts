@@ -11,13 +11,15 @@ import { sanitizeBackground } from "./backgrounds";
  * la migration.
  */
 const migration = readFileSync("supabase/migrations/20260907140000_boutique.sql", "utf8");
-// Les fonds de salon sont arrivés plus tard, avec leur propre migration : la
+// Les tapis sont arrivés plus tard, avec leur propre migration : la
 // concordance vaut pour eux aussi, elle se lit simplement dans un second
-// fichier.
+// fichier. Une troisième les a ensuite redessinés pour le tapis de jeu —
+// c'est donc elle qui tient leurs images d'aujourd'hui.
 const migrationFonds = readFileSync(
   "supabase/migrations/20260909170000_fonds_de_salon.sql",
   "utf8",
 );
+const migrationTapis = readFileSync("supabase/migrations/20260909200000_tapis_de_jeu.sql", "utf8");
 
 // Le catalogue vit désormais en base ; ces constantes en sont la version
 // d'origine, celle que la migration installe et que le code sert de recours.
@@ -25,7 +27,7 @@ const SHOP_ITEMS = FALLBACK_ITEMS;
 const SHOP_AVATARS = itemsOfKind(FALLBACK_ITEMS, "avatar");
 const SHOP_STICKERS = itemsOfKind(FALLBACK_ITEMS, "sticker");
 const SHOP_MESSAGES = itemsOfKind(FALLBACK_ITEMS, "messages");
-const SHOP_FONDS = itemsOfKind(FALLBACK_ITEMS, "background");
+const SHOP_TAPIS = itemsOfKind(FALLBACK_ITEMS, "background");
 
 /** Les articles annoncés par les INSERT des migrations. */
 function bareme(): Map<string, { kind: string; price: number }> {
@@ -50,16 +52,16 @@ function blocDesFonds(): string {
 }
 
 /**
- * Les images annoncées par la migration, recollées : le SQL coupe chaque
- * dégradé en une chaîne par ligne, que le moteur concatène.
+ * Les images annoncées par la dernière migration qui les touche, recollées :
+ * le SQL coupe chaque dégradé en une chaîne par ligne, que le moteur
+ * concatène.
  */
 function imagesDeLaMigration(): Map<string, string> {
-  const bloc = blocDesFonds();
   const out = new Map<string, string>();
-  for (const m of bloc.matchAll(
-    /\('([a-z_]+)',[\s\S]*?jsonb_build_object\('css',\s*([\s\S]*?)\),\s*\d+\)/g,
+  for (const m of migrationTapis.matchAll(
+    /jsonb_build_object\('css',\s*([\s\S]*?)\)\s*WHERE id = '([a-z_]+)'/g,
   )) {
-    out.set(m[1]!, [...m[2]!.matchAll(/'([^']*)'/g)].map((x) => x[1]!).join(""));
+    out.set(m[2]!, [...m[1]!.matchAll(/'([^']*)'/g)].map((x) => x[1]!).join(""));
   }
   return out;
 }
@@ -99,20 +101,20 @@ describe("catalogue de la boutique", () => {
     expect(new Set(toutes).size).toBe(toutes.length);
   });
 
-  it("propose au moins deux fonds de salon, chacun avec son image", () => {
-    expect(SHOP_FONDS.length).toBeGreaterThanOrEqual(2);
-    for (const fond of SHOP_FONDS) {
-      expect(sanitizeBackground(fond.css), `${fond.id} sans image valable`).toBeTruthy();
+  it("propose au moins deux tapis, chacun avec son image", () => {
+    expect(SHOP_TAPIS.length).toBeGreaterThanOrEqual(2);
+    for (const tapis of SHOP_TAPIS) {
+      expect(sanitizeBackground(tapis.css), `${tapis.id} sans image valable`).toBeTruthy();
     }
-    expect(new Set(SHOP_FONDS.map((f) => f.css)).size).toBe(SHOP_FONDS.length);
+    expect(new Set(SHOP_TAPIS.map((t) => t.css)).size).toBe(SHOP_TAPIS.length);
   });
 
-  it("sert la même image que la migration pour chaque fond", () => {
+  it("sert la même image que la migration pour chaque tapis", () => {
     // Les dégradés sont recopiés à la main dans le SQL : le moindre écart et
-    // un joueur hors ligne ne verrait pas le même fond qu'un joueur connecté.
+    // un joueur hors ligne ne verrait pas le même tapis qu'un joueur connecté.
     const images = imagesDeLaMigration();
-    for (const fond of SHOP_FONDS) {
-      expect(images.get(fond.id), `${fond.id} : image absente de la migration`).toBe(fond.css);
+    for (const tapis of SHOP_TAPIS) {
+      expect(images.get(tapis.id), `${tapis.id} : image absente de la migration`).toBe(tapis.css);
     }
   });
 

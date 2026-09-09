@@ -111,18 +111,21 @@
   --gradient-felt:
     radial-gradient(ellipse at 50% 8%, oklch(0.635 0.205 140 / 0.95), transparent 48%),
     radial-gradient(ellipse at 50% 62%, var(--felt), var(--felt-deep) 78%);
-  /* Le fond de la page d'accueil, dont `home-surface` n'est plus que le nom :
-     grain de feutre, projecteur central étouffé, bords profonds. Un fond de
-     salon acheté en boutique s'ajoute en première couche, au-dessus. */
-  --gradient-home:
-    /* grain de feutre subtil */
-    repeating-linear-gradient(45deg, oklch(1 0 0 / 0.018) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(-45deg, oklch(0 0 0 / 0.024) 0 1px, transparent 1px 3px),
-    /* projecteur central étouffé */
-    radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
-    radial-gradient(ellipse 84% 64% at 50% 46%, oklch(0.565 0.195 143 / 0.55), transparent 80%),
-    /* feutre et vignettage profond */
-    radial-gradient(ellipse 132% 118% at 50% 50%, oklch(0.505 0.165 144), oklch(0.245 0.085 145) 96%);
+  /* Le tapis de jeu, dont `game-table-surface` n'est plus que le nom. Il est
+     coupé en deux : le grain, qui se pose PAR-DESSUS tout, et le feutre
+     lui-même. Un tapis acheté en boutique se glisse entre les deux — il peut
+     ainsi recolorer franchement la table sans perdre le tissage, qui reste
+     au-dessus de lui (voir tapis.ts). */
+  --gradient-table-grain:
+    repeating-linear-gradient(45deg, oklch(1 0 0 / 0.022) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, oklch(0 0 0 / 0.03) 0 1px, transparent 1px 3px);
+  --gradient-table-base:
+    /* cœur du projecteur */
+    radial-gradient(ellipse 46% 34% at 50% 40%, oklch(0.79 0.205 141 / 0.55), transparent 72%),
+    radial-gradient(ellipse 74% 56% at 50% 43%, oklch(0.695 0.228 141.5), transparent 80%),
+    /* feutre et vignettage */
+    radial-gradient(ellipse 128% 112% at 50% 48%, oklch(0.545 0.185 143), oklch(0.288 0.102 144) 96%);
+  --gradient-table: var(--gradient-table-grain), var(--gradient-table-base);
   /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
      bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
      il se lit comme une pièce frappée plutôt qu'un aplat coloré. */
@@ -266,25 +269,10 @@
 /* Surface réservée au tapis de jeu. Elle reproduit le modelé lumineux de la
    référence sans recolorer les panneaux, menus ou autres écrans. */
 @utility game-table-surface {
-  /* Vrai tapis de casino : grain de feutre, halo de projecteur au centre,
-     assombrissement progressif vers les bords et liseré or en relief. */
-  background:
-    /* grain du feutre */
-    repeating-linear-gradient(
-      45deg,
-      oklch(1 0 0 / 0.022) 0 1px,
-      transparent 1px 3px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      oklch(0 0 0 / 0.03) 0 1px,
-      transparent 1px 3px
-    ),
-    /* cœur du projecteur */
-    radial-gradient(ellipse 46% 34% at 50% 40%, oklch(0.79 0.205 141 / 0.55), transparent 72%),
-    radial-gradient(ellipse 74% 56% at 50% 43%, oklch(0.695 0.228 141.5), transparent 80%),
-    /* feutre et vignettage */
-    radial-gradient(ellipse 128% 112% at 50% 48%, oklch(0.545 0.185 143), oklch(0.288 0.102 144) 96%);
+  /* L'empilement vit dans `--gradient-table` plutôt qu'ici : un tapis acheté
+     en boutique vient se poser PAR-DESSUS, comme couche supplémentaire du
+     même fond, et a donc besoin de le nommer (voir tapis.ts). */
+  background: var(--gradient-table);
   border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--felt-deep));
   box-shadow:
     var(--shadow-table),
@@ -297,13 +285,25 @@
 
 /* Page d'accueil : tapis de casino en perspective, moins vif et plus stylé.
    Grain de feutre, projecteur central étouffé et bords profonds pour faire
-   ressortir le titre et les boutons sans éblouir.
-
-   L'empilement vit dans `--gradient-home` plutôt qu'ici : un fond de salon
-   acheté en boutique vient se poser PAR-DESSUS, comme couche supplémentaire
-   du même fond, et a donc besoin de le nommer (voir salon.ts). */
+   ressortir le titre et les boutons sans éblouir. */
 @utility home-surface {
-  background: var(--gradient-home);
+  background:
+    /* grain de feutre subtil */
+    repeating-linear-gradient(
+      45deg,
+      oklch(1 0 0 / 0.018) 0 1px,
+      transparent 1px 3px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      oklch(0 0 0 / 0.024) 0 1px,
+      transparent 1px 3px
+    ),
+    /* projecteur central étouffé */
+    radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
+    radial-gradient(ellipse 84% 64% at 50% 46%, oklch(0.565 0.195 143 / 0.55), transparent 80%),
+    /* feutre et vignettage profond */
+    radial-gradient(ellipse 132% 118% at 50% 50%, oklch(0.505 0.165 144), oklch(0.245 0.085 145) 96%);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol

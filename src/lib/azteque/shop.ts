@@ -28,7 +28,7 @@ export interface ShopItem {
   art?: string | undefined;
   /** Les phrases mises à disposition, pour un lot de messages. */
   phrases?: string[] | undefined;
-  /** L'image, pour un fond de salon : une valeur CSS `background-image`. */
+  /** L'image, pour un tapis : une valeur CSS `background-image`. */
   css?: string | undefined;
   sort: number;
 }
@@ -197,7 +197,7 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     id: "bg_aurore",
     kind: "background",
     name: "Aurore",
-    hint: "Le soleil se lève derrière le menu",
+    hint: "Le soleil se lève sur le tapis",
     price: 600,
     active: true,
     sort: 150,
@@ -207,7 +207,7 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     id: "bg_crepuscule",
     kind: "background",
     name: "Crépuscule",
-    hint: "Pourpre du soir et braise d'horizon",
+    hint: "Pourpre du soir et braise au centre",
     price: 900,
     active: true,
     sort: 160,
@@ -217,7 +217,7 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     id: "bg_nuit",
     kind: "background",
     name: "Nuit étoilée",
-    hint: "La voûte bleue et ses étoiles",
+    hint: "Jouer à la belle étoile",
     price: 1400,
     active: true,
     sort: 170,
@@ -227,7 +227,7 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     id: "bg_or",
     kind: "background",
     name: "Halo d'or",
-    hint: "Trois anneaux d'or, pour les grands soirs",
+    hint: "Trois anneaux d'or autour de la pioche",
     price: 2200,
     active: true,
     sort: 180,
@@ -263,7 +263,7 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       active: r.active ?? true,
       art: r.data?.art,
       phrases: r.data?.phrases,
-      // Un fond installé avant que la console ne sache l'écrire n'a pas encore
+      // Un tapis installé avant que la console ne sache l'écrire n'a pas encore
       // son image en base : le préréglage du code prend alors le relais.
       css: r.data?.css ?? BACKGROUND_PRESETS[r.id],
       sort: r.sort ?? 0,
@@ -334,8 +334,8 @@ export function ownedPhrases(owned: ReadonlySet<string>, items: ShopItem[] = cat
 }
 
 /**
- * L'image du fond porté, prête à poser, ou `null` si le joueur n'en a choisi
- * aucun — auquel cas le halo du feutre reste seul, comme avant la boutique.
+ * L'image du tapis porté, prête à poser, ou `null` si le joueur n'en a choisi
+ * aucun — auquel cas la table garde le feutre du code.
  */
 export function equippedBackground(
   kind: string | null | undefined,

@@ -3,12 +3,12 @@ import { BACKGROUND_PRESETS, backgroundImage, sanitizeBackground } from "./backg
 import { equippedBackground, FALLBACK_ITEMS } from "./shop";
 
 /**
- * L'image d'un fond est écrite dans la console, voyage par la base et finit
+ * L'image d'un tapis est écrite dans la console, voyage par la base et finit
  * dans le style d'un élément chez tous les joueurs : c'est le seul endroit du
  * jeu où du texte saisi à la main devient de la présentation. Ce qui passe et
  * ce qui ne passe pas se teste donc, plutôt que de se relire.
  */
-describe("images de fond", () => {
+describe("images de tapis", () => {
   it("accepte un empilement de dégradés", () => {
     const css = "radial-gradient(circle at 50% 20%, oklch(0.9 0.1 90 / 0.4), transparent 70%)";
     expect(sanitizeBackground(css)).toBe(css);
@@ -41,7 +41,7 @@ describe("images de fond", () => {
     expect(sanitizeBackground("a".repeat(4001))).toBeNull();
   });
 
-  it("livre au moins deux fonds, tous valables", () => {
+  it("livre au moins deux tapis, tous valables", () => {
     const livres = Object.entries(BACKGROUND_PRESETS);
     expect(livres.length).toBeGreaterThanOrEqual(2);
     for (const [id, css] of livres) {
@@ -63,7 +63,7 @@ describe("images de fond", () => {
     expect(equippedBackground("inconnu_total", FALLBACK_ITEMS)).toBeNull();
   });
 
-  it("rend l'image du fond porté", () => {
+  it("rend l'image du tapis porté", () => {
     expect(equippedBackground("bg_nuit", FALLBACK_ITEMS)).toBe(BACKGROUND_PRESETS["bg_nuit"]);
   });
 });

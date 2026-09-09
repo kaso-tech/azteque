@@ -56,7 +56,7 @@ export interface Profile extends PublicProfile {
   rated_games: number;
   /** Journée du dernier cadeau quotidien perçu, au format AAAA-MM-JJ. */
   daily_bonus_at: string;
-  /** Fond de salon porté : l'identifiant de l'article, ou `null` par défaut. */
+  /** Tapis de jeu porté : l'identifiant de l'article, ou `null` par défaut. */
   background_kind?: string | null;
 }
 
@@ -598,8 +598,8 @@ export async function setAvatarKind(kind: string): Promise<void> {
 }
 
 /**
- * Le fond de salon porté. `null` retire celui en place et rend le halo du
- * feutre.
+ * Le tapis de jeu porté. `null` retire celui en place et rend le feutre
+ * d'origine.
  *
  * La possession est vérifiée en base, par un déclencheur, comme pour l'avatar :
  * un appel forgé depuis la console du navigateur se fait refuser plutôt que

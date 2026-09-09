@@ -62,7 +62,7 @@ import {
   SweepCard,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
-import { useSalonSurface } from "@/lib/azteque/salon";
+import { useTapisSurface } from "@/lib/azteque/tapis";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
@@ -426,10 +426,9 @@ function Azteque() {
   // elle annoncerait le contenu de la main avant que les cartes n'y soient.
   const canRedeal = freshRound && !dealing && !redealDone && hasMainBlanche(state, 0);
 
-  // Le fond de salon acheté en boutique, s'il y en a un : il se pose sur
-  // l'accueil, au-dessus du feutre. L'accueil n'est rendu que plus bas, mais
-  // un crochet ne peut pas vivre dans une branche.
-  const fondDuSalon = useSalonSurface(account?.background_kind, "var(--gradient-home)");
+  // Le tapis acheté en boutique, s'il y en a un : il se pose sur la table,
+  // au-dessus du feutre.
+  const tapis = useTapisSurface(account?.background_kind);
 
   const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
     setState(newRound(dealer, won));
@@ -846,10 +845,7 @@ function Azteque() {
   const revealOpp = state.phase !== "playing";
   if (!started) {
     return (
-      <main
-        className="home-surface flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center"
-        style={fondDuSalon}
-      >
+      <main className="home-surface flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
         <p className="mb-3 text-xs uppercase tracking-[0.4em] text-gold-soft">
           Jeu traditionnel d'Afrique de l'Ouest
         </p>
@@ -997,6 +993,7 @@ function Azteque() {
       {/* Tapis */}
       <section
         ref={tableRef}
+        style={tapis}
         className="game-table-surface relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 rounded-xl p-4"
       >
         <div className="absolute left-3 top-3" ref={pileRefs[1]}>

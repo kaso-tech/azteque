@@ -1,6 +1,6 @@
 /**
- * Les fonds du salon : l'image qui se pose sur le halo central de l'accueil,
- * derrière le titre et les boutons.
+ * Les tapis : l'image du carré central où les deux joueurs posent leurs
+ * cartes, seul contre l'ordinateur comme en ligne.
  *
  * Une image est ici une valeur CSS `background-image` — un empilement de
  * dégradés, ou une adresse `url()` vers un vrai fichier. Deux raisons à ce
@@ -9,56 +9,55 @@
  * la console d'administration peut la modifier ou en ajouter une sans qu'il
  * faille redéployer quoi que ce soit — c'est du texte, stocké avec l'article.
  *
- * Chaque fond s'éteint sur ses bords : c'est un halo posé sur le feutre, pas
- * une bâche qui le recouvre.
+ * Chacun est conçu pour un tapis, pas pour une page : la lumière se tient au
+ * centre, là où les cartes se posent, et les bords s'assombrissent tout
+ * autour. Un tapis se pose SUR le feutre du jeu, dont il ne cache ni le grain
+ * ni le liseré d'or — et surtout jamais au point de rendre une carte blanche
+ * difficile à lire.
  */
 
 /**
- * Les fonds livrés avec le jeu. La console s'en sert comme point de départ
+ * Les tapis livrés avec le jeu. La console s'en sert comme point de départ
  * pour en écrire de nouveaux ; la boutique les vend tels quels.
  */
 export const BACKGROUND_PRESETS: Record<string, string> = {
-  // Le soleil se lève sur le fleuve : l'or se tient haut, derrière le titre,
-  // et le bas de l'écran s'assombrit pour que le menu garde son relief.
+  // Le soleil se lève sur la savane : un feutre chaud, vert-doré au centre et
+  // terre brûlée sur les bords.
   bg_aurore: [
-    "radial-gradient(ellipse 58% 28% at 50% 12%, oklch(0.93 0.15 90 / 0.32), transparent 72%)",
-    "radial-gradient(ellipse 100% 42% at 50% 0%, oklch(0.76 0.17 55 / 0.24), transparent 76%)",
-    "radial-gradient(ellipse 130% 60% at 50% 108%, oklch(0.22 0.07 145 / 0.5), transparent 72%)",
+    "radial-gradient(ellipse 48% 34% at 50% 40%, oklch(0.86 0.14 92 / 0.42), transparent 70%)",
+    "radial-gradient(ellipse 128% 112% at 50% 46%, oklch(0.55 0.14 98), oklch(0.25 0.07 70) 96%)",
   ].join(", "),
 
-  // Fin de journée : le pourpre tient le haut, une braise orangée traîne
-  // encore à hauteur d'horizon.
+  // Fin de journée : le pourpre gagne toute la table, une braise rose tient
+  // encore le milieu.
   bg_crepuscule: [
-    "radial-gradient(ellipse 56% 27% at 50% 13%, oklch(0.72 0.19 350 / 0.32), transparent 70%)",
-    "radial-gradient(ellipse 105% 45% at 50% 0%, oklch(0.5 0.2 300 / 0.3), transparent 76%)",
-    "radial-gradient(ellipse 120% 40% at 50% 52%, oklch(0.72 0.16 42 / 0.16), transparent 74%)",
-    "radial-gradient(ellipse 130% 60% at 50% 108%, oklch(0.2 0.07 300 / 0.5), transparent 72%)",
+    "radial-gradient(ellipse 46% 32% at 50% 40%, oklch(0.62 0.18 350 / 0.55), transparent 70%)",
+    "radial-gradient(ellipse 128% 112% at 50% 46%, oklch(0.43 0.16 322), oklch(0.2 0.08 308) 96%)",
   ].join(", "),
 
-  // Nuit claire : la voûte bleuit et quelques étoiles s'allument. Les points
-  // sont posés un à un — un motif répété demanderait une taille de fond, et
-  // l'article ne porte qu'une seule valeur.
+  // Nuit claire : un feutre bleu nuit, et quelques étoiles au-dessus. Les
+  // points sont posés un à un — un motif répété demanderait une taille de
+  // fond, et l'article ne porte qu'une seule valeur.
   bg_nuit: [
-    "radial-gradient(2px 2px at 17% 14%, oklch(0.98 0.02 95 / 0.95), transparent 60%)",
-    "radial-gradient(1.5px 1.5px at 31% 27%, oklch(0.96 0.03 95 / 0.8), transparent 60%)",
-    "radial-gradient(2.5px 2.5px at 46% 11%, oklch(0.99 0.02 95 / 0.9), transparent 60%)",
-    "radial-gradient(1.5px 1.5px at 63% 22%, oklch(0.96 0.03 95 / 0.75), transparent 60%)",
-    "radial-gradient(2px 2px at 78% 9%, oklch(0.98 0.02 95 / 0.9), transparent 60%)",
-    "radial-gradient(1.5px 1.5px at 87% 30%, oklch(0.95 0.03 95 / 0.7), transparent 60%)",
-    "radial-gradient(1.5px 1.5px at 24% 39%, oklch(0.95 0.03 95 / 0.6), transparent 60%)",
-    "radial-gradient(2px 2px at 70% 41%, oklch(0.97 0.02 95 / 0.7), transparent 60%)",
-    "radial-gradient(ellipse 70% 34% at 50% 12%, oklch(0.5 0.14 265 / 0.4), transparent 72%)",
-    "radial-gradient(ellipse 130% 52% at 50% 0%, oklch(0.24 0.09 275 / 0.55), transparent 76%)",
-    "radial-gradient(ellipse 130% 60% at 50% 108%, oklch(0.16 0.06 275 / 0.55), transparent 72%)",
+    "radial-gradient(2px 2px at 14% 12%, oklch(0.98 0.02 95 / 0.9), transparent 60%)",
+    "radial-gradient(1.5px 1.5px at 29% 24%, oklch(0.96 0.03 95 / 0.75), transparent 60%)",
+    "radial-gradient(2.5px 2.5px at 45% 9%, oklch(0.99 0.02 95 / 0.85), transparent 60%)",
+    "radial-gradient(1.5px 1.5px at 64% 19%, oklch(0.96 0.03 95 / 0.7), transparent 60%)",
+    "radial-gradient(2px 2px at 82% 11%, oklch(0.98 0.02 95 / 0.85), transparent 60%)",
+    "radial-gradient(1.5px 1.5px at 90% 28%, oklch(0.95 0.03 95 / 0.65), transparent 60%)",
+    "radial-gradient(1.5px 1.5px at 11% 78%, oklch(0.95 0.03 95 / 0.6), transparent 60%)",
+    "radial-gradient(2px 2px at 88% 84%, oklch(0.97 0.02 95 / 0.65), transparent 60%)",
+    "radial-gradient(ellipse 50% 36% at 50% 42%, oklch(0.48 0.13 258 / 0.55), transparent 72%)",
+    "radial-gradient(ellipse 128% 112% at 50% 46%, oklch(0.33 0.11 262), oklch(0.15 0.06 268) 96%)",
   ].join(", "),
 
-  // Trois anneaux d'or concentriques : le fond des grands soirs, celui qu'on
-  // achète en dernier.
+  // Trois anneaux d'or concentriques autour de la pioche, sur un vert profond :
+  // le tapis des grands soirs, celui qu'on achète en dernier.
   bg_or: [
-    "radial-gradient(ellipse 46% 22% at 50% 14%, oklch(0.9 0.16 88 / 0.3), transparent 62%)",
-    "radial-gradient(ellipse 68% 34% at 50% 14%, oklch(0.76 0.14 78 / 0.2), transparent 70%)",
-    "radial-gradient(ellipse 96% 48% at 50% 14%, oklch(0.6 0.1 70 / 0.14), transparent 78%)",
-    "radial-gradient(ellipse 130% 60% at 50% 108%, oklch(0.22 0.07 145 / 0.5), transparent 72%)",
+    "radial-gradient(ellipse 28% 20% at 50% 42%, oklch(0.86 0.15 88 / 0.42), transparent 62%)",
+    "radial-gradient(ellipse 50% 36% at 50% 42%, oklch(0.72 0.13 82 / 0.26), transparent 70%)",
+    "radial-gradient(ellipse 76% 56% at 50% 42%, oklch(0.6 0.1 76 / 0.16), transparent 78%)",
+    "radial-gradient(ellipse 128% 112% at 50% 46%, oklch(0.47 0.13 152), oklch(0.19 0.06 152) 96%)",
   ].join(", "),
 };
 
