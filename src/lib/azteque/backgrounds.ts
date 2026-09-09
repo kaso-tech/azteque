@@ -1,6 +1,6 @@
 /**
- * Les fonds du salon : l'image qui se pose derrière le menu et le salon en
- * ligne, à l'endroit du halo central.
+ * Les fonds du salon : l'image qui se pose sur le halo central de l'accueil,
+ * derrière le titre et les boutons.
  *
  * Une image est ici une valeur CSS `background-image` — un empilement de
  * dégradés, ou une adresse `url()` vers un vrai fichier. Deux raisons à ce

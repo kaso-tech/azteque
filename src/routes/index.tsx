@@ -62,7 +62,7 @@ import {
   SweepCard,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
-import { SalonBackdrop } from "@/components/azteque/salon-backdrop";
+import { useSalonSurface } from "@/lib/azteque/salon";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
@@ -425,6 +425,11 @@ function Azteque() {
   // L'offre de redistribution attend la fin de la donne : proposée pendant,
   // elle annoncerait le contenu de la main avant que les cartes n'y soient.
   const canRedeal = freshRound && !dealing && !redealDone && hasMainBlanche(state, 0);
+
+  // Le fond de salon acheté en boutique, s'il y en a un : il se pose sur
+  // l'accueil, au-dessus du feutre. L'accueil n'est rendu que plus bas, mais
+  // un crochet ne peut pas vivre dans une branche.
+  const fondDuSalon = useSalonSurface(account?.background_kind, "var(--gradient-home)");
 
   const deal = useCallback((dealer: PlayerIndex, won: [number, number]) => {
     setState(newRound(dealer, won));
@@ -841,8 +846,10 @@ function Azteque() {
   const revealOpp = state.phase !== "playing";
   if (!started) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
-        <SalonBackdrop kind={account?.background_kind} />
+      <main
+        className="home-surface flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center"
+        style={fondDuSalon}
+      >
         <p className="mb-3 text-xs uppercase tracking-[0.4em] text-gold-soft">
           Jeu traditionnel d'Afrique de l'Ouest
         </p>
@@ -990,7 +997,7 @@ function Azteque() {
       {/* Tapis */}
       <section
         ref={tableRef}
-        className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
+        className="game-table-surface relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 rounded-xl p-4"
       >
         <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />

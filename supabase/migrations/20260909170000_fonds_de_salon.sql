@@ -2,8 +2,8 @@
 /* Fonds de salon : une nature d'article de plus                        */
 /* ------------------------------------------------------------------ */
 
--- Un fond de salon est l'image posée derrière le menu et le salon en ligne,
--- à l'endroit du halo central. Il s'achète comme un avatar et se porte comme
+-- Un fond de salon est l'image posée sur le halo central de l'accueil,
+-- derrière le titre et les boutons. Il s'achète comme un avatar et se porte comme
 -- lui — à ceci près que son dessin n'est pas emprunté au code : il tient dans
 -- `data.css`, une valeur CSS `background-image` que la console écrit et
 -- modifie librement. C'est ce qui permet d'en ajouter de nouveaux sans

@@ -92,11 +92,11 @@
   --border: oklch(0.54 0.13 140);
   --input: oklch(0.455 0.115 145);
   --ring: oklch(0.86 0.16 92);
-  /* Vert de la table, couleur exacte demandée (#3A9523) — la vignette va de
-     ce vert au centre à une version plus sombre de la même teinte aux
-     bords. */
-  --felt: oklch(0.593 0.171 140.2);
-  --felt-deep: oklch(0.19 0.06 140.2);
+  /* Vert prélevé sur la référence fournie. Le halo central reste lumineux,
+     seules les zones périphériques du tapis sont assombries pour mieux
+     faire ressortir les cartes. */
+  --felt: oklch(0.595 0.205 142.5);
+  --felt-deep: oklch(0.405 0.145 142.5);
   --gold: oklch(0.88 0.155 88);
   --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
@@ -109,8 +109,20 @@
   --success-foreground: oklch(0.19 0.06 145);
   --info: oklch(0.75 0.12 193);
   --gradient-felt:
-    radial-gradient(ellipse at 50% 8%, oklch(0.69 0.22 140 / 0.95), transparent 48%),
+    radial-gradient(ellipse at 50% 8%, oklch(0.635 0.205 140 / 0.95), transparent 48%),
     radial-gradient(ellipse at 50% 62%, var(--felt), var(--felt-deep) 78%);
+  /* Le fond de la page d'accueil, dont `home-surface` n'est plus que le nom :
+     grain de feutre, projecteur central étouffé, bords profonds. Un fond de
+     salon acheté en boutique s'ajoute en première couche, au-dessus. */
+  --gradient-home:
+    /* grain de feutre subtil */
+    repeating-linear-gradient(45deg, oklch(1 0 0 / 0.018) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, oklch(0 0 0 / 0.024) 0 1px, transparent 1px 3px),
+    /* projecteur central étouffé */
+    radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
+    radial-gradient(ellipse 84% 64% at 50% 46%, oklch(0.565 0.195 143 / 0.55), transparent 80%),
+    /* feutre et vignettage profond */
+    radial-gradient(ellipse 132% 118% at 50% 50%, oklch(0.505 0.165 144), oklch(0.245 0.085 145) 96%);
   /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
      bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
      il se lit comme une pièce frappée plutôt qu'un aplat coloré. */
@@ -251,17 +263,47 @@
     0 8px 18px -10px oklch(0 0 0 / 0.75);
 }
 
-/* Le fond de salon acheté en boutique. Un `z-index` négatif le glisse entre
-   le feutre — peint sur la page elle-même — et le menu, qui reste lisible
-   sans avoir à se positionner. */
-@utility salon-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
+/* Surface réservée au tapis de jeu. Elle reproduit le modelé lumineux de la
+   référence sans recolorer les panneaux, menus ou autres écrans. */
+@utility game-table-surface {
+  /* Vrai tapis de casino : grain de feutre, halo de projecteur au centre,
+     assombrissement progressif vers les bords et liseré or en relief. */
+  background:
+    /* grain du feutre */
+    repeating-linear-gradient(
+      45deg,
+      oklch(1 0 0 / 0.022) 0 1px,
+      transparent 1px 3px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      oklch(0 0 0 / 0.03) 0 1px,
+      transparent 1px 3px
+    ),
+    /* cœur du projecteur */
+    radial-gradient(ellipse 46% 34% at 50% 40%, oklch(0.79 0.205 141 / 0.55), transparent 72%),
+    radial-gradient(ellipse 74% 56% at 50% 43%, oklch(0.695 0.228 141.5), transparent 80%),
+    /* feutre et vignettage */
+    radial-gradient(ellipse 128% 112% at 50% 48%, oklch(0.545 0.185 143), oklch(0.288 0.102 144) 96%);
+  border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--felt-deep));
+  box-shadow:
+    var(--shadow-table),
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    inset 0 0 0 1px oklch(0 0 0 / 0.28),
+    inset 0 22px 44px -22px oklch(0 0 0 / 0.55),
+    inset 0 -26px 52px -20px oklch(0 0 0 / 0.6);
+}
+
+
+/* Page d'accueil : tapis de casino en perspective, moins vif et plus stylé.
+   Grain de feutre, projecteur central étouffé et bords profonds pour faire
+   ressortir le titre et les boutons sans éblouir.
+
+   L'empilement vit dans `--gradient-home` plutôt qu'ici : un fond de salon
+   acheté en boutique vient se poser PAR-DESSUS, comme couche supplémentaire
+   du même fond, et a donc besoin de le nommer (voir salon.ts). */
+@utility home-surface {
+  background: var(--gradient-home);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol

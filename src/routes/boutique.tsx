@@ -227,7 +227,7 @@ function Boutique() {
       <section className="panel px-4 py-4">
         <h2 className="font-display text-lg text-gold">Fonds de salon</h2>
         <p className="text-xs text-muted-foreground">
-          L'image posée derrière le menu et le salon en ligne, à la place du halo.
+          L'image posée sur le halo central de l'accueil, derrière le titre et les boutons.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {visibles("background").map((f) =>
