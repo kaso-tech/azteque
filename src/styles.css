@@ -261,6 +261,14 @@
   box-shadow: var(--shadow-table);
 }
 
+/* Page d'accueil : même lumière que le tapis, mais légèrement assombrie pour
+   faire ressortir le titre et les boutons sans rompre l'harmonie verte. */
+@utility home-surface {
+  background:
+    radial-gradient(ellipse at 50% 8%, oklch(0.585 0.195 140 / 0.92), transparent 48%),
+    radial-gradient(ellipse at 50% 62%, oklch(0.535 0.195 142.5), oklch(0.355 0.135 142.5) 78%);
+}
+
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
    posé sous une lumière, pas une image plaquée sur la table. Un calque
    au-dessus de l'illustration, jamais dans son chemin de clic. */
