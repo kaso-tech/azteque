@@ -65,10 +65,10 @@ export function Topbar({
       <span
         className={cn(
           "hidden items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex",
-          "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+          "border-success/45 bg-success/10 text-success",
         )}
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_7px_color-mix(in_oklab,var(--success)_70%,transparent)]" />
         {onlineCount} en ligne
       </span>
       {/*

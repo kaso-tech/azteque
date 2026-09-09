@@ -161,7 +161,7 @@ function Boutique() {
               {porte ? "Porté" : "Porter"}
             </Button>
           ) : (
-            <span className="text-xs text-emerald-400">✓ Acquis</span>
+            <span className="text-xs text-success">✓ Acquis</span>
           )
         ) : (
           <Button
@@ -179,7 +179,7 @@ function Boutique() {
 
   return coque(
     <>
-      {message && <p className="text-sm text-emerald-400">{message}</p>}
+      {message && <p className="text-sm text-success">{message}</p>}
       {erreur && <p className="text-sm text-destructive">{erreur}</p>}
 
       <section className="panel px-4 py-4">
