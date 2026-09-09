@@ -983,7 +983,7 @@ function Azteque() {
       {/* Tapis */}
       <section
         ref={tableRef}
-        className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
+        className="game-table-surface relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 rounded-xl p-4"
       >
         <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />
