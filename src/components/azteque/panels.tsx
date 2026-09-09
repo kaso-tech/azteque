@@ -71,7 +71,7 @@ export function ProfileButton({
       {icon === "player" && account ? (
         <PlayerAvatar className="h-11 w-11 sm:h-12 sm:w-12" profile={account} />
       ) : (
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)] sm:h-12 sm:w-12">
+        <span className="gold-ring grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary text-gold sm:h-12 sm:w-12">
           <Icon className="h-6 w-6" aria-hidden="true" />
         </span>
       )}
@@ -330,7 +330,7 @@ export function AiProfilePanel({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/45 bg-secondary text-gold">
+          <span className="gold-ring grid h-12 w-12 shrink-0 place-items-center rounded-full bg-secondary text-gold">
             <Bot className="h-7 w-7" aria-hidden="true" />
           </span>
           <div className="min-w-0">

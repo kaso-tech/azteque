@@ -88,8 +88,11 @@
   --border: oklch(0.465 0.06 150);
   --input: oklch(0.425 0.055 160);
   --ring: oklch(0.78 0.14 82);
-  --felt: oklch(0.43 0.088 158);
-  --felt-deep: oklch(0.31 0.065 162);
+  /* Vert de feutre saturé façon table de casino, plutôt que le sauge éteint
+     d'avant — la vignette va du vert vif au centre à un vert presque noir aux
+     bords, calée sur une référence demandée directement. */
+  --felt: oklch(0.518 0.17 143.4);
+  --felt-deep: oklch(0.215 0.07 144);
   --gold: oklch(0.87 0.145 84);
   --gold-soft: oklch(0.74 0.12 80);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
@@ -99,9 +102,18 @@
   --card-ink: oklch(0.22 0.02 60);
   --card-red: oklch(0.53 0.21 27);
   --gradient-felt: radial-gradient(ellipse at 50% 15%, var(--felt), var(--felt-deep) 70%);
-  --gradient-gold: linear-gradient(135deg, oklch(0.92 0.12 88), oklch(0.73 0.13 62));
+  /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
+     bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
+     il se lit comme une pièce frappée plutôt qu'un aplat coloré. */
+  --gradient-gold: linear-gradient(180deg, oklch(0.94 0.1 90), var(--gold) 50%, oklch(0.6 0.14 65));
   --shadow-table: 0 24px 60px -18px oklch(0 0 0 / 0.7);
-  --shadow-card: 0 8px 18px -6px oklch(0 0 0 / 0.55);
+  /* Deux ombres superposées — une proche et nette, une large et diffuse —
+     pour qu'une carte ait l'air posée sur le tapis plutôt que collée dessus. */
+  --shadow-card: 0 2px 3px oklch(0 0 0 / 0.35), 0 10px 20px -8px oklch(0 0 0 / 0.6);
+  --shadow-medallion:
+    inset 0 1px 2px oklch(1 0 0 / 0.3),
+    inset 0 -2px 3px oklch(0 0 0 / 0.4),
+    0 4px 10px -3px oklch(0 0 0 / 0.55);
   --chart-1: oklch(0.78 0.14 82);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -207,6 +219,23 @@
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-table);
   backdrop-filter: blur(8px);
+}
+
+/* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
+   posé sous une lumière, pas une image plaquée sur la table. Un calque
+   au-dessus de l'illustration, jamais dans son chemin de clic. */
+.playing-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.32), oklch(1 0 0 / 0) 45%);
+  pointer-events: none;
+}
+
+/* Le médaillon des avatars : anneau d'or en relief plutôt qu'un simple
+   contour, pour la même raison qu'une carte a besoin d'une ombre. */
+@utility gold-ring {
+  box-shadow: var(--shadow-medallion), 0 0 0 2px var(--gold);
 }
 
 @keyframes deal-in {

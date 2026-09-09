@@ -304,7 +304,7 @@ export function PlayerAvatar({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-full border border-gold/45 bg-secondary text-gold shadow-[var(--shadow-card)]",
+        "gold-ring grid shrink-0 place-items-center overflow-hidden rounded-full bg-secondary text-gold",
         className,
       )}
       aria-label={label}
