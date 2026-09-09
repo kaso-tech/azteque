@@ -863,6 +863,15 @@ function OnlineTable() {
     myMelds.length > 0 &&
     state.stock.length > 0;
 
+  // La sélection ne vaut que pour l'annonce en cours.
+  useEffect(() => {
+    if (!meldDecisionPending) {
+      setSelectedSuits(null);
+      setChoosingTrump(false);
+    }
+  }, [meldDecisionPending]);
+
+
   // Affichage figé du pli et des tas pendant le ramassage/transfert animé
   // (voir la déclaration de `frozenTable` plus haut) : le reste de l'état
   // (mains, tour, pioche…) continue de refléter la vérité serveur normalement.
