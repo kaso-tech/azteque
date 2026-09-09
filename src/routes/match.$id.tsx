@@ -187,6 +187,26 @@ function OnlineTable() {
   // cette même animation.
   const [animating, setAnimating] = useState(false);
 
+  /**
+   * Minuteries d'une animation DÉJÀ COMMENCÉE.
+   *
+   * Elles ne peuvent pas vivre dans le tableau local de l'effet qui les crée :
+   * démarrer l'animation change l'état (`animating`, `frozenTable`), l'effet
+   * est donc rejoué et son nettoyage annulait aussitôt les minuteries qui
+   * devaient conclure l'animation — le pli restait figé, `animating` restait
+   * vrai, et la table se bloquait définitivement dès la résolution du pli.
+   * On les garde ici, hors du cycle des effets, et on ne les annule qu'au
+   * démontage de l'écran.
+   */
+  const animTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      animTimers.current.forEach(clearTimeout);
+      animTimers.current = [];
+    },
+    [],
+  );
+
   const center = (el: HTMLElement | null | undefined) => {
     const r = el?.getBoundingClientRect();
     return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
