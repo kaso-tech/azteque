@@ -1119,8 +1119,9 @@ function OnlineTable() {
           </span>
         )}
 
-        {/* Annonce de comptes : un seul clic dans le cas courant, le choix de
-            l'atout n'étant demandé que lorsqu'il est réellement ambigu. */}
+        {/* Annonce de comptes : avec plusieurs comptes possibles, le joueur
+            choisit ceux qu'il annonce. Le choix de l'atout n'est demandé que
+            s'il n'est pas encore fixé et qu'au moins deux comptes sont retenus. */}
         {meldDecisionPending && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2">
             {choosingTrump ? (
@@ -1129,26 +1130,50 @@ function OnlineTable() {
                   Quel compte fixe l'atout ?
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {myMelds.map((m) => (
-                    <button
-                      key={m.suit}
-                      onClick={() => doAnnounce(m.suit)}
-                      className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
-                    >
-                      {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
-                    </button>
-                  ))}
+                  {myMelds
+                    .filter((m) => chosenSuits.includes(m.suit))
+                    .map((m) => (
+                      <button
+                        key={m.suit}
+                        onClick={() => doAnnounce(m.suit)}
+                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                      >
+                        {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
+                      </button>
+                    ))}
                 </div>
               </>
             ) : (
               <>
                 <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-                  Annoncer {meldSummary} ?
+                  {myMelds.length > 1 ? "Quels comptes annoncer ?" : `Annoncer ${meldSummary} ?`}
                 </p>
+                {myMelds.length > 1 && (
+                  <div className="mb-1 flex flex-wrap gap-1">
+                    {myMelds.map((m) => {
+                      const on = chosenSuits.includes(m.suit);
+                      return (
+                        <button
+                          key={m.suit}
+                          onClick={() => toggleMeld(m.suit)}
+                          className={`rounded border px-2 py-1 text-[0.6rem] font-semibold leading-none transition-colors ${
+                            on
+                              ? "border-gold bg-gold/25 text-gold"
+                              : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          {on ? "✓ " : ""}
+                          {SUIT_SYMBOL[m.suit]} {m.type === "triple" ? "trio" : "simple"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1">
                   <button
                     onClick={announceMelds}
-                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                    disabled={chosenSuits.length === 0}
+                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground disabled:opacity-40"
                   >
                     Annoncer
                   </button>
@@ -1156,7 +1181,7 @@ function OnlineTable() {
                     onClick={skipAnnounce}
                     className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
                   >
-                    Passer
+                    Tout passer
                   </button>
                 </div>
               </>
