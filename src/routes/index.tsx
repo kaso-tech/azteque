@@ -806,18 +806,14 @@ function Azteque() {
   }, [settings.difficulty, showAiProfile, started, restart]);
 
   const doAnnounce = (trumpChoice: Suit | null) => {
+    const suits = chosenSuits;
+    if (suits.length === 0) return;
     // L'atout se fixe sur cette annonce précisément quand il n'était pas
     // encore choisi : un rire différent salue ce moment-là.
     const fixeLAtout = state.trump === null;
-    setState((s) =>
-      announce(
-        s,
-        0,
-        availableMelds(s, 0).map((m) => m.suit),
-        trumpChoice,
-      ),
-    );
+    setState((s) => announce(s, 0, suits, trumpChoice));
     setChoosingTrump(false);
+    setSelectedSuits(null);
     // C'est l'utilisateur qui annonce ici : son profil, pas celui de l'IA.
     jouerPour(0, () => {
       if (fixeLAtout) sfx.trumpLaugh();
@@ -826,11 +822,12 @@ function Azteque() {
   };
 
   const announceMelds = () => {
+    if (chosenSuits.length === 0) return;
     if (needsTrumpChoice) {
       setChoosingTrump(true);
       return;
     }
-    doAnnounce(state.trump === null ? (myMelds[0]?.suit ?? null) : null);
+    doAnnounce(state.trump === null ? (chosenSuits[0] ?? null) : null);
   };
 
   const playMyCard = (card: Card, el: HTMLElement) => {
