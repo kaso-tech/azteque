@@ -283,12 +283,27 @@
 }
 
 
-/* Page d'accueil : même lumière que le tapis, mais légèrement assombrie pour
-   faire ressortir le titre et les boutons sans rompre l'harmonie verte. */
+/* Page d'accueil : tapis de casino en perspective, moins vif et plus stylé.
+   Grain de feutre, projecteur central étouffé et bords profonds pour faire
+   ressortir le titre et les boutons sans éblouir. */
 @utility home-surface {
   background:
-    radial-gradient(ellipse at 50% 8%, oklch(0.625 0.202 140 / 0.945), transparent 48%),
-    radial-gradient(ellipse at 50% 62%, oklch(0.585 0.202 142.5), oklch(0.395 0.142 142.5) 78%);
+    /* grain de feutre subtil */
+    repeating-linear-gradient(
+      45deg,
+      oklch(1 0 0 / 0.018) 0 1px,
+      transparent 1px 3px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      oklch(0 0 0 / 0.024) 0 1px,
+      transparent 1px 3px
+    ),
+    /* projecteur central étouffé */
+    radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
+    radial-gradient(ellipse 84% 64% at 50% 46%, oklch(0.565 0.195 143 / 0.55), transparent 80%),
+    /* feutre et vignettage profond */
+    radial-gradient(ellipse 132% 118% at 50% 50%, oklch(0.505 0.165 144), oklch(0.245 0.085 145) 96%);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
