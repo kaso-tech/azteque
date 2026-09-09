@@ -669,7 +669,7 @@ function OnlineTable() {
           const to = center(handRefs[player].current);
           if (from && to) {
             setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
-            timers.push(
+            animTimers.current.push(
               setTimeout(() => {
                 setDrawFlights([]);
                 void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
