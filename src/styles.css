@@ -238,6 +238,46 @@
   box-shadow: var(--shadow-medallion), 0 0 0 2px var(--gold);
 }
 
+/* Les pastilles et badges dorés (Bonnes, Comptes, annonces, coins de
+   carte) : un léger creux plutôt qu'un simple contour plat, comme une
+   plaquette gravée posée sur la table. */
+@utility gold-tag {
+  box-shadow:
+    inset 0 1px 1px oklch(1 0 0 / 0.12),
+    inset 0 -1px 3px oklch(0 0 0 / 0.4);
+}
+
+/* Le disque de pierre gravé sous le pli en cours : purement décoratif,
+   toujours derrière (voir l'ordre du DOM au point d'usage), jamais au
+   clic. Un placeholder pour le composant qui le porte fixe sa taille via
+   --sunstone-size ; par défaut, celle du tapis solo. */
+@utility sunstone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--sunstone-size, 11rem);
+  height: var(--sunstone-size, 11rem);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from 0deg,
+    color-mix(in oklab, var(--gold) 16%, transparent) 0deg 11.25deg,
+    transparent 11.25deg 22.5deg
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--gold) 35%, transparent),
+    0 0 0 10px oklch(0 0 0 / 0.12),
+    0 0 0 11px color-mix(in oklab, var(--gold) 18%, transparent),
+    inset 0 0 30px oklch(0 0 0 / 0.4);
+}
+
+/* La rainure de la barre de temps : creusée, pas en relief — c'est elle qui
+   accueille le remplissage, pas un objet posé dessus. */
+@utility gold-groove {
+  box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.55);
+}
+
 @keyframes deal-in {
   from {
     opacity: 0;

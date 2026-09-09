@@ -847,13 +847,13 @@ function Azteque() {
           </button>
           <Link
             to="/online"
-            className="w-full rounded-full border border-gold/50 px-8 py-3 text-center font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
+            className="gold-tag w-full rounded-full border border-gold/50 px-8 py-3 text-center font-display text-sm font-semibold text-gold transition-transform hover:scale-105"
           >
             Jouer en ligne
           </Link>
           <Link
             to="/boutique"
-            className="w-full rounded-full border border-gold/35 px-8 py-2.5 text-center font-display text-sm font-semibold text-gold/90 transition-transform hover:scale-105"
+            className="gold-tag w-full rounded-full border border-gold/35 px-8 py-2.5 text-center font-display text-sm font-semibold text-gold/90 transition-transform hover:scale-105"
           >
             Boutique
           </Link>
@@ -971,6 +971,7 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
+        <div className="sunstone" aria-hidden="true" />
         <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />
         </div>
@@ -1009,7 +1010,7 @@ function Azteque() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-                <span className="rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
+                <span className="gold-tag rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
                   {state.stock.length}
                 </span>
               </>
@@ -1026,7 +1027,7 @@ function Azteque() {
         </div>
 
         {state.trump && (
-          <span className="pointer-events-none absolute right-2 top-2 z-20 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
+          <span className="gold-tag pointer-events-none absolute right-2 top-2 z-20 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
             Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
           </span>
         )}
@@ -1134,14 +1135,14 @@ function Azteque() {
           <button
             type="button"
             onClick={() => setShowMyBonnes(true)}
-            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
           >
             Bonnes · {myBonnes}
           </button>
           <button
             type="button"
             onClick={() => setShowHistory(true)}
-            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10"
           >
             Comptes · {myComptes}
           </button>

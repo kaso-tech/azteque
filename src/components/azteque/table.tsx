@@ -126,7 +126,7 @@ export function GainsPanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/40 text-lg text-gold"
+            className="gold-ring flex h-9 w-9 items-center justify-center rounded-full text-lg text-gold"
             aria-label="Fermer"
           >
             ×
@@ -323,7 +323,7 @@ export function TurnBar({
   paused?: boolean;
 }) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
+    <div className="gold-groove h-1.5 w-full overflow-hidden rounded-full border border-gold/20 bg-felt-deep/70">
       {active ? (
         <div
           key={resetKey}

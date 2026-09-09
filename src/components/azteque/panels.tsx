@@ -420,7 +420,7 @@ export function MeldHistoryPanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/40 text-lg text-gold"
+            className="gold-ring flex h-9 w-9 items-center justify-center rounded-full text-lg text-gold"
             aria-label="Fermer"
           >
             ×

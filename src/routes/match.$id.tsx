@@ -903,7 +903,7 @@ function OnlineTable() {
                 setErrorRetryable(false);
                 setReloadKey((n) => n + 1);
               }}
-              className="rounded-full border border-gold/50 px-5 py-2 text-xs font-semibold text-gold"
+              className="gold-tag rounded-full border border-gold/50 px-5 py-2 text-xs font-semibold text-gold"
             >
               Réessayer maintenant
             </button>
@@ -1000,6 +1000,7 @@ function OnlineTable() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
+        <div className="sunstone" aria-hidden="true" />
         <div className="absolute left-3 top-3" ref={pileRefs[opp]}>
           <CapturedPile cards={displayGains[opp]} owner="opponent" />
         </div>
@@ -1033,7 +1034,7 @@ function OnlineTable() {
             {state.stock.length > 0 ? (
               <>
                 <StockPile count={state.stock.length} />
-                <span className="rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
+                <span className="gold-tag rounded-full border border-gold/40 bg-felt-deep/90 px-2 py-0.5 text-[0.62rem] font-semibold text-gold">
                   {state.stock.length}
                 </span>
               </>
@@ -1049,7 +1050,7 @@ function OnlineTable() {
         </div>
 
         {(sync.offline || sync.stale || retrying || sending > 0 || pendingReplay) && (
-          <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-gold/50 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-gold">
+          <span className="gold-tag absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-gold/50 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-gold">
             {sync.offline
               ? "Hors ligne · reprise automatique"
               : pendingReplay
@@ -1071,7 +1072,7 @@ function OnlineTable() {
         )}
 
         {state.trump && (
-          <span className="absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
+          <span className="gold-tag absolute right-2 top-2 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold">
             Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
           </span>
         )}
@@ -1149,7 +1150,7 @@ function OnlineTable() {
           <button
             type="button"
             onClick={() => setShowMyBonnes(true)}
-            className="rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold"
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold"
           >
             Bonnes · {myBonnes}
           </button>
