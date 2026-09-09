@@ -21,8 +21,14 @@ export function BetPanel({
 }) {
   const live = bet;
   const mine = live?.by === mySeat;
+  const isHost = mySeat === "host";
   const [counter, setCounter] = useState(false);
-  const choosing = !live || mine || counter;
+  // Avant toute mise, seul l'hôte propose un montant : si les deux joueurs
+  // cliquaient en même temps sur la grille, leurs deux propositions
+  // arrivaient au serveur dans un ordre imprévisible et l'une écrasait
+  // l'autre sans qu'aucun des deux ne le voie. L'invité garde la main pour
+  // contre-proposer une fois qu'une mise existe.
+  const choosing = live ? mine || counter : isHost;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-5">
@@ -39,11 +45,17 @@ export function BetPanel({
               : `${oppName} propose 🪙 ${live.amount} jetons.`}
           </p>
         )}
-        {!live && (
+        {!live && isHost && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Proposez une mise pour toute la partie. L'adversaire doit l'accepter ou contre-proposer
+            Proposez une mise pour toute la partie. {oppName} doit l'accepter ou contre-proposer
             avant la première donne. Chacun doit posséder la mise pour l'engager ; les jetons ne
             changent de main qu'à la fin du champ.
+          </p>
+        )}
+        {!live && !isHost && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            En attente que {oppName} propose une mise pour toute la partie. Vous pourrez l'accepter
+            ou contre-proposer un autre montant.
           </p>
         )}
 

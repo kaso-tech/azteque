@@ -140,7 +140,7 @@ const MIGRATION_PAR_FONCTION: Record<string, string> = {
   admin_delete_item: "20260907190000_console_complete.sql",
   admin_list_players: "20260907190000_console_complete.sql",
   admin_upsert_item: "20260907190000_console_complete.sql",
-  settle_match: "20260907190000_console_complete.sql",
+  settle_match: "20260909120000_settle_match_both_wallets.sql",
   touch_last_seen: "20260907190000_console_complete.sql",
   admin_log_sound_change: "20260907230000_sons_storage.sql",
   admin_set_sound_file: "20260907230000_sons_storage.sql",

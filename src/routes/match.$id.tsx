@@ -1000,7 +1000,6 @@ function OnlineTable() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
-        <div className="sunstone" aria-hidden="true" />
         <div className="absolute left-3 top-3" ref={pileRefs[opp]}>
           <CapturedPile cards={displayGains[opp]} owner="opponent" />
         </div>

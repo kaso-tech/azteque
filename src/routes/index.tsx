@@ -522,13 +522,20 @@ function Azteque() {
             : 0;
         const loserPile = winner === null ? null : center(pileRefs[winner === 0 ? 1 : 0].current);
 
+        // Ce pli termine-t-il le tour (ou le champ) ? Si oui, c'est
+        // l'acclamation ou la moquerie de fin de tour qui doit se faire
+        // entendre seule — pas un rire de pli en plus, aussitôt suivi d'un
+        // second pour la même victoire.
+        const roundEnding = next.phase !== "playing";
+
         // Un seul rire par pli, même quand plusieurs conditions se rencontrent
         // à la fois (une bonne volée qui prolonge aussi une série, par
         // exemple) : celui de la condition la plus marquante, jamais les deux
         // empilés. Rafler tout le tas d'un coup d'atout 10 l'emporte sur une
         // série, qui l'emporte elle-même sur une simple bonne volée — son
-        // propre rire suit le transfert animé, plus bas.
-        if (sweeps === 0) {
+        // propre rire suit le transfert animé, plus bas — et la fin de tour
+        // l'emporte sur tout le reste.
+        if (sweeps === 0 && !roundEnding) {
           if (compteSerie >= 3) {
             const rireDeSerie =
               compteSerie === 3
@@ -551,7 +558,7 @@ function Azteque() {
               const layers = Math.min(6, sweeps);
               jouerPour(winner, () => {
                 sfx.sweep();
-                sfx.sweepLaugh();
+                if (!roundEnding) sfx.sweepLaugh();
               });
               setSweepFlights(
                 Array.from({ length: layers }, (_, i) => ({
@@ -659,8 +666,15 @@ function Azteque() {
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
+  // Quitter la table puis relancer « Jouer contre l'IA » sans repartir d'un
+  // tour neuf laisse l'état tel quel : `started` repasse à vrai, cet effet
+  // se redéclenche sur ce même dépôt, et le son de victoire rejouait à
+  // chaque aller-retour au menu. On ne fête chaque fin de tour qu'une fois.
+  const dernierFete = useRef<string | null>(null);
   useEffect(() => {
     if (!started || (state.phase !== "roundEnd" && state.phase !== "gameEnd")) return;
+    if (dernierFete.current === phaseKey) return;
+    dernierFete.current = phaseKey;
     const won = state.phase === "gameEnd" ? state.champWinner === 0 : state.roundWinner === 0;
     const lost = state.phase === "gameEnd" ? state.champWinner === 1 : state.roundWinner === 1;
     // Treize bonnes ou plus en un tour est la condition la plus marquante :
@@ -971,7 +985,6 @@ function Azteque() {
         ref={tableRef}
         className="panel relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 p-4"
       >
-        <div className="sunstone" aria-hidden="true" />
         <div className="absolute left-3 top-3" ref={pileRefs[1]}>
           <CapturedPile cards={state.gains[1]} owner="opponent" />
         </div>
