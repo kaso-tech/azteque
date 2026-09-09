@@ -123,6 +123,9 @@ function OnlineTable() {
   const [errorRetryable, setErrorRetryable] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [choosingTrump, setChoosingTrump] = useState(false);
+  // Comptes retenus pour l'annonce en cours. `null` = tous ceux que la main
+  // permet : le joueur peut en retirer un pour n'en annoncer qu'un seul.
+  const [selectedSuits, setSelectedSuits] = useState<Suit[] | null>(null);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -877,40 +880,48 @@ function OnlineTable() {
     void runAction({ type: "play_card", cardId: card.id });
   };
 
-  // Un compte s'annonce en bloc : tous ceux que la main permet, d'un seul clic
-  // — c'est toujours l'intérêt du joueur, chacun valant des points. L'atout
-  // n'est à désigner que s'il est réellement ambigu : plusieurs comptes
-  // annonçables alors qu'il n'est pas encore fixé.
-  const needsTrumpChoice = !!state && state.trump === null && myMelds.length > 1;
+  // Le joueur retient les comptes qu'il veut annoncer : les deux, ou l'un et
+  // pas l'autre. Tous sont cochés au départ, chacun valant des points.
+  const meldSuits = myMelds.map((m) => m.suit);
+  const chosenSuits = (selectedSuits ?? meldSuits).filter((s) => meldSuits.includes(s));
+  // L'atout n'est à désigner que s'il n'est pas encore fixé et qu'au moins
+  // deux comptes sont retenus.
+  const needsTrumpChoice = !!state && state.trump === null && chosenSuits.length > 1;
   const meldSummary = myMelds
+    .filter((m) => chosenSuits.includes(m.suit))
     .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
     .join(" + ");
+  const toggleMeld = (s: Suit) =>
+    setSelectedSuits((cur) => {
+      const base = cur ?? meldSuits;
+      return base.includes(s) ? base.filter((x) => x !== s) : [...base, s];
+    });
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     if (!state) return;
+    const suits = chosenSuits;
+    if (suits.length === 0) return;
     // L'atout se fixe sur cette annonce précisément quand il n'était pas
     // encore choisi : un rire différent salue ce moment-là.
     if (state.trump === null) sfx.trumpLaugh();
     else sfx.chuckle();
-    void runAction({
-      type: "announce",
-      suits: myMelds.map((m) => m.suit),
-      trump: trumpChoice,
-    });
+    void runAction({ type: "announce", suits, trump: trumpChoice });
     setChoosingTrump(false);
+    setSelectedSuits(null);
   };
 
   const announceMelds = () => {
-    if (!state) return;
+    if (!state || chosenSuits.length === 0) return;
     if (needsTrumpChoice) {
       setChoosingTrump(true);
       return;
     }
-    doAnnounce(state.trump === null ? (myMelds[0]?.suit ?? null) : null);
+    doAnnounce(state.trump === null ? (chosenSuits[0] ?? null) : null);
   };
 
   const skipAnnounce = () => {
     setChoosingTrump(false);
+    setSelectedSuits(null);
     void runAction({ type: "skip_announce" });
   };
 
