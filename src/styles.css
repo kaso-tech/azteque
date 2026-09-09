@@ -92,10 +92,11 @@
   --border: oklch(0.54 0.13 140);
   --input: oklch(0.455 0.115 145);
   --ring: oklch(0.86 0.16 92);
-  /* Vert prélevé sur la référence fournie, légèrement assombri pour moins
-     éblouir et mieux faire ressortir les cartes posées dessus. */
-  --felt: oklch(0.655 0.225 142.5);
-  --felt-deep: oklch(0.465 0.16 142.5);
+  /* Vert prélevé sur la référence fournie. Le halo central reste lumineux,
+     seules les zones périphériques du tapis sont assombries pour mieux
+     faire ressortir les cartes. */
+  --felt: oklch(0.595 0.205 142.5);
+  --felt-deep: oklch(0.405 0.145 142.5);
   --gold: oklch(0.88 0.155 88);
   --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
