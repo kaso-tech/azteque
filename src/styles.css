@@ -71,47 +71,54 @@
      dédoublement, tapis et panneaux partageaient déjà la même teinte à
      165° — seul le feutre a bougé vers un vert plus vif, et les surfaces
      qui s'y posent doivent le suivre pour ne pas jurer à côté. */
-  --radius: 0.75rem;
-  --background: oklch(0.3 0.045 150);
-  --foreground: oklch(0.96 0.015 90);
-  --card: oklch(0.35 0.05 150);
-  --card-foreground: oklch(0.96 0.015 90);
-  --popover: oklch(0.33 0.047 150);
-  --popover-foreground: oklch(0.96 0.015 90);
-  --primary: oklch(0.78 0.14 82);
-  --primary-foreground: oklch(0.2 0.04 90);
-  --secondary: oklch(0.405 0.055 150);
-  --secondary-foreground: oklch(0.95 0.015 90);
-  --muted: oklch(0.38 0.045 150);
-  --muted-foreground: oklch(0.75 0.03 120);
+  --radius: 0.5rem;
+  --background: oklch(0.255 0.075 145);
+  --foreground: oklch(0.975 0.02 105);
+  --card: oklch(0.345 0.1 145);
+  --card-foreground: oklch(0.975 0.02 105);
+  --popover: oklch(0.31 0.085 145);
+  --popover-foreground: oklch(0.975 0.02 105);
+  --primary: oklch(0.82 0.15 84);
+  --primary-foreground: oklch(0.205 0.055 145);
+  --secondary: oklch(0.405 0.115 145);
+  --secondary-foreground: oklch(0.98 0.015 105);
+  --muted: oklch(0.37 0.085 145);
+  --muted-foreground: oklch(0.79 0.045 120);
   --accent: oklch(0.55 0.16 25);
   --accent-foreground: oklch(0.97 0.01 90);
   --destructive: oklch(0.75 0.2 27);
   --destructive-solid: oklch(0.55 0.2 27);
   --destructive-foreground: oklch(0.98 0.005 90);
-  --border: oklch(0.465 0.06 135);
-  --input: oklch(0.425 0.055 145);
-  --ring: oklch(0.78 0.14 82);
-  /* Vert de feutre saturé façon table de casino professionnelle — vif, mais
-     recalé sur la même teinte que les panneaux (150°) plutôt que le vert
-     plus jaune d'une pelouse : les deux verts de la première tentative ne
-     s'accordaient pas tout à fait entre eux. */
-  --felt: oklch(0.518 0.17 150);
-  --felt-deep: oklch(0.215 0.07 150);
-  --gold: oklch(0.87 0.145 84);
-  --gold-soft: oklch(0.74 0.12 80);
+  --border: oklch(0.54 0.13 140);
+  --input: oklch(0.455 0.115 145);
+  --ring: oklch(0.86 0.16 92);
+  /* Vert de feutre saturé façon table de casino, plutôt que le sauge éteint
+     d'avant — la vignette va du vert vif au centre à un vert presque noir aux
+     bords, calée sur une référence demandée directement. */
+  --felt: oklch(0.63 0.215 141);
+  --felt-deep: oklch(0.205 0.075 145);
+  --gold: oklch(0.88 0.155 88);
+  --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
      d'administration), sans se confondre avec l'or des actions. */
   --orange: oklch(0.74 0.175 55);
   --card-face: oklch(0.97 0.012 90);
   --card-ink: oklch(0.22 0.02 60);
   --card-red: oklch(0.53 0.21 27);
-  --gradient-felt: radial-gradient(ellipse at 50% 15%, var(--felt), var(--felt-deep) 70%);
+  --success: oklch(0.78 0.2 139);
+  --success-foreground: oklch(0.19 0.06 145);
+  --info: oklch(0.75 0.12 193);
+  --gradient-felt:
+    radial-gradient(ellipse at 50% 8%, oklch(0.69 0.22 140 / 0.95), transparent 48%),
+    radial-gradient(ellipse at 50% 62%, var(--felt), var(--felt-deep) 78%);
   /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
      bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
      il se lit comme une pièce frappée plutôt qu'un aplat coloré. */
   --gradient-gold: linear-gradient(180deg, oklch(0.94 0.1 90), var(--gold) 50%, oklch(0.6 0.14 65));
-  --shadow-table: 0 24px 60px -18px oklch(0 0 0 / 0.7);
+  --shadow-table:
+    inset 0 1px 0 oklch(1 0 0 / 0.13),
+    inset 0 -2px 0 oklch(0 0 0 / 0.22),
+    0 18px 38px -16px oklch(0 0 0 / 0.72);
   /* Deux ombres superposées — une proche et nette, une large et diffuse —
      pour qu'une carte ait l'air posée sur le tapis plutôt que collée dessus. */
   --shadow-card: 0 2px 3px oklch(0 0 0 / 0.35), 0 10px 20px -8px oklch(0 0 0 / 0.6);
@@ -124,13 +131,13 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.33 0.047 150);
+  --sidebar: oklch(0.285 0.085 145);
   --sidebar-foreground: oklch(0.96 0.015 90);
   --sidebar-primary: oklch(0.78 0.14 82);
   --sidebar-primary-foreground: oklch(0.2 0.04 90);
-  --sidebar-accent: oklch(0.405 0.055 150);
+  --sidebar-accent: oklch(0.42 0.125 145);
   --sidebar-accent-foreground: oklch(0.95 0.015 90);
-  --sidebar-border: oklch(0.465 0.06 135);
+  --sidebar-border: oklch(0.5 0.13 140);
   --sidebar-ring: oklch(0.78 0.14 82);
   --font-display: "Cinzel", serif;
   --font-body: "Outfit", system-ui, sans-serif;
@@ -191,6 +198,9 @@
   --color-card-face: var(--card-face);
   --color-card-ink: var(--card-ink);
   --color-card-red: var(--card-red);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
 }
@@ -201,6 +211,7 @@
     background-image: var(--gradient-felt);
     background-attachment: fixed;
     min-height: 100dvh;
+    position: relative;
   }
   h1,
   h2,
@@ -220,11 +231,24 @@
 }
 
 @utility panel {
-  background-color: color-mix(in oklab, var(--card) 85%, transparent);
-  border: 1px solid color-mix(in oklab, var(--gold) 25%, transparent);
+  background:
+    linear-gradient(145deg, oklch(1 0 0 / 0.11), transparent 28%),
+    linear-gradient(180deg, color-mix(in oklab, var(--card) 96%, var(--felt)), color-mix(in oklab, var(--card) 78%, var(--felt-deep)));
+  border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--border));
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-table);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px) saturate(1.18);
+}
+
+@utility grass-surface {
+  background:
+    linear-gradient(155deg, oklch(1 0 0 / 0.1), transparent 38%),
+    linear-gradient(180deg, var(--secondary), color-mix(in oklab, var(--secondary) 68%, var(--felt-deep)));
+  border: 1px solid color-mix(in oklab, var(--gold) 26%, var(--border));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.12),
+    inset 0 -2px 2px oklch(0 0 0 / 0.28),
+    0 8px 18px -10px oklch(0 0 0 / 0.75);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol

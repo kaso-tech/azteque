@@ -287,7 +287,7 @@ export function Sons({ onErreur }: { onErreur: (e: string | null) => void }) {
             >
               Valeurs d'origine
             </Button>
-            {enregistre && <span className="text-xs text-emerald-400">✓ Enregistré</span>}
+            {enregistre && <span className="text-xs text-success">✓ Enregistré</span>}
           </div>
         </aside>
 
