@@ -119,6 +119,9 @@ function Azteque() {
   const [isAdmin, setIsAdmin] = useState(false);
   const accountBound = account !== null;
   const [choosingTrump, setChoosingTrump] = useState(false);
+  // Comptes retenus pour l'annonce en cours. `null` = tous ceux que la main
+  // permet : le joueur peut en retirer un pour n'en annoncer qu'un seul.
+  const [selectedSuits, setSelectedSuits] = useState<Suit[] | null>(null);
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
@@ -768,15 +771,22 @@ function Azteque() {
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
-  // Un compte s'annonce en bloc : tous ceux que la main permet, d'un seul clic
-  // — c'est toujours l'intérêt du joueur, chacun valant des points. L'atout
-  // n'est à désigner que s'il est réellement ambigu : plusieurs comptes
-  // annonçables alors qu'il n'est pas encore fixé. Avec un seul compte, la
-  // couleur se déduit d'elle-même.
-  const needsTrumpChoice = state.trump === null && myMelds.length > 1;
+  // Le joueur retient les comptes qu'il veut annoncer : les deux, ou l'un et
+  // pas l'autre. Tous sont cochés au départ, chacun valant des points.
+  const meldSuits = myMelds.map((m) => m.suit);
+  const chosenSuits = (selectedSuits ?? meldSuits).filter((s) => meldSuits.includes(s));
+  // L'atout n'est à désigner que s'il est réellement ambigu : au moins deux
+  // comptes retenus alors qu'il n'est pas encore fixé.
+  const needsTrumpChoice = state.trump === null && chosenSuits.length > 1;
   const meldSummary = myMelds
+    .filter((m) => chosenSuits.includes(m.suit))
     .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
     .join(" + ");
+  const toggleMeld = (s: Suit) =>
+    setSelectedSuits((cur) => {
+      const base = cur ?? meldSuits;
+      return base.includes(s) ? base.filter((x) => x !== s) : [...base, s];
+    });
 
   // Changer de niveau en cours de partie reviendrait à finir en Légende un
   // champ commencé en Facile — et à empocher la récompense du niveau le plus
