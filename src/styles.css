@@ -92,11 +92,11 @@
   --border: oklch(0.54 0.13 140);
   --input: oklch(0.455 0.115 145);
   --ring: oklch(0.86 0.16 92);
-  /* Vert de feutre saturé façon table de casino, plutôt que le sauge éteint
-     d'avant — la vignette va du vert vif au centre à un vert presque noir aux
-     bords, calée sur une référence demandée directement. */
-  --felt: oklch(0.63 0.215 141);
-  --felt-deep: oklch(0.205 0.075 145);
+  /* Vert de la table, couleur exacte demandée (#3A9523) — la vignette va de
+     ce vert au centre à une version plus sombre de la même teinte aux
+     bords. */
+  --felt: oklch(0.593 0.171 140.2);
+  --felt-deep: oklch(0.19 0.06 140.2);
   --gold: oklch(0.88 0.155 88);
   --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
