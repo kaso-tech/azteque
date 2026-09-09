@@ -265,8 +265,8 @@
    faire ressortir le titre et les boutons sans rompre l'harmonie verte. */
 @utility home-surface {
   background:
-    radial-gradient(ellipse at 50% 8%, oklch(0.585 0.195 140 / 0.92), transparent 48%),
-    radial-gradient(ellipse at 50% 62%, oklch(0.535 0.195 142.5), oklch(0.355 0.135 142.5) 78%);
+    radial-gradient(ellipse at 50% 8%, oklch(0.615 0.20 140 / 0.94), transparent 48%),
+    radial-gradient(ellipse at 50% 62%, oklch(0.565 0.20 142.5), oklch(0.385 0.14 142.5) 78%);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
