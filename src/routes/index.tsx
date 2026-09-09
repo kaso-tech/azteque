@@ -420,7 +420,6 @@ function Azteque() {
     }
   }, [meldDecisionPending]);
 
-
   const freshRound =
     state.phase === "playing" &&
     state.trick.length === 0 &&
@@ -1123,9 +1122,7 @@ function Azteque() {
             ) : (
               <>
                 <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-                  {myMelds.length > 1
-                    ? "Quels comptes annoncer ?"
-                    : `Annoncer ${meldSummary} ?`}
+                  {myMelds.length > 1 ? "Quels comptes annoncer ?" : `Annoncer ${meldSummary} ?`}
                 </p>
                 {myMelds.length > 1 && (
                   <div className="mb-1 flex flex-wrap gap-1">

@@ -871,7 +871,6 @@ function OnlineTable() {
     }
   }, [meldDecisionPending]);
 
-
   // Affichage figé du pli et des tas pendant le ramassage/transfert animé
   // (voir la déclaration de `frozenTable` plus haut) : le reste de l'état
   // (mains, tour, pioche…) continue de refléter la vérité serveur normalement.
