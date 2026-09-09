@@ -92,11 +92,10 @@
   --border: oklch(0.54 0.13 140);
   --input: oklch(0.455 0.115 145);
   --ring: oklch(0.86 0.16 92);
-  /* Vert de la table, couleur exacte demandée (#3A9523) — la vignette va de
-     ce vert au centre à une version plus sombre de la même teinte aux
-     bords. */
-  --felt: oklch(0.593 0.171 140.2);
-  --felt-deep: oklch(0.19 0.06 140.2);
+  /* Vert prélevé sur la référence fournie : lumineux au centre et
+     progressivement plus profond vers les bords. */
+  --felt: oklch(0.7108 0.2419 142.5);
+  --felt-deep: oklch(0.517 0.1754 142.5);
   --gold: oklch(0.88 0.155 88);
   --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
@@ -249,6 +248,16 @@
     inset 0 1px 0 oklch(1 0 0 / 0.12),
     inset 0 -2px 2px oklch(0 0 0 / 0.28),
     0 8px 18px -10px oklch(0 0 0 / 0.75);
+}
+
+/* Surface réservée au tapis de jeu. Elle reproduit le modelé lumineux de la
+   référence sans recolorer les panneaux, menus ou autres écrans. */
+@utility game-table-surface {
+  background:
+    radial-gradient(ellipse at 38% 42%, oklch(0.7108 0.2419 142.5), transparent 58%),
+    radial-gradient(ellipse at 68% 60%, oklch(0.6782 0.2305 142.5), oklch(0.517 0.1754 142.5) 88%);
+  border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--felt-deep));
+  box-shadow: var(--shadow-table);
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
