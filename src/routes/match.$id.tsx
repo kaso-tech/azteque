@@ -956,7 +956,7 @@ function OnlineTable() {
           {myName}
         </p>
         <div className="min-w-16 text-center">
-          <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
+          <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
             {state.roundsWon[me]} <span className="text-muted-foreground">—</span>{" "}
             {state.roundsWon[opp]}

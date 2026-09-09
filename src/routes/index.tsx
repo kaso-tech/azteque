@@ -825,7 +825,7 @@ function Azteque() {
         <p className="mb-3 text-xs uppercase tracking-[0.4em] text-gold-soft">
           Jeu traditionnel d'Afrique de l'Ouest
         </p>
-        <h1 className="gold-text text-6xl sm:text-7xl">Aztèque</h1>
+        <h1 className="gold-text font-black text-6xl sm:text-7xl">Aztèque</h1>
         <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
           Conquérez les plis, ramassez les bonnes, annoncez vos comptes et créez l'atout. Trois
           tours gagnés — ou treize bonnes — et le champ est à vous.
@@ -933,7 +933,7 @@ function Azteque() {
           onClick={() => setShowPlayerProfile(true)}
         />
         <div className="min-w-16 text-center">
-          <h1 className="gold-text text-lg leading-none sm:text-2xl">Aztèque</h1>
+          <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
             {state.roundsWon[0]} <span className="text-muted-foreground">—</span>{" "}
             {state.roundsWon[1]}
