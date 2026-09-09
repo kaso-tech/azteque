@@ -254,12 +254,34 @@
 /* Surface réservée au tapis de jeu. Elle reproduit le modelé lumineux de la
    référence sans recolorer les panneaux, menus ou autres écrans. */
 @utility game-table-surface {
+  /* Vrai tapis de casino : grain de feutre, halo de projecteur au centre,
+     assombrissement progressif vers les bords et liseré or en relief. */
   background:
-    radial-gradient(ellipse at 38% 42%, oklch(0.7108 0.2419 142.5), transparent 58%),
-    radial-gradient(ellipse at 68% 60%, oklch(0.6782 0.2305 142.5), oklch(0.517 0.1754 142.5) 88%);
+    /* grain du feutre */
+    repeating-linear-gradient(
+      45deg,
+      oklch(1 0 0 / 0.022) 0 1px,
+      transparent 1px 3px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      oklch(0 0 0 / 0.03) 0 1px,
+      transparent 1px 3px
+    ),
+    /* cœur du projecteur */
+    radial-gradient(ellipse 46% 34% at 50% 40%, oklch(0.79 0.205 141 / 0.55), transparent 72%),
+    radial-gradient(ellipse 74% 56% at 50% 43%, oklch(0.695 0.228 141.5), transparent 80%),
+    /* feutre et vignettage */
+    radial-gradient(ellipse 128% 112% at 50% 48%, oklch(0.545 0.185 143), oklch(0.288 0.102 144) 96%);
   border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--felt-deep));
-  box-shadow: var(--shadow-table);
+  box-shadow:
+    var(--shadow-table),
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    inset 0 0 0 1px oklch(0 0 0 / 0.28),
+    inset 0 22px 44px -22px oklch(0 0 0 / 0.55),
+    inset 0 -26px 52px -20px oklch(0 0 0 / 0.6);
 }
+
 
 /* Page d'accueil : même lumière que le tapis, mais légèrement assombrie pour
    faire ressortir le titre et les boutons sans rompre l'harmonie verte. */
