@@ -92,10 +92,10 @@
   --border: oklch(0.54 0.13 140);
   --input: oklch(0.455 0.115 145);
   --ring: oklch(0.86 0.16 92);
-  /* Vert prélevé sur la référence fournie : lumineux au centre et
-     progressivement plus profond vers les bords. */
-  --felt: oklch(0.7108 0.2419 142.5);
-  --felt-deep: oklch(0.517 0.1754 142.5);
+  /* Vert prélevé sur la référence fournie, légèrement assombri pour moins
+     éblouir et mieux faire ressortir les cartes posées dessus. */
+  --felt: oklch(0.655 0.225 142.5);
+  --felt-deep: oklch(0.465 0.16 142.5);
   --gold: oklch(0.88 0.155 88);
   --gold-soft: oklch(0.77 0.13 83);
   /* Orange de service : signale ce qui n'appartient pas au jeu (console
@@ -108,7 +108,7 @@
   --success-foreground: oklch(0.19 0.06 145);
   --info: oklch(0.75 0.12 193);
   --gradient-felt:
-    radial-gradient(ellipse at 50% 8%, oklch(0.69 0.22 140 / 0.95), transparent 48%),
+    radial-gradient(ellipse at 50% 8%, oklch(0.635 0.205 140 / 0.95), transparent 48%),
     radial-gradient(ellipse at 50% 62%, var(--felt), var(--felt-deep) 78%);
   /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
      bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
