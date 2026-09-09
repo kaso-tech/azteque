@@ -588,11 +588,11 @@ function OnlineTable() {
             { id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 },
             { id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay },
           ]);
-          timers.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+          animTimers.current.push(setTimeout(() => sfx.collect(), lastDelay + 120));
           // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : il ne
           // peut se juger qu'une fois le vainqueur du pli connu.
           if (stealsBonne(preTrick.trick, winner))
-            timers.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
+            animTimers.current.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
 
           // Série de bonnes : au premier pli du tour (aucun tas encore
           // entamé), on repart de zéro — y compris après un Pont rejoué.
@@ -607,7 +607,8 @@ function OnlineTable() {
             // en plus franc, tant que l'adversaire n'en reprend aucune.
             const rireDeSerie =
               compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
-            if (compte >= 3) timers.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
+            if (compte >= 3)
+              animTimers.current.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
           }
 
           const sweeps = trickCapturesPile(preTrick, { atout10: true })
@@ -615,7 +616,7 @@ function OnlineTable() {
             : 0;
           const loserPile = center(pileRefs[loser].current);
 
-          timers.push(
+          animTimers.current.push(
             setTimeout(() => {
               setCollect([]);
               if (sweeps > 0 && loserPile) {
@@ -630,7 +631,7 @@ function OnlineTable() {
                     delay: i * 90,
                   })),
                 );
-                timers.push(
+                animTimers.current.push(
                   setTimeout(
                     () => {
                       setSweepFlights([]);
