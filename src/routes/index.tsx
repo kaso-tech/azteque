@@ -412,6 +412,15 @@ function Azteque() {
     myMelds.length > 0 &&
     state.stock.length > 0;
 
+  // La sélection ne vaut que pour l'annonce en cours.
+  useEffect(() => {
+    if (!meldDecisionPending) {
+      setSelectedSuits(null);
+      setChoosingTrump(false);
+    }
+  }, [meldDecisionPending]);
+
+
   const freshRound =
     state.phase === "playing" &&
     state.trick.length === 0 &&
