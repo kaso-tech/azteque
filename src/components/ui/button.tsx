@@ -17,8 +17,7 @@ const buttonVariants = cva(
         // palette : un bouton neutre virait au rouge sous la souris et se
         // lisait comme un danger. Il s'éclaircit désormais, sans changer de
         // sens.
-        outline:
-          "grass-surface bg-background hover:border-gold/60 hover:brightness-110",
+        outline: "grass-surface bg-background hover:border-gold/60 hover:brightness-110",
         secondary: "grass-surface text-secondary-foreground hover:brightness-110",
         ghost: "hover:bg-secondary",
         link: "text-primary underline-offset-4 hover:underline",
