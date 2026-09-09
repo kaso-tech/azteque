@@ -835,7 +835,7 @@ function Azteque() {
   const revealOpp = state.phase !== "playing";
   if (!started) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
+      <main className="home-surface flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
         <p className="mb-3 text-xs uppercase tracking-[0.4em] text-gold-soft">
           Jeu traditionnel d'Afrique de l'Ouest
         </p>
