@@ -86,6 +86,7 @@ export type Database = {
           from_id: string
           id: string
           match_id: string
+          snoozed_at: string | null
           status: string
           to_id: string
         }
@@ -94,6 +95,7 @@ export type Database = {
           from_id: string
           id?: string
           match_id: string
+          snoozed_at?: string | null
           status?: string
           to_id: string
         }
@@ -102,6 +104,7 @@ export type Database = {
           from_id?: string
           id?: string
           match_id?: string
+          snoozed_at?: string | null
           status?: string
           to_id?: string
         }
