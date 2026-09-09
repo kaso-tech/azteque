@@ -750,7 +750,7 @@ function OnlineTable() {
   // toujours au temps de réflexion, il n'en retire jamais. C'est l'observateur
   // qui déclare le dépassement de son adversaire, donc c'est bien lui qui doit
   // suspendre son propre décompte.
-  const dealing = useDealCeremony(state, !!state);
+  const dealing = useDealCeremony(state, !!state, "duo");
 
   const [oppOnline, setOppOnline] = useState(true);
   useEffect(() => {
@@ -1402,7 +1402,12 @@ function OnlineTable() {
       <MatchChat matchId={id} seat={verifiedSeat} myName={myName} owned={owned} />
 
       {dealing && (
-        <DealCeremony stockRef={stockRef} myHandRef={handRefs[me]} oppHandRef={handRefs[opp]} />
+        <DealCeremony
+          stockRef={stockRef}
+          myHandRef={handRefs[me]}
+          oppHandRef={handRefs[opp]}
+          pace="duo"
+        />
       )}
     </main>
   );

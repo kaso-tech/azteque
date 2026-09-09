@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FALLBACK_ITEMS, itemsOfKind, ownedPhrases, ownedStickers } from "./shop";
+import { sanitizeBackground } from "./backgrounds";
 
 /**
  * Le catalogue est écrit deux fois : ici pour les dessins et les libellés, en
@@ -10,6 +11,13 @@ import { FALLBACK_ITEMS, itemsOfKind, ownedPhrases, ownedStickers } from "./shop
  * la migration.
  */
 const migration = readFileSync("supabase/migrations/20260907140000_boutique.sql", "utf8");
+// Les fonds de salon sont arrivés plus tard, avec leur propre migration : la
+// concordance vaut pour eux aussi, elle se lit simplement dans un second
+// fichier.
+const migrationFonds = readFileSync(
+  "supabase/migrations/20260909170000_fonds_de_salon.sql",
+  "utf8",
+);
 
 // Le catalogue vit désormais en base ; ces constantes en sont la version
 // d'origine, celle que la migration installe et que le code sert de recours.
@@ -17,15 +25,43 @@ const SHOP_ITEMS = FALLBACK_ITEMS;
 const SHOP_AVATARS = itemsOfKind(FALLBACK_ITEMS, "avatar");
 const SHOP_STICKERS = itemsOfKind(FALLBACK_ITEMS, "sticker");
 const SHOP_MESSAGES = itemsOfKind(FALLBACK_ITEMS, "messages");
+const SHOP_FONDS = itemsOfKind(FALLBACK_ITEMS, "background");
 
-/** Les triplets du INSERT du catalogue. */
+/** Les articles annoncés par les INSERT des migrations. */
 function bareme(): Map<string, { kind: string; price: number }> {
   const bloc = migration.slice(
     migration.indexOf("INSERT INTO public.shop_items"),
     migration.indexOf("ON CONFLICT (id)"),
   );
   const lignes = [...bloc.matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+)\)/g)];
-  return new Map(lignes.map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]));
+  const fonds = [...blocDesFonds().matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+),/g)];
+  return new Map([...lignes, ...fonds].map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]));
+}
+
+/**
+ * Le INSERT du catalogue des fonds — le dernier du fichier : la fonction
+ * `admin_upsert_item`, définie plus haut, en contient un autre.
+ */
+function blocDesFonds(): string {
+  return migrationFonds.slice(
+    migrationFonds.lastIndexOf("INSERT INTO public.shop_items"),
+    migrationFonds.lastIndexOf("ON CONFLICT (id)"),
+  );
+}
+
+/**
+ * Les images annoncées par la migration, recollées : le SQL coupe chaque
+ * dégradé en une chaîne par ligne, que le moteur concatène.
+ */
+function imagesDeLaMigration(): Map<string, string> {
+  const bloc = blocDesFonds();
+  const out = new Map<string, string>();
+  for (const m of bloc.matchAll(
+    /\('([a-z_]+)',[\s\S]*?jsonb_build_object\('css',\s*([\s\S]*?)\),\s*\d+\)/g,
+  )) {
+    out.set(m[1]!, [...m[2]!.matchAll(/'([^']*)'/g)].map((x) => x[1]!).join(""));
+  }
+  return out;
 }
 
 describe("catalogue de la boutique", () => {
@@ -61,6 +97,23 @@ describe("catalogue de la boutique", () => {
     }
     const toutes = SHOP_MESSAGES.flatMap((l) => l.phrases ?? []);
     expect(new Set(toutes).size).toBe(toutes.length);
+  });
+
+  it("propose au moins deux fonds de salon, chacun avec son image", () => {
+    expect(SHOP_FONDS.length).toBeGreaterThanOrEqual(2);
+    for (const fond of SHOP_FONDS) {
+      expect(sanitizeBackground(fond.css), `${fond.id} sans image valable`).toBeTruthy();
+    }
+    expect(new Set(SHOP_FONDS.map((f) => f.css)).size).toBe(SHOP_FONDS.length);
+  });
+
+  it("sert la même image que la migration pour chaque fond", () => {
+    // Les dégradés sont recopiés à la main dans le SQL : le moindre écart et
+    // un joueur hors ligne ne verrait pas le même fond qu'un joueur connecté.
+    const images = imagesDeLaMigration();
+    for (const fond of SHOP_FONDS) {
+      expect(images.get(fond.id), `${fond.id} : image absente de la migration`).toBe(fond.css);
+    }
   });
 
   it("ne débloque que ce qui est possédé", () => {

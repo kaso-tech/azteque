@@ -251,6 +251,19 @@
     0 8px 18px -10px oklch(0 0 0 / 0.75);
 }
 
+/* Le fond de salon acheté en boutique. Un `z-index` négatif le glisse entre
+   le feutre — peint sur la page elle-même — et le menu, qui reste lisible
+   sans avoir à se positionner. */
+@utility salon-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
    posé sous une lumière, pas une image plaquée sur la table. Un calque
    au-dessus de l'illustration, jamais dans son chemin de clic. */
@@ -462,7 +475,7 @@
 }
 
 @utility animate-deal-fly {
-  animation: deal-fly 430ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  animation: deal-fly var(--fly-duration, 430ms) cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

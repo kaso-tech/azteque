@@ -62,6 +62,7 @@ import {
   SweepCard,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
+import { SalonBackdrop } from "@/components/azteque/salon-backdrop";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
@@ -777,13 +778,18 @@ function Azteque() {
   // champ commencé en Facile — et à empocher la récompense du niveau le plus
   // élevé sans l'avoir affrontée. Tout changement repart donc d'une partie
   // neuve, quel que soit l'écran par lequel il passe.
+  //
+  // Mais pas avant que le joueur soit revenu à la table : la donne lancée
+  // pendant que le panneau de l'adversaire est encore ouvert se jouait
+  // derrière lui, et il retrouvait des cartes déjà distribuées sans avoir rien
+  // vu du battage. On attend donc « Enregistrer ».
   const playedDifficulty = useRef(settings.difficulty);
   useEffect(() => {
-    if (playedDifficulty.current === settings.difficulty) return;
+    if (playedDifficulty.current === settings.difficulty || showAiProfile) return;
     playedDifficulty.current = settings.difficulty;
     if (!started) return;
     restart();
-  }, [settings.difficulty, started, restart]);
+  }, [settings.difficulty, showAiProfile, started, restart]);
 
   const doAnnounce = (trumpChoice: Suit | null) => {
     // L'atout se fixe sur cette annonce précisément quand il n'était pas
@@ -836,6 +842,7 @@ function Azteque() {
   if (!started) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
+        <SalonBackdrop kind={account?.background_kind} />
         <p className="mb-3 text-xs uppercase tracking-[0.4em] text-gold-soft">
           Jeu traditionnel d'Afrique de l'Ouest
         </p>

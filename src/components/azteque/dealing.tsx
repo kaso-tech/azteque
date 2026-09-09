@@ -17,25 +17,44 @@ import type { GameState } from "@/lib/azteque/engine";
  * relais de l'une à l'autre ne se voit pas.
  */
 
-/** Battage et coupe. */
-const SHUFFLE_MS = 820;
-/** Intervalle entre deux cartes distribuées. */
-const DEAL_STEP_MS = 55;
+/**
+ * Le rythme de la cérémonie.
+ *
+ * Seul contre l'ordinateur, le joueur a déjà vu battre les cartes cent fois et
+ * n'attend qu'une chose : les siennes. À deux, la donne est le seul moment que
+ * les deux joueurs regardent ensemble, chacun de son côté de la table — elle
+ * mérite alors qu'on prenne le temps de la voir, et personne n'y perd puisque
+ * le compte à rebours ne court pour personne pendant ce temps.
+ */
+export type DealPace = "solo" | "duo";
+
+interface Tempo {
+  /** Battage et coupe. */
+  shuffle: number;
+  /** Intervalle entre deux cartes distribuées. */
+  step: number;
+  /** Vol d'une carte du paquet à la main. Porté par `--fly-duration`. */
+  flight: number;
+  /** Temps de pose, une fois la dernière carte arrivée. */
+  hold: number;
+}
+
+const TEMPOS: Record<DealPace, Tempo> = {
+  solo: { shuffle: 820, step: 55, flight: 430, hold: 140 },
+  duo: { shuffle: 1500, step: 115, flight: 620, hold: 260 },
+};
+
 /** Cartes distribuées, six par joueur. */
 const DEALT = 12;
-/** Vol d'une carte du paquet à la main. Doit suivre `animate-deal-fly`. */
-const FLIGHT_MS = 430;
-/** Temps de pose, une fois la dernière carte arrivée. */
-const HOLD_MS = 140;
-
-/** Instant où la dernière carte se pose. */
-const LAST_CARD_MS = SHUFFLE_MS + (DEALT - 1) * DEAL_STEP_MS + FLIGHT_MS;
 
 /**
  * Durée totale, déduite de la chorégraphie et non fixée à vue : un total trop
  * court rendrait la main au joueur alors qu'une carte est encore en vol.
  */
-export const CEREMONY_MS = LAST_CARD_MS + HOLD_MS;
+export function ceremonyMs(pace: DealPace): number {
+  const t = TEMPOS[pace];
+  return t.shuffle + (DEALT - 1) * t.step + t.flight + t.hold;
+}
 
 /** Les cartes partent par paquets de trois, comme à la main. */
 function seatOf(index: number): 0 | 1 {
@@ -92,6 +111,7 @@ export function DealCeremony({
   stockRef,
   myHandRef,
   oppHandRef,
+  pace = "solo",
 }: {
   /** La pioche : c'est de là que le paquet est battu et distribué. */
   stockRef: RefObject<HTMLElement | null>;
@@ -99,9 +119,12 @@ export function DealCeremony({
   myHandRef: RefObject<HTMLElement | null>;
   /** Celle de l'adversaire. */
   oppHandRef: RefObject<HTMLElement | null>;
+  /** Doit valoir celui passé à `useDealCeremony`, qui en tient la durée. */
+  pace?: DealPace;
 }) {
   const [phase, setPhase] = useState<"shuffle" | "deal">("shuffle");
   const [geom, setGeom] = useState<Geometry | null>(null);
+  const tempo = TEMPOS[pace];
 
   // Relevé avant peinture : les mains sont déjà en place, masquées, et leurs
   // cases n'attendent que d'être recouvertes.
@@ -111,13 +134,13 @@ export function DealCeremony({
 
   useEffect(() => {
     sfx.shuffle();
-    const timers = [setTimeout(() => setPhase("deal"), SHUFFLE_MS)];
+    const timers = [setTimeout(() => setPhase("deal"), tempo.shuffle)];
     // Un claquement par carte, calé sur son départ.
     for (let i = 0; i < DEALT; i += 1) {
-      timers.push(setTimeout(() => sfx.dealCard(), SHUFFLE_MS + i * DEAL_STEP_MS));
+      timers.push(setTimeout(() => sfx.dealCard(), tempo.shuffle + i * tempo.step));
     }
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [tempo]);
 
   if (!geom) return null;
   const { deck, slots } = geom;
@@ -136,7 +159,7 @@ export function DealCeremony({
               top: deck.top,
               width: deck.width,
               height: deck.height,
-              "--riffle-duration": `${SHUFFLE_MS}ms`,
+              "--riffle-duration": `${tempo.shuffle}ms`,
             } as React.CSSProperties
           }
         >
@@ -167,7 +190,7 @@ export function DealCeremony({
                 {
                   "--riffle-x": x,
                   "--riffle-r": r,
-                  "--riffle-duration": `${SHUFFLE_MS}ms`,
+                  "--riffle-duration": `${tempo.shuffle}ms`,
                 } as React.CSSProperties
               }
             >
@@ -202,7 +225,8 @@ export function DealCeremony({
                   // Inclinaison au départ seulement : la carte se redresse en
                   // arrivant, comme celle que la main affichera.
                   "--dr": `${(slotOf(i) - 2.5) * 5}deg`,
-                  animationDelay: `${i * DEAL_STEP_MS}ms`,
+                  "--fly-duration": `${tempo.flight}ms`,
+                  animationDelay: `${i * tempo.step}ms`,
                 } as React.CSSProperties
               }
             >
@@ -240,7 +264,11 @@ export function freshDealId(state: GameState | null | undefined): string | null 
  * Elle est purement décorative : un joueur qui a demandé moins d'animations la
  * saute entièrement, plutôt que d'attendre deux secondes devant un écran fixe.
  */
-export function useDealCeremony(state: GameState | null | undefined, active: boolean) {
+export function useDealCeremony(
+  state: GameState | null | undefined,
+  active: boolean,
+  pace: DealPace = "solo",
+) {
   const [dealing, setDealing] = useState(false);
   const lastDeal = useRef<string | null>(null);
 
@@ -256,9 +284,9 @@ export function useDealCeremony(state: GameState | null | undefined, active: boo
       return;
     }
     setDealing(true);
-    const t = setTimeout(() => setDealing(false), CEREMONY_MS);
+    const t = setTimeout(() => setDealing(false), ceremonyMs(pace));
     return () => clearTimeout(t);
-  }, [dealId]);
+  }, [dealId, pace]);
 
   // Quitter la table pendant la donne ne doit pas laisser les mains masquées.
   useEffect(() => {

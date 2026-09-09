@@ -56,6 +56,8 @@ export interface Profile extends PublicProfile {
   rated_games: number;
   /** Journée du dernier cadeau quotidien perçu, au format AAAA-MM-JJ. */
   daily_bonus_at: string;
+  /** Fond de salon porté : l'identifiant de l'article, ou `null` par défaut. */
+  background_kind?: string | null;
 }
 
 export interface Friend {
@@ -117,6 +119,7 @@ const MIGRATION_PAR_COLONNE: Record<string, string> = {
   active: "20260907160000_administration.sql",
   referral_code: "20260908000000_parrainage.sql",
   snoozed_at: "20260908130000_invitations_report.sql",
+  background_kind: "20260909170000_fonds_de_salon.sql",
 };
 
 /**
@@ -139,7 +142,7 @@ const MIGRATION_PAR_FONCTION: Record<string, string> = {
   is_admin: "20260907160000_administration.sql",
   admin_delete_item: "20260907190000_console_complete.sql",
   admin_list_players: "20260907190000_console_complete.sql",
-  admin_upsert_item: "20260907190000_console_complete.sql",
+  admin_upsert_item: "20260909170000_fonds_de_salon.sql",
   settle_match: "20260909120000_settle_match_both_wallets.sql",
   touch_last_seen: "20260907190000_console_complete.sql",
   admin_log_sound_change: "20260907230000_sons_storage.sql",
@@ -590,6 +593,23 @@ export async function setAvatarKind(kind: string): Promise<void> {
   if (!id) throw new Error("Connectez-vous d'abord.");
   const { error } = await anyTable("profiles")
     .update({ avatar_kind: kind } as never)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Le fond de salon porté. `null` retire celui en place et rend le halo du
+ * feutre.
+ *
+ * La possession est vérifiée en base, par un déclencheur, comme pour l'avatar :
+ * un appel forgé depuis la console du navigateur se fait refuser plutôt que
+ * d'offrir gratuitement ce que les autres achètent.
+ */
+export async function setBackgroundKind(kind: string | null): Promise<void> {
+  const id = await currentUserId();
+  if (!id) throw new Error("Connectez-vous d'abord.");
+  const { error } = await anyTable("profiles")
+    .update({ background_kind: kind } as never)
     .eq("id", id);
   if (error) throw error;
 }

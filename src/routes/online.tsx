@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
 import { RankProgressCard } from "@/components/azteque/rank";
 import { PlayerAvatar } from "@/components/azteque/avatar";
+import { SalonBackdrop } from "@/components/azteque/salon-backdrop";
 import {
   describeError,
   claimLocalTokens,
@@ -231,6 +232,7 @@ function OnlineLobby() {
 
   const shell = (children: React.ReactNode) => (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-5 px-6 py-12 text-center">
+      <SalonBackdrop kind={profile?.background_kind} />
       <h1 className="gold-text text-4xl">Jouer en ligne</h1>
       {children}
       <Link to="/" className="text-xs text-gold underline">

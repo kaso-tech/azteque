@@ -5,12 +5,23 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { Sticker } from "@/components/azteque/stickers";
 import { describeError } from "@/lib/azteque/account";
 import { loadCatalogue, useCatalogue, type ShopItem, type ShopKind } from "@/lib/azteque/shop";
+import { BACKGROUND_PRESETS, sanitizeBackground } from "@/lib/azteque/backgrounds";
 import { adminUpsertItem, adminDeleteItem } from "@/lib/azteque/admin";
 import { adminShopSalesSummary, type ShopSalesRow } from "@/lib/azteque/admin-shop-log";
 
 /** Les dessins que le jeu sait rendre : un article nouveau leur emprunte. */
 const DESSINS_AVATAR = ["av_marchand", "av_reine", "av_griot", "av_elegante", "av_roi"];
 const DESSINS_STICKER = ["st_bravo", "st_rire", "st_pitie", "st_atout", "st_feu", "st_couronne"];
+
+/** Les fonds livrés avec le jeu, proposés comme point de départ. */
+const FONDS_LIVRES = Object.keys(BACKGROUND_PRESETS);
+
+const KIND_LABEL: Record<ShopKind, string> = {
+  avatar: "Avatar",
+  sticker: "Sticker",
+  messages: "Lot de messages",
+  background: "Fond de salon",
+};
 
 type FiltreKind = "tous" | ShopKind;
 type FiltreStatut = "tous" | "en_vente" | "retire";
@@ -25,6 +36,7 @@ interface Brouillon {
   active: boolean;
   art: string;
   phrases: string;
+  css: string;
   sort: string;
   nouveau: boolean;
 }
@@ -39,6 +51,7 @@ function brouillonDe(i: ShopItem): Brouillon {
     active: i.active,
     art: i.art ?? "",
     phrases: (i.phrases ?? []).join("\n"),
+    css: i.css ?? "",
     sort: String(i.sort),
     nouveau: false,
   };
@@ -54,9 +67,22 @@ function brouillonNeuf(kind: ShopKind, sort: number): Brouillon {
     active: true,
     art: kind === "avatar" ? DESSINS_AVATAR[0]! : kind === "sticker" ? DESSINS_STICKER[0]! : "",
     phrases: "",
+    css: kind === "background" ? (BACKGROUND_PRESETS[FONDS_LIVRES[0]!] ?? "") : "",
     sort: String(sort),
     nouveau: true,
   };
+}
+
+/** Le fond tel qu'il sera vu : posé sur le feutre, comme dans le salon. */
+function ApercuFond({ css, className }: { css: string; className: string }) {
+  const image = sanitizeBackground(css);
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("block rounded-md border border-border bg-cover bg-center", className)}
+      style={{ backgroundImage: `${image ?? ""}, var(--gradient-felt)` }}
+    />
+  );
 }
 
 function formatDate(iso: string | null): string {
@@ -142,6 +168,15 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       onErreur("Un lot de messages doit contenir au moins une phrase.");
       return;
     }
+    // Une image refusée ici l'aurait été chez les joueurs : mieux vaut le dire
+    // à celui qui l'écrit que de l'enregistrer pour rien.
+    const css = brouillon.kind === "background" ? sanitizeBackground(brouillon.css) : null;
+    if (brouillon.kind === "background" && !css) {
+      onErreur(
+        "Image invalide : un empilement de dégradés CSS, ou url() en https, data: ou chemin du site.",
+      );
+      return;
+    }
     setBusy(true);
     onErreur(null);
     adminUpsertItem({
@@ -151,7 +186,12 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       active: brouillon.active,
       name: brouillon.name.trim(),
       hint: brouillon.hint.trim(),
-      data: brouillon.kind === "messages" ? { phrases } : { art: brouillon.art },
+      data:
+        brouillon.kind === "messages"
+          ? { phrases }
+          : brouillon.kind === "background"
+            ? { css }
+            : { art: brouillon.art },
       sort: Number(brouillon.sort) || 0,
     })
       .then(() => {
@@ -194,6 +234,8 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
   const apercu = (b: Brouillon) =>
     b.kind === "messages" ? (
       <span className="text-2xl">💬</span>
+    ) : b.kind === "background" ? (
+      <ApercuFond css={b.css} className="h-12 w-20" />
     ) : b.kind === "avatar" ? (
       <PlayerAvatar className="h-12 w-12" profile={{ avatar_kind: b.art }} />
     ) : (
@@ -229,6 +271,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           <option value="avatar">Avatars</option>
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
+          <option value="background">Fonds de salon</option>
         </FiltrePill>
         <FiltrePill
           label="Statut"
@@ -247,7 +290,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           <option value="ca">CA décroissant (7j)</option>
         </FiltrePill>
         <div className="flex-1" />
-        {(["avatar", "sticker", "messages"] as const).map((k) => (
+        {(["avatar", "sticker", "messages", "background"] as const).map((k) => (
           <Button
             key={k}
             size="sm"
@@ -256,7 +299,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
               setBrouillon(brouillonNeuf(k, Math.max(0, ...catalogue.map((i) => i.sort)) + 10))
             }
           >
-            + {k === "avatar" ? "Avatar" : k === "sticker" ? "Sticker" : "Lot de messages"}
+            + {KIND_LABEL[k]}
           </Button>
         ))}
       </div>
@@ -296,6 +339,46 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                 className="mt-0.5 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
               />
             </label>
+          ) : brouillon.kind === "background" ? (
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="block text-[0.68rem] text-muted-foreground">
+                Image — dégradés CSS empilés, ou url("https://…") vers un fichier
+                <textarea
+                  value={brouillon.css}
+                  onChange={(e) => setBrouillon({ ...brouillon, css: e.target.value })}
+                  rows={6}
+                  spellCheck={false}
+                  className="mt-0.5 w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono text-[0.7rem] text-foreground"
+                />
+              </label>
+              <div>
+                <p className="text-[0.68rem] text-muted-foreground">Aperçu sur le feutre</p>
+                <ApercuFond css={brouillon.css} className="mt-0.5 h-28 w-full sm:w-44" />
+                <p className="mt-2 text-[0.68rem] text-muted-foreground">
+                  Repartir d'un fond livré
+                </p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {FONDS_LIVRES.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      title={f}
+                      onClick={() =>
+                        setBrouillon({ ...brouillon, css: BACKGROUND_PRESETS[f] ?? "" })
+                      }
+                      className={cn(
+                        "rounded-md p-0.5",
+                        brouillon.css === BACKGROUND_PRESETS[f]
+                          ? "ring-1 ring-gold"
+                          : "hover:bg-secondary",
+                      )}
+                    >
+                      <ApercuFond css={BACKGROUND_PRESETS[f] ?? ""} className="h-8 w-12" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="mt-2">
               <p className="text-[0.68rem] text-muted-foreground">Dessin</p>
@@ -383,7 +466,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                     >
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2.5">
-                          <div className="grid h-9 w-9 shrink-0 place-items-center">
+                          <div className="grid h-9 w-14 shrink-0 place-items-center">
                             {i.kind === "avatar" ? (
                               <PlayerAvatar
                                 className="h-9 w-9"
@@ -391,6 +474,8 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                               />
                             ) : i.kind === "sticker" ? (
                               <Sticker id={i.art ?? i.id} className="h-8 w-8" />
+                            ) : i.kind === "background" ? (
+                              <ApercuFond css={i.css ?? ""} className="h-8 w-14" />
                             ) : (
                               <span className="text-xl">💬</span>
                             )}
@@ -496,6 +581,7 @@ function PillKind({ kind }: { kind: ShopKind }) {
     avatar: { label: "Avatar", cls: "border-info/40 bg-info/10 text-info" },
     sticker: { label: "Sticker", cls: "border-warning/40 bg-warning/10 text-warning" },
     messages: { label: "Messages", cls: "border-success/40 bg-success/10 text-success" },
+    background: { label: "Fond", cls: "border-gold/40 bg-gold/10 text-gold" },
   };
   const c = config[kind];
   return (

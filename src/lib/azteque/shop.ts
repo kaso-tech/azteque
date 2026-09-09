@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { BACKGROUND_PRESETS, backgroundImage } from "@/lib/azteque/backgrounds";
 
 /**
  * La boutique.
@@ -13,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
  * `buy_item` relit le prix qu'elle tient.
  */
 
-export type ShopKind = "avatar" | "sticker" | "messages";
+export type ShopKind = "avatar" | "sticker" | "messages" | "background";
 
 export interface ShopItem {
   id: string;
@@ -27,6 +28,8 @@ export interface ShopItem {
   art?: string | undefined;
   /** Les phrases mises à disposition, pour un lot de messages. */
   phrases?: string[] | undefined;
+  /** L'image, pour un fond de salon : une valeur CSS `background-image`. */
+  css?: string | undefined;
   sort: number;
 }
 
@@ -190,6 +193,46 @@ export const FALLBACK_ITEMS: ShopItem[] = [
       "Le champ se décide maintenant.",
     ],
   },
+  {
+    id: "bg_aurore",
+    kind: "background",
+    name: "Aurore",
+    hint: "Le soleil se lève derrière le menu",
+    price: 600,
+    active: true,
+    sort: 150,
+    css: BACKGROUND_PRESETS["bg_aurore"],
+  },
+  {
+    id: "bg_crepuscule",
+    kind: "background",
+    name: "Crépuscule",
+    hint: "Pourpre du soir et braise d'horizon",
+    price: 900,
+    active: true,
+    sort: 160,
+    css: BACKGROUND_PRESETS["bg_crepuscule"],
+  },
+  {
+    id: "bg_nuit",
+    kind: "background",
+    name: "Nuit étoilée",
+    hint: "La voûte bleue et ses étoiles",
+    price: 1400,
+    active: true,
+    sort: 170,
+    css: BACKGROUND_PRESETS["bg_nuit"],
+  },
+  {
+    id: "bg_or",
+    kind: "background",
+    name: "Halo d'or",
+    hint: "Trois anneaux d'or, pour les grands soirs",
+    price: 2200,
+    active: true,
+    sort: 180,
+    css: BACKGROUND_PRESETS["bg_or"],
+  },
 ];
 
 let catalogue: ShopItem[] = FALLBACK_ITEMS;
@@ -203,7 +246,7 @@ interface Ligne {
   hint: string | null;
   price: number;
   active?: boolean;
-  data?: { art?: string; phrases?: string[] } | null;
+  data?: { art?: string; phrases?: string[]; css?: string } | null;
   sort?: number;
 }
 
@@ -211,13 +254,18 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
   return rows
     .map((r) => ({
       id: r.id,
-      kind: (["avatar", "sticker", "messages"].includes(r.kind) ? r.kind : "sticker") as ShopKind,
+      kind: (["avatar", "sticker", "messages", "background"].includes(r.kind)
+        ? r.kind
+        : "sticker") as ShopKind,
       name: r.name ?? r.id,
       hint: r.hint ?? "",
       price: r.price,
       active: r.active ?? true,
       art: r.data?.art,
       phrases: r.data?.phrases,
+      // Un fond installé avant que la console ne sache l'écrire n'a pas encore
+      // son image en base : le préréglage du code prend alors le relais.
+      css: r.data?.css ?? BACKGROUND_PRESETS[r.id],
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
@@ -283,6 +331,20 @@ export function ownedPhrases(owned: ReadonlySet<string>, items: ShopItem[] = cat
   return items
     .filter((i) => i.kind === "messages" && owned.has(i.id))
     .flatMap((i) => i.phrases ?? []);
+}
+
+/**
+ * L'image du fond porté, prête à poser, ou `null` si le joueur n'en a choisi
+ * aucun — auquel cas le halo du feutre reste seul, comme avant la boutique.
+ */
+export function equippedBackground(
+  kind: string | null | undefined,
+  items: ShopItem[] = catalogue,
+): string | null {
+  if (!kind) return null;
+  const item = items.find((i) => i.id === kind);
+  if (item && item.kind !== "background") return null;
+  return backgroundImage(item?.css, kind);
 }
 
 /** Les stickers possédés, dans l'ordre du catalogue. */

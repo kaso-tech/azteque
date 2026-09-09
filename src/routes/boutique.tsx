@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/components/azteque/avatar";
 import { Sticker } from "@/components/azteque/stickers";
-import { itemsOfKind, useCatalogue, type ShopItem } from "@/lib/azteque/shop";
+import {
+  equippedBackground,
+  itemsOfKind,
+  useCatalogue,
+  type ShopItem,
+  type ShopKind,
+} from "@/lib/azteque/shop";
 import {
   buyItem,
   currentUserId,
@@ -12,6 +18,7 @@ import {
   getMyProfile,
   listPurchases,
   setAvatarKind,
+  setBackgroundKind,
   type Profile,
 } from "@/lib/azteque/account";
 
@@ -41,7 +48,7 @@ function Boutique() {
   const catalogue = useCatalogue();
   // Un article retiré de la vente reste visible à qui l'a acheté, et disparaît
   // pour les autres : c'est ce que « retirer » veut dire.
-  const visibles = (k: "avatar" | "sticker" | "messages") =>
+  const visibles = (k: ShopKind) =>
     itemsOfKind(catalogue, k).filter((i) => i.active || owned.has(i.id));
 
   const charger = useCallback(async () => {
@@ -96,6 +103,14 @@ function Boutique() {
     });
   };
 
+  const poserFond = (id: string | null) => {
+    setProfile((p) => (p ? { ...p, background_kind: id } : p));
+    setBackgroundKind(id).catch((e: unknown) => {
+      void charger();
+      setErreur(describeError(e, "Changement de fond impossible."));
+    });
+  };
+
   const coque = (contenu: React.ReactNode) => (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 py-6">
       <header className="flex items-center justify-between gap-3">
@@ -134,7 +149,8 @@ function Boutique() {
 
   const carte = (item: ShopItem, apercu: React.ReactNode, extra?: React.ReactNode) => {
     const acquis = owned.has(item.id);
-    const porte = profile?.avatar_kind === item.id;
+    const fond = item.kind === "background";
+    const porte = fond ? profile?.background_kind === item.id : profile?.avatar_kind === item.id;
     return (
       <div
         key={item.id}
@@ -150,7 +166,18 @@ function Boutique() {
         </div>
         {extra}
         {acquis ? (
-          item.kind === "avatar" ? (
+          fond ? (
+            // Un fond posé doit pouvoir être retiré : sans quoi le halo
+            // d'origine serait perdu au premier achat.
+            <Button
+              size="sm"
+              variant={porte ? "outline" : "default"}
+              onClick={() => poserFond(porte ? null : item.id)}
+              className="w-full"
+            >
+              {porte ? "Retirer" : "Mettre en place"}
+            </Button>
+          ) : item.kind === "avatar" ? (
             <Button
               size="sm"
               variant={porte ? "outline" : "default"}
@@ -192,6 +219,29 @@ function Boutique() {
             carte(
               a,
               <PlayerAvatar className="h-16 w-16" profile={{ avatar_kind: a.art ?? a.id }} />,
+            ),
+          )}
+        </div>
+      </section>
+
+      <section className="panel px-4 py-4">
+        <h2 className="font-display text-lg text-gold">Fonds de salon</h2>
+        <p className="text-xs text-muted-foreground">
+          L'image posée derrière le menu et le salon en ligne, à la place du halo.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {visibles("background").map((f) =>
+            carte(
+              f,
+              <span
+                aria-hidden="true"
+                className="block h-20 w-full rounded-md border border-border bg-cover bg-center"
+                style={{
+                  // L'aperçu montre le fond tel qu'il sera vu : posé sur le
+                  // feutre, pas sur du blanc.
+                  backgroundImage: `${equippedBackground(f.id, catalogue) ?? ""}, var(--gradient-felt)`,
+                }}
+              />,
             ),
           )}
         </div>
