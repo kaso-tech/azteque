@@ -1301,6 +1301,34 @@ function Azteque() {
           </div>
         )}
 
+      {confirmAnticipate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
+              pioche sont versées à l'adversaire, puis les points sont comptés.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmAnticipate(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Continuer le tour
+              </button>
+              <button
+                type="button"
+                onClick={anticipateNow}
+                className="rounded-full bg-[image:var(--gradient-gold)] px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Anticiper
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmQuit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-sm p-6 text-center">
