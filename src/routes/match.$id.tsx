@@ -574,6 +574,7 @@ function OnlineTable() {
   // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
   // chacun voyant la table avec le sien.
   const [myTapis, setMyTapis] = useState<string | null>(null);
+  const [myProfile, setMyProfile] = useState<PublicProfile | null>(null);
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
@@ -583,6 +584,7 @@ function OnlineTable() {
       getMyProfile()
         .then((p) => {
           if (!alive) return;
+          setMyProfile((p as PublicProfile | null) ?? null);
           setMyRank(p?.rating ?? null);
           setMyTapis(p?.background_kind ?? null);
         })
@@ -1041,6 +1043,14 @@ function OnlineTable() {
     void runAction({ type: "skip_announce" });
   };
 
+  // Anticiper la fin du tour : le serveur verse alors les bonnes de notre main
+  // et celles restées dans la pioche au tas de l'adversaire.
+  const [confirmAnticipate, setConfirmAnticipate] = useState(false);
+  const anticipateNow = () => {
+    setConfirmAnticipate(false);
+    void runAction({ type: "anticipate" });
+  };
+
   const readyNextRound = () => {
     void runAction({ type: "ready_next_round" });
   };
@@ -1110,9 +1120,17 @@ function OnlineTable() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
-        <p ref={monNomRef} className="truncate text-left text-xs font-semibold text-foreground">
-          {myName}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          <div className="min-w-0 text-left">
+            <p ref={monNomRef} className="truncate text-xs font-semibold text-foreground">
+              {myName}
+            </p>
+            {myRank !== null && (
+              <RankBadge rating={myRank} compact className="mt-0.5 text-[0.65rem]" />
+            )}
+          </div>
+        </div>
         <div className="min-w-16 text-center">
           <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
