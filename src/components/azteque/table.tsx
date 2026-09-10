@@ -360,13 +360,9 @@ export function HandRow({
             <PlayingCard
               card={c}
               size="hand"
-              className={
-                animateArrivals
-                  ? arriving.has(c.id)
-                    ? "animate-slot-fill"
-                    : "animate-deal"
-                  : undefined
-              }
+              {...(animateArrivals
+                ? { className: arriving.has(c.id) ? "animate-slot-fill" : "animate-deal" }
+                : {})}
               faceDown={faceDown ? faceDown(c) : false}
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
