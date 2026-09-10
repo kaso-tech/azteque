@@ -39,6 +39,7 @@ const actionSchema = z.discriminatedUnion("type", [
     trump: suitSchema.nullable(),
   }),
   z.object({ type: z.literal("skip_announce") }),
+  z.object({ type: z.literal("anticipate") }),
   z.object({ type: z.literal("new_round") }),
   z.object({ type: z.literal("ready_next_round") }),
   z.object({ type: z.literal("propose_bet"), amount: z.number().int().positive() }),
