@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   announce,
+  anticipate,
   drawNext,
   newRound,
   playCard,
@@ -39,6 +40,7 @@ const actionSchema = z.discriminatedUnion("type", [
     trump: suitSchema.nullable(),
   }),
   z.object({ type: z.literal("skip_announce") }),
+  z.object({ type: z.literal("anticipate") }),
   z.object({ type: z.literal("new_round") }),
   z.object({ type: z.literal("ready_next_round") }),
   z.object({ type: z.literal("propose_bet"), amount: z.number().int().positive() }),
@@ -400,6 +402,10 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       case "resolve_trick":
         next = resolveTrick(state, { atout10: true });
         if (next === state) throw new Error("Aucun pli à résoudre.");
+        break;
+      case "anticipate":
+        next = anticipate(state, me);
+        if (next === state) throw new Error("Impossible d'anticiper maintenant.");
         break;
       case "draw_next":
         next = drawNext(state);

@@ -8,6 +8,7 @@ import {
   aiChooseCardAt,
   aiWantsRedeal,
   announce,
+  anticipate,
   availableMelds,
   drawNext,
   hasMainBlanche,
@@ -761,6 +762,22 @@ function Azteque() {
     setStarted(false);
   }, []);
 
+  // Anticiper la fin du tour : possible à son tour, hors animation, tant
+  // qu'aucune carte n'est posée et qu'aucune décision n'est en attente.
+  const [confirmAnticipate, setConfirmAnticipate] = useState(false);
+  const canAnticipate =
+    started &&
+    !dealing &&
+    state.phase === "playing" &&
+    state.turn === 0 &&
+    state.trick.length === 0 &&
+    state.drawPending.length === 0 &&
+    !meldDecisionPending;
+  const anticipateNow = () => {
+    setConfirmAnticipate(false);
+    setState((s) => anticipate(s, 0));
+  };
+
   // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
   // accepter une invitation pendant qu'on joue devra d'abord passer par
   // `quitTable`, avec l'avertissement qui va avec.
@@ -1162,6 +1179,14 @@ function Azteque() {
           </button>
           <button
             type="button"
+            disabled={!canAnticipate}
+            onClick={() => setConfirmAnticipate(true)}
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-40"
+          >
+            Anticiper la fin
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirmQuit(true)}
             className="rounded-full border border-destructive/50 bg-felt-deep/95 px-3 py-1 text-[0.68rem] font-semibold text-destructive transition-colors hover:bg-destructive/10"
           >
@@ -1275,6 +1300,34 @@ function Azteque() {
             </div>
           </div>
         )}
+
+      {confirmAnticipate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
+              pioche sont versées à l'adversaire, puis les points sont comptés.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmAnticipate(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Continuer le tour
+              </button>
+              <button
+                type="button"
+                onClick={anticipateNow}
+                className="rounded-full bg-[image:var(--gradient-gold)] px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Anticiper
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmQuit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
