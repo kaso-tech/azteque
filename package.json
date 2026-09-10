@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check": "eslint . && tsc --noEmit && vitest run && vite build",
     "bench": "bun scripts/ai-bench.ts"
   },
   "overrides": {
