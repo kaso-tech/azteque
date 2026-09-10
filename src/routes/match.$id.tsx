@@ -807,6 +807,15 @@ function OnlineTable() {
     );
   }, [state, apercusEnAttente, pileRefs, trickSlotRefs]);
 
+  // Le pli ramassé cesse d'être masqué dès que le serveur l'a réellement vidé
+  // (ou qu'un autre pli commence) : le repère n'a plus lieu d'être.
+  const cleServeur = (state?.trick ?? []).map((e) => e.card.id).join("|");
+  useEffect(() => {
+    if (pliRamasse !== "" && cleServeur !== pliRamasse) setPliRamasse("");
+  }, [cleServeur, pliRamasse]);
+
+
+
   // La pioche en attente, s'il y en a une : qui doit piocher, et un repère qui
   // désigne CETTE pioche-là — le talon baisse d'une carte à chaque fois, ce
   // qui suffit à les distinguer.
