@@ -450,6 +450,7 @@ export type Database = {
       }
     }
     Functions: {
+      _settle_match_impl: { Args: { _match_id: string }; Returns: undefined }
       accept_game_invite: {
         Args: { _invite_id: string }
         Returns: {
@@ -777,6 +778,10 @@ export type Database = {
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      settle_match_as_server: {
+        Args: { _match_id: string }
+        Returns: undefined
+      }
       submit_player_report: {
         Args: { _details?: string; _reason: string; _target: string }
         Returns: number
