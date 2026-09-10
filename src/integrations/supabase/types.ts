@@ -346,24 +346,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "referrals_invited_id_fkey"
-            columns: ["invited_id"]
-            isOneToOne: true
-            referencedRelation: "public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "referrals_sponsor_id_fkey"
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_sponsor_id_fkey"
-            columns: ["sponsor_id"]
-            isOneToOne: false
-            referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -417,34 +403,6 @@ export type Database = {
           rounds_played: number | null
           updated_at: string | null
           username: string | null
-        }
-        Insert: {
-          avatar_kind?: string | null
-          avatar_url?: string | null
-          country?: string | null
-          created_at?: string | null
-          id?: string | null
-          last_seen_at?: string | null
-          peak_rating?: number | null
-          rated_games?: number | null
-          rating?: number | null
-          rounds_played?: number | null
-          updated_at?: string | null
-          username?: string | null
-        }
-        Update: {
-          avatar_kind?: string | null
-          avatar_url?: string | null
-          country?: string | null
-          created_at?: string | null
-          id?: string | null
-          last_seen_at?: string | null
-          peak_rating?: number | null
-          rated_games?: number | null
-          rating?: number | null
-          rounds_played?: number | null
-          updated_at?: string | null
-          username?: string | null
         }
         Relationships: []
       }
@@ -772,6 +730,23 @@ export type Database = {
         Returns: {
           created_at: string
           reward: number
+          username: string
+        }[]
+      }
+      public_profiles_rows: {
+        Args: never
+        Returns: {
+          avatar_kind: string
+          avatar_url: string
+          country: string
+          created_at: string
+          id: string
+          last_seen_at: string
+          peak_rating: number
+          rated_games: number
+          rating: number
+          rounds_played: number
+          updated_at: string
           username: string
         }[]
       }
