@@ -63,7 +63,7 @@ import {
   type PublicProfile,
 } from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
-import { PlayerAvatar } from "@/components/azteque/avatar";
+import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
 
@@ -574,7 +574,7 @@ function OnlineTable() {
   // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
   // chacun voyant la table avec le sien.
   const [myTapis, setMyTapis] = useState<string | null>(null);
-  const [myProfile, setMyProfile] = useState<PublicProfile | null>(null);
+  const [myProfile, setMyProfile] = useState<AvatarSource | null>(null);
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
@@ -584,7 +584,7 @@ function OnlineTable() {
       getMyProfile()
         .then((p) => {
           if (!alive) return;
-          setMyProfile((p as PublicProfile | null) ?? null);
+          setMyProfile(p ?? null);
           setMyRank(p?.rating ?? null);
           setMyTapis(p?.background_kind ?? null);
         })
