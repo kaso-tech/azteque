@@ -179,15 +179,30 @@ function OnlineTable() {
   const [drawFlights, setDrawFlights] = useState<
     {
       id: number;
+      /** La pioche que ce vol représente : il ne s'efface qu'une fois CELLE-CI servie. */
+      cle: string;
       player: PlayerIndex;
       from: { x: number; y: number };
       to: { x: number; y: number };
       delay: number;
     }[]
   >([]);
+  /** Vol de pioche dont la durée minimale est écoulée : il peut céder la place. */
+  const [volPiocheAbouti, setVolPiocheAbouti] = useState("");
   const [sweepFlights, setSweepFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
+  /**
+   * Le pli déjà ramassé à l'écran.
+   *
+   * Le serveur peut mettre un instant à vider le pli — chez l'invité, sa propre
+   * demande de résolution n'est qu'un recours à quatre secondes. Sans ce
+   * repère, les deux cartes que l'on vient de voir partir vers le tas
+   * réapparaissaient sur le tapis le temps que la réponse arrive, puis
+   * disparaissaient d'un coup.
+   */
+  const [pliRamasse, setPliRamasse] = useState("");
+
   // Pendant la résolution d'un pli (ramassage puis éventuel transfert « atout
   // 10 »), le serveur a déjà avancé l'état bien avant que l'animation locale
   // n'ait fini de jouer (l'aller-retour réseau est plus rapide que le vol des
@@ -207,6 +222,10 @@ function OnlineTable() {
   // serveur normalement.
   const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
   const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
+  const cleAffichee = displayTrick.map((e) => e.card.id).join("|");
+  // Le pli reste invisible depuis son envol vers le tas jusqu'à ce que le
+  // serveur l'ait bel et bien vidé.
+  const pliMasque = collect.length > 0 || (pliRamasse !== "" && pliRamasse === cleAffichee);
 
   // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
   // l'adversaire dès qu'elle apparaît dans le pli. Elle s'appuie sur le pli
@@ -716,6 +735,7 @@ function OnlineTable() {
 
         setAnimating(true);
         setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
+        setPliRamasse(cle);
 
         const lastDelay = 140;
         setCollect([
@@ -785,6 +805,13 @@ function OnlineTable() {
     );
   }, [state, apercusEnAttente, pileRefs, trickSlotRefs]);
 
+  // Le pli ramassé cesse d'être masqué dès que le serveur l'a réellement vidé
+  // (ou qu'un autre pli commence) : le repère n'a plus lieu d'être.
+  const cleServeur = (state?.trick ?? []).map((e) => e.card.id).join("|");
+  useEffect(() => {
+    if (pliRamasse !== "" && cleServeur !== pliRamasse) setPliRamasse("");
+  }, [cleServeur, pliRamasse]);
+
   // La pioche en attente, s'il y en a une : qui doit piocher, et un repère qui
   // désigne CETTE pioche-là — le talon baisse d'une carte à chaque fois, ce
   // qui suffit à les distinguer.
@@ -811,28 +838,54 @@ function OnlineTable() {
     }
     if (piocheAnimee.current === piocheCle) return;
     piocheAnimee.current = piocheCle;
+    const cle = piocheCle;
     animTimers.current.push(
       setTimeout(() => {
         const from = center(stockRef.current);
         const to = center(handRefs[piochePlayer].current);
         if (!from || !to) return;
-        setDrawFlights([{ id: Date.now(), player: piochePlayer, from, to, delay: 0 }]);
+        setDrawFlights([{ id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 }]);
         animTimers.current.push(
           setTimeout(() => {
-            setDrawFlights([]);
+            // Le vol a fait son chemin : il peut désormais s'effacer, mais
+            // seulement quand la carte apparaît vraiment dans la main.
+            setVolPiocheAbouti(cle);
             // Le bruit de la pioche accompagne le geste qu'on voit, pas la
             // réponse du serveur : chez l'invité, elle est déjà passée.
             sfx.draw();
           }, VOL_PIOCHE),
         );
+        // Filet de sécurité : si la pioche n'aboutit jamais (envoi perdu), le
+        // vol ne doit pas rester suspendu à l'écran.
+        animTimers.current.push(
+          setTimeout(() => {
+            setDrawFlights((v) => (v[0]?.cle === cle ? [] : v));
+          }, VOL_PIOCHE + 6000),
+        );
       }, ATTENTE_PIOCHE),
     );
   }, [piochePlayer, piocheCle, handRefs, stockRef]);
 
+  /**
+   * Le relais entre le vol et la main.
+   *
+   * Le vol s'effaçait sur une simple minuterie, alors que la carte n'entrait
+   * dans la main qu'après l'aller-retour réseau : entre les deux, un temps
+   * mort où la carte avait disparu de partout. Il ne s'efface donc plus qu'une
+   * fois sa durée écoulée ET la pioche réellement servie par le serveur.
+   */
+  useEffect(() => {
+    const vol = drawFlights[0];
+    if (!vol) return;
+    if (volPiocheAbouti !== vol.cle) return;
+    if (piocheCle === vol.cle) return;
+    setDrawFlights([]);
+  }, [drawFlights, volPiocheAbouti, piocheCle]);
+
   // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
-  // tranche, l'invité n'intervient qu'à défaut. Elle part une fois la carte
-  // arrivée à destination, pour que la main se garnisse au moment où le vol
-  // s'y pose.
+  // tranche, l'invité n'intervient qu'à défaut. Elle part dès que la carte
+  // décolle, pour que la main soit garnie au moment où le vol s'y pose : la
+  // réponse du serveur voyage pendant le vol au lieu de le suivre.
   const piocheDemandee = useRef("");
   useEffect(() => {
     if (piochePlayer === null || piocheCle === null) {
@@ -845,7 +898,7 @@ function OnlineTable() {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      (isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000) + VOL_PIOCHE,
+      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000,
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
@@ -1208,7 +1261,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={opp}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[opp]}
             />
@@ -1232,7 +1285,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={me}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[me]}
             />
