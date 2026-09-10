@@ -172,12 +172,54 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
     const state = (row.state as GameState | null) ?? null;
     const settings = (row.settings ?? {}) as Record<string, unknown>;
 
+    // Règle la mise (déplacement des jetons, classement) dès que le champ se
+    // termine, sans dépendre d'un navigateur resté ouvert pour le déclencher.
+    //
+    // useBetNegotiation.ts appelle aussi `settle_match` dès qu'il voit
+    // `state.phase === "gameEnd"` — mais seulement tant que l'écran de partie
+    // reste monté pour le voir. Ça tient pour une victoire ordinaire (le
+    // joueur reste sur l'écran de fin de champ) mais casse pour un abandon :
+    // "Quitter la table" déclare le forfait puis navigue IMMÉDIATEMENT
+    // ailleurs, avant même que la réponse ne fasse passer l'état local à
+    // "gameEnd" chez celui qui abandonne. Si l'adversaire a lui aussi déjà
+    // quitté l'écran au même moment, plus personne n'appelle jamais
+    // `settle_match` : la base sait pourtant déjà, correctement, qui a gagné.
+    //
+    // On règle donc ICI, dans le même aller-retour que l'action qui termine
+    // le champ — voir `settle_match_as_server` (SQL), réservée à la clé de
+    // service. L'appel client reste un filet de sécurité idempotent
+    // (`settled_at` empêche un double règlement), inoffensif à conserver.
+    const settleIfEnded = async (next: GameState) => {
+      if (next.phase !== "gameEnd") return;
+      try {
+        // `settle_match_as_server` est trop récente pour figurer dans
+        // `types.ts` (régénéré à part, voir account.ts) : même échappatoire
+        // que `rpc()` là-bas, pour ne pas figer cet appel sur la forme
+        // actuelle du fichier de types généré.
+        const admin = supabaseAdmin as unknown as {
+          rpc: (n: string, a: Record<string, unknown>) => PromiseLike<{ error: unknown }>;
+        };
+        const { error } = await admin.rpc("settle_match_as_server", { _match_id: matchId });
+        if (error) throw error;
+      } catch (e) {
+        // Un échec ici ne doit JAMAIS faire échouer l'action elle-même — le
+        // forfait ou le coup qui termine le champ a déjà été écrit avec
+        // succès juste au-dessus, et c'est de ça que dépend le joueur qui
+        // vient d'agir. Le règlement a un filet de sécurité (voir
+        // useBetNegotiation.ts, toujours en place, idempotent grâce à
+        // `settled_at`) : un blocage réseau passager ici se rattrape de là,
+        // au lieu de faire échouer un abandon qui a pourtant bien eu lieu.
+        console.error("settle_match_as_server", e);
+      }
+    };
+
     const writeState = async (next: GameState, status: MatchStatus) => {
       const { error } = await supabaseAdmin
         .from("matches")
         .update({ state: next as never, status })
         .eq("id", matchId);
       if (error) throw error;
+      await settleIfEnded(next);
     };
     const writeSettings = async (next: Record<string, unknown>) => {
       const { error } = await supabaseAdmin
