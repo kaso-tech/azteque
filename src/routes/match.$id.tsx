@@ -842,28 +842,54 @@ function OnlineTable() {
     }
     if (piocheAnimee.current === piocheCle) return;
     piocheAnimee.current = piocheCle;
+    const cle = piocheCle;
     animTimers.current.push(
       setTimeout(() => {
         const from = center(stockRef.current);
         const to = center(handRefs[piochePlayer].current);
         if (!from || !to) return;
-        setDrawFlights([{ id: Date.now(), player: piochePlayer, from, to, delay: 0 }]);
+        setDrawFlights([{ id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 }]);
         animTimers.current.push(
           setTimeout(() => {
-            setDrawFlights([]);
+            // Le vol a fait son chemin : il peut désormais s'effacer, mais
+            // seulement quand la carte apparaît vraiment dans la main.
+            setVolPiocheAbouti(cle);
             // Le bruit de la pioche accompagne le geste qu'on voit, pas la
             // réponse du serveur : chez l'invité, elle est déjà passée.
             sfx.draw();
           }, VOL_PIOCHE),
         );
+        // Filet de sécurité : si la pioche n'aboutit jamais (envoi perdu), le
+        // vol ne doit pas rester suspendu à l'écran.
+        animTimers.current.push(
+          setTimeout(() => {
+            setDrawFlights((v) => (v[0]?.cle === cle ? [] : v));
+          }, VOL_PIOCHE + 6000),
+        );
       }, ATTENTE_PIOCHE),
     );
   }, [piochePlayer, piocheCle, handRefs, stockRef]);
 
+  /**
+   * Le relais entre le vol et la main.
+   *
+   * Le vol s'effaçait sur une simple minuterie, alors que la carte n'entrait
+   * dans la main qu'après l'aller-retour réseau : entre les deux, un temps
+   * mort où la carte avait disparu de partout. Il ne s'efface donc plus qu'une
+   * fois sa durée écoulée ET la pioche réellement servie par le serveur.
+   */
+  useEffect(() => {
+    const vol = drawFlights[0];
+    if (!vol) return;
+    if (volPiocheAbouti !== vol.cle) return;
+    if (piocheCle === vol.cle) return;
+    setDrawFlights([]);
+  }, [drawFlights, volPiocheAbouti, piocheCle]);
+
   // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
-  // tranche, l'invité n'intervient qu'à défaut. Elle part une fois la carte
-  // arrivée à destination, pour que la main se garnisse au moment où le vol
-  // s'y pose.
+  // tranche, l'invité n'intervient qu'à défaut. Elle part dès que la carte
+  // décolle, pour que la main soit garnie au moment où le vol s'y pose : la
+  // réponse du serveur voyage pendant le vol au lieu de le suivre.
   const piocheDemandee = useRef("");
   useEffect(() => {
     if (piochePlayer === null || piocheCle === null) {
@@ -876,10 +902,11 @@ function OnlineTable() {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      (isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000) + VOL_PIOCHE,
+      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000,
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
+
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
