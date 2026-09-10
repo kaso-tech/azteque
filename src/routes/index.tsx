@@ -1179,6 +1179,14 @@ function Azteque() {
           </button>
           <button
             type="button"
+            disabled={!canAnticipate}
+            onClick={() => setConfirmAnticipate(true)}
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-40"
+          >
+            Anticiper la fin
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirmQuit(true)}
             className="rounded-full border border-destructive/50 bg-felt-deep/95 px-3 py-1 text-[0.68rem] font-semibold text-destructive transition-colors hover:bg-destructive/10"
           >
