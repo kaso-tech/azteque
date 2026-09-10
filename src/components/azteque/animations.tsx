@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { sfx } from "@/lib/azteque/sfx";
-import type { Card, PlayerIndex } from "@/lib/azteque/engine";
+import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
 
 /** Déclenche la transition à la frame suivante (mouvement toujours joué). */
 export function useDeparture(delay: number) {
@@ -126,6 +126,28 @@ export function CollectCard({
 /** Largeur d'une carte au centre du tapis (`size="lg"`), en pixels. */
 const LARGEUR_PLI = 72;
 
+/**
+ * Durée du vol d'une carte vers le tapis.
+ *
+ * Exportée parce que la table s'en sert pour découvrir l'emplacement d'arrivée
+ * au moment PRÉCIS où la carte s'y pose : les deux doivent se répondre à la
+ * milliseconde, sinon la carte clignote ou se dédouble à l'atterrissage.
+ */
+export const DUREE_VOL = 420;
+
+/**
+ * La carte que l'on pose, de la main jusqu'au tapis.
+ *
+ * Elle part à SA taille et à SON inclinaison, puis rétrécit et se redresse en
+ * chemin — comme une carte qu'on pose à plat. Partir directement au format du
+ * pli la faisait sauter d'un coup.
+ *
+ * Elle reste opaque d'un bout à l'autre. Elle s'effaçait auparavant pendant sa
+ * course, si bien qu'elle était déjà à moitié transparente à mi-parcours et
+ * invisible en arrivant : le geste qu'elle est censée montrer ne se voyait
+ * pas. C'est l'emplacement d'arrivée qui reste vide pendant ce temps, et la
+ * carte qui s'y révèle quand celle-ci se pose — voir `TrickPosition`.
+ */
 export function FlyingCard({
   card,
   from,
@@ -142,9 +164,6 @@ export function FlyingCard({
   fromRotate?: number | undefined;
 }) {
   const departed = useDeparture(0);
-  // La carte quitte la main à SA taille et à SON inclinaison, puis rétrécit et
-  // se redresse en chemin — comme une carte qu'on pose à plat. Partir
-  // directement au format du pli la faisait sauter d'un coup.
   const width = fromWidth && fromWidth > 0 ? fromWidth : LARGEUR_PLI;
   return (
     <div
@@ -154,17 +173,87 @@ export function FlyingCard({
           scale: (LARGEUR_PLI / width) * 0.98,
           rotate: 0,
           startRotate: fromRotate,
-          duration: 380,
-          ease: "cubic-bezier(.3,.8,.25,1)",
+          duration: DUREE_VOL,
+          ease: "cubic-bezier(.22,.78,.28,1)",
         }),
         width,
-        opacity: departed ? 0 : 1,
-        filter: "drop-shadow(0 14px 20px rgba(0,0,0,0.45))",
+        filter: departed
+          ? "drop-shadow(0 6px 12px rgba(0,0,0,0.4))"
+          : "drop-shadow(0 18px 26px rgba(0,0,0,0.5))",
       }}
     >
       <PlayingCard card={card} size="hand" />
     </div>
   );
+}
+
+/** Une carte en route vers le tapis, telle que la suit `useCardFlight`. */
+export interface Vol {
+  card: Card;
+  from: { x: number; y: number };
+  /** Largeur et inclinaison qu'elle avait à son départ, si on a pu les relever. */
+  width?: number | undefined;
+  rot?: number | undefined;
+}
+
+/** Ce que la table doit savoir des cartes qui lui arrivent par les airs. */
+export interface EtatDesVols {
+  /** Celle qui est encore en l'air : sa place sur le tapis reste vide. */
+  flying: Card | null;
+  /** Celles qui se sont posées et n'ont plus à entrer en scène. */
+  delivered: ReadonlySet<string>;
+}
+
+/**
+ * Le vol d'une carte jouée, de la main jusqu'à sa place sur le tapis.
+ *
+ * Le mouvement se joue en deux temps, et c'est ce qui le rend enfin lisible :
+ * tant que la carte est en l'air, sa place sur le tapis reste VIDE ; à
+ * l'instant où elle se pose, elle s'y découvre et le vol s'efface. La carte
+ * était auparavant déjà posée avant même d'avoir volé — le vol n'était qu'un
+ * double qui la survolait en s'effaçant, et on ne voyait rien partir de la
+ * main.
+ *
+ * Une carte posée reste inscrite jusqu'à ce qu'elle quitte le tapis. Il ne
+ * suffit pas de retenir la carte en cours : la suivante prendrait sa place, et
+ * la première, qui repose pourtant depuis un moment, rejouerait son entrée en
+ * scène au moment précis où l'adversaire pose la sienne.
+ */
+export function useCardFlight(trick: GameState["trick"]) {
+  const [flight, setFlight] = useState<Vol | null>(null);
+  const [delivered, setDelivered] = useState<ReadonlySet<string>>(() => new Set());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fly = useCallback(
+    (card: Card, from: { x: number; y: number }, width?: number, rot?: number) => {
+      if (timer.current) clearTimeout(timer.current);
+      setFlight({ card, from, width, rot });
+      timer.current = setTimeout(() => {
+        // Les deux vont ensemble, dans le même rendu : le vol s'efface au
+        // moment exact où sa place le découvre. Un décalage, même d'une seule
+        // image, laisserait un trou ou un doublon.
+        setFlight((v) => (v?.card.id === card.id ? null : v));
+        setDelivered((d) => new Set(d).add(card.id));
+      }, DUREE_VOL);
+    },
+    [],
+  );
+
+  // Les cartes qui ont quitté le tapis (pli ramassé, nouvelle donne) sortent de
+  // la liste : ce qu'on y garde ne concerne que ce qui est encore posé.
+  useEffect(() => {
+    setDelivered((d) => {
+      if (d.size === 0) return d;
+      const surLeTapis = new Set(trick.map((entry) => entry.card.id));
+      const restantes = [...d].filter((id) => surLeTapis.has(id));
+      return restantes.length === d.size ? d : new Set(restantes);
+    });
+  }, [trick]);
+
+  useEffect(() => () => (timer.current ? clearTimeout(timer.current) : undefined), []);
+
+  const etat: EtatDesVols = { flying: flight?.card ?? null, delivered };
+  return { flight, etat, fly };
 }
 
 export function DrawCard({

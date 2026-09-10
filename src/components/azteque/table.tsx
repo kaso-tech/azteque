@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { cn } from "@/lib/utils";
 import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
@@ -7,23 +7,47 @@ export function TrickPosition({
   trick,
   player,
   hidden,
+  vols,
+  cardRef,
   me = 0,
 }: {
   trick: GameState["trick"];
   player: PlayerIndex;
   hidden?: boolean;
+  /**
+   * Les cartes qui arrivent par les airs (voir `useCardFlight`). Celle qui
+   * vole encore garde sa place vide — sans cela elle serait déjà posée avant
+   * même d'avoir volé, et le vol ne serait qu'un double qui la survole ; celles
+   * qui se sont posées n'entrent plus en scène, leur vol l'a déjà fait.
+   */
+  vols?: { flying: Card | null; delivered: ReadonlySet<string> };
+  /**
+   * La carte elle-même, pour que le vol vise sa place au pixel près.
+   *
+   * Le bloc qui l'entoure porte aussi son étiquette (« Vous », « Adversaire »)
+   * et son centre tombe donc plus bas que celui de la carte : viser le bloc
+   * ferait sauter la carte d'une dizaine de pixels en se posant.
+   */
+  cardRef?: RefObject<HTMLElement | null>;
   me?: PlayerIndex;
 }) {
   const played = trick.find((entry) => entry.player === player);
   if (!played) return <div className="h-28 w-[4.5rem]" aria-hidden="true" />;
   const led = trick[0]?.card.id === played.card.id;
+  // Cette carte-ci est encore en l'air : sa place l'attend, vide. Et qu'elle
+  // vole ou qu'elle vienne de se poser, elle n'entre JAMAIS en scène — le vol
+  // était son entrée. La rejouer la ferait remonter d'un cran pour se reposer
+  // aussitôt, juste après s'être posée.
+  const enVol = vols?.flying?.id === played.card.id;
+  const parLesAirs = enVol || !!vols?.delivered.has(played.card.id);
+  const cachee = hidden || enVol;
 
   return (
     <div className="flex w-[4.5rem] flex-col items-center gap-1">
-      <span className={cn("block w-full", hidden && "invisible")}>
-        <PlayingCard card={played.card} size="lg" className="animate-trick" />
+      <span ref={cardRef} className={cn("block w-full", cachee && "invisible")}>
+        <PlayingCard card={played.card} size="lg" className={parLesAirs ? "" : "animate-trick"} />
       </span>
-      <span className={cn("text-[0.65rem] text-muted-foreground", hidden && "opacity-0")}>
+      <span className={cn("text-[0.65rem] text-muted-foreground", cachee && "opacity-0")}>
         {player === me ? "Vous" : "Adversaire"}
         {led ? " (mène)" : ""}
       </span>

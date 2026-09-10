@@ -30,6 +30,7 @@ import {
   angleOf,
   FlyingCard,
   SweepCard,
+  useCardFlight,
 } from "@/components/azteque/animations";
 import { sfx, setSoundContext } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
@@ -45,6 +46,7 @@ import {
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
 import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
+import { previewAction } from "@/lib/azteque/preview";
 import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import { useMatchSync } from "@/hooks/useMatchSync";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
@@ -89,6 +91,15 @@ export const Route = createFileRoute("/match/$id")({
 });
 
 const TRICK_DELAY = 1000;
+/** Temps de pose avant qu'une carte ne quitte le talon, et durée de son vol. */
+const ATTENTE_PIOCHE = 700;
+const VOL_PIOCHE = 580;
+
+/** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
+const center = (el: HTMLElement | null | undefined) => {
+  const r = el?.getBoundingClientRect();
+  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+};
 /**
  * Temps maximum pour jouer son coup (secondes).
  *
@@ -143,6 +154,9 @@ function OnlineTable() {
   const trickSlotRef0 = useRef<HTMLDivElement | null>(null);
   const trickSlotRef1 = useRef<HTMLDivElement | null>(null);
   const trickSlotRefs = useMemo(() => [trickSlotRef0, trickSlotRef1] as const, []);
+  const trickCardRef0 = useRef<HTMLElement | null>(null);
+  const trickCardRef1 = useRef<HTMLElement | null>(null);
+  const trickCardRefs = useMemo(() => [trickCardRef0, trickCardRef1] as const, []);
   const pileRef0 = useRef<HTMLDivElement | null>(null);
   const pileRef1 = useRef<HTMLDivElement | null>(null);
   const pileRefs = useMemo(() => [pileRef0, pileRef1] as const, []);
@@ -153,12 +167,6 @@ function OnlineTable() {
     count: 0,
   });
 
-  const [flying, setFlying] = useState<{
-    card: Card;
-    from: { x: number; y: number };
-    width?: number;
-    rot?: number;
-  } | null>(null);
   const [collect, setCollect] = useState<
     {
       id: number;
@@ -194,6 +202,29 @@ function OnlineTable() {
   // cette même animation.
   const [animating, setAnimating] = useState(false);
 
+  // Affichage figé du pli et des tas pendant le ramassage/transfert animé : le
+  // reste de l'état (mains, tour, pioche…) continue de refléter la vérité
+  // serveur normalement.
+  const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
+  const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
+
+  // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
+  // l'adversaire dès qu'elle apparaît dans le pli. Elle s'appuie sur le pli
+  // AFFICHÉ, pas sur l'état : pendant le ramassage, le serveur a déjà vidé le
+  // pli alors que les cartes sont encore à l'écran, et oublier le vol trop tôt
+  // les ferait rejouer leur entrée en scène là où elles reposent.
+  const { flight, etat, fly } = useCardFlight(displayTrick);
+
+  // Où la carte en vol doit se poser : la place de CELUI qui l'a jouée. Le
+  // relais avec la carte qui s'y découvre est un échange net, sans fondu — il
+  // ne passe inaperçu que si les deux occupent exactement le même point.
+  const volArrivee = (() => {
+    if (!flight) return null;
+    const joueur = displayTrick.find((e) => e.card.id === flight.card.id)?.player;
+    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
+    return place ?? center(tableRef.current) ?? flight.from;
+  })();
+
   /**
    * Minuteries d'une animation DÉJÀ COMMENCÉE.
    *
@@ -213,11 +244,6 @@ function OnlineTable() {
     },
     [],
   );
-
-  const center = (el: HTMLElement | null | undefined) => {
-    const r = el?.getBoundingClientRect();
-    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-  };
 
   const applyRow = useCallback((next: MatchRow) => {
     setRow(next);
@@ -300,15 +326,39 @@ function OnlineTable() {
   // lien lent, deux actions envoyées coup sur coup ne doivent pas se croiser.
   const [sending, setSending] = useState(0);
   const [retrying, setRetrying] = useState(false);
+  // « Envoi… » ne s'annonce que si l'envoi TRAÎNE. Maintenant que le coup
+  // s'affiche sans attendre la réponse, un bandeau qui s'allume à chaque carte
+  // ne signalerait plus rien : il clignoterait, et c'est justement ce
+  // clignotement qui donne à une table l'air de peiner.
+  const [envoiLent, setEnvoiLent] = useState(false);
+  useEffect(() => {
+    if (sending === 0) {
+      setEnvoiLent(false);
+      return;
+    }
+    const t = setTimeout(() => setEnvoiLent(true), 700);
+    return () => clearTimeout(t);
+  }, [sending]);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  // Coups montrés d'avance dont le serveur n'a pas encore accusé réception.
+  // Tant qu'il en reste, la table ne tire aucune conséquence de ce qu'elle
+  // montre : un pli n'a l'air complet que parce qu'on y a posé une carte que
+  // le serveur ignore peut-être encore.
+  const [apercusEnAttente, setApercusEnAttente] = useState(0);
 
   // Le coup que le réseau n'a pas réussi à transmettre (voir REJOUABLES), avec
   // la position dans laquelle il a été voulu.
   const pending = useRef<{ action: MatchAction; position: string } | null>(null);
   const [pendingReplay, setPendingReplay] = useState(false);
-  // Position courante, lisible depuis les fonctions qui ne la reçoivent pas.
+  // Position et état courants, lisibles depuis les fonctions qui ne les
+  // reçoivent pas. Renseignés au rendu : une action partie d'un gestionnaire
+  // d'événement les lit donc AVANT son propre aperçu, ce dont dépend le renvoi
+  // différé (la position gardée doit être celle où le joueur a voulu son coup,
+  // pas celle que l'aperçu vient d'afficher).
   const positionRef = useRef("");
   positionRef.current = positionSignature(state);
+  const stateRef = useRef<GameState | null>(null);
+  stateRef.current = state;
 
   // Envoie une action au serveur, qui la rejoue et la valide avant de
   // l'appliquer — le client ne calcule plus lui-même le résultat.
@@ -318,6 +368,29 @@ function OnlineTable() {
   const runAction = useCallback(
     async (action: MatchAction, opts: { silent?: boolean } = {}) => {
       const positionAuDepart = positionRef.current;
+
+      // Le coup s'affiche SANS ATTENDRE le serveur. On rejoue l'action ici sur
+      // les mêmes fonctions pures que lui (voir preview.ts) pour que la carte
+      // quitte la main au moment où elle est jouée, en même temps que son vol,
+      // au lieu d'y rester le temps d'un aller-retour puis de sauter sur le
+      // tapis une fois l'animation finie. L'aperçu n'a aucune autorité : la
+      // réponse du serveur l'écrase, et un envoi qui échoue le reprend.
+      const avant = stateRef.current;
+      const apercu = avant ? previewAction(avant, me, action) : null;
+      if (apercu) {
+        // Le repère avance avec l'aperçu, sans attendre le rendu : deux
+        // actions parties dans le même battement partiraient sinon toutes
+        // deux de l'état d'avant la première.
+        stateRef.current = apercu;
+        setState(apercu);
+        setApercusEnAttente((n) => n + 1);
+      }
+      // On ne reprend l'aperçu que s'il est encore à l'écran tel quel : si un
+      // état plus récent est arrivé entre-temps, c'est lui qui a raison.
+      const reprendreApercu = () => {
+        if (apercu) setState((s) => (s === apercu ? avant : s));
+      };
+
       const task = queue.current.then(async () => {
         setSending((n) => n + 1);
         try {
@@ -343,6 +416,11 @@ function OnlineTable() {
           setRow((r) => (r ? { ...r, settings: result.settings } : r));
         } catch (e) {
           setRetrying(false);
+          // Le serveur n'a pas pris le coup : la carte revient en main. La
+          // laisser sur le tapis mentirait au joueur — l'adversaire, lui, ne
+          // l'y voit pas — et ferait échouer le renvoi différé, qui exige que
+          // la position soit restée celle d'où le coup est parti.
+          reprendreApercu();
           // Coupure franche : l'état sera rattrapé par la relecture; inutile
           // d'alarmer avec un message d'action refusée.
           if (isTransientError(e)) {
@@ -356,12 +434,13 @@ function OnlineTable() {
           if (!opts.silent) setError(e instanceof Error ? e.message : "Action impossible.");
         } finally {
           setSending((n) => Math.max(0, n - 1));
+          if (apercu) setApercusEnAttente((n) => Math.max(0, n - 1));
         }
       });
       queue.current = task.catch(() => undefined);
       return task;
     },
-    [id, sync],
+    [id, sync, me],
   );
 
   // Retour du réseau : le coup mis de côté repart aussitôt. En `silent`, car
@@ -548,156 +627,226 @@ function OnlineTable() {
     const oppEntry = state.trick.find((entry) => entry.player === opp);
     if (oppEntry && !already && sawStateRef.current) {
       const from = center(handRefs[opp].current);
-      if (from) {
-        setFlying({ card: oppEntry.card, from });
-        setTimeout(() => setFlying(null), 380);
-      }
+      if (from) fly(oppEntry.card, from);
       sfx.place();
     }
     prevTrickRef.current = state.trick;
     sawStateRef.current = true;
-  }, [state, opp, handRefs]);
+  }, [state, opp, handRefs, fly]);
 
-  // L'hôte arbitre : résolution du pli puis pioches.
-  // Repli : si l'hôte ne répond pas, l'invité tranche pour ne pas bloquer la table.
-  // Les deux appels sont validés par le serveur : si l'un des deux arrive
-  // après coup (l'autre a déjà résolu), il est simplement rejeté (silencieux).
+  // Fin de pli. Deux choses s'y jouent, et les confondre coûtait à l'invité
+  // toutes ses animations : ce qu'on DEMANDE au serveur, qui s'arbitre entre
+  // les deux joueurs, et ce qu'on MONTRE, qui n'appartient qu'à l'écran.
   //
-  // Le résultat qui compte est toujours celui renvoyé par le serveur — voir
+  // Le résultat qui fait foi est toujours celui du serveur — voir
   // match-actions.ts. Mais l'aller-retour réseau est presque toujours plus
-  // rapide que le temps de vol des cartes à l'écran : sans précaution, `state`
-  // afficherait déjà le pli vide et les tas mis à jour avant même que
-  // l'animation n'ait commencé à bouger quoi que ce soit. On calcule donc ICI,
-  // sur les mêmes fonctions pures que celles rejouées côté serveur, le
-  // résultat probable (vainqueur, transfert « atout 10 ») à seule fin
-  // d'afficher le bon mouvement ; l'affichage reste figé sur l'état d'avant
-  // résolution (`frozenTable`) le temps que l'animation joue, pendant que
-  // `state` continue d'avancer normalement en arrière-plan.
+  // rapide que le vol des cartes à l'écran : sans précaution, `state`
+  // afficherait le pli vide et les tas à jour avant même que l'animation ait
+  // bougé quoi que ce soit.
+  //
+  // La DEMANDE de résolution, qui s'arbitre entre les deux joueurs : l'hôte
+  // tranche, l'invité n'intervient que si l'hôte n'a pas répondu. Une demande
+  // par pli, jamais deux — et elle s'annule d'elle-même dès que l'état avance,
+  // c'est-à-dire dès que l'autre a tranché.
+  const resolutionDemandee = useRef("");
   useEffect(() => {
-    if (!state || state.phase !== "playing" || state.trick.length < 2) return;
-    if (animating) return;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(
-      setTimeout(
-        () => {
-          void runAction({ type: "resolve_trick" }, { silent: true });
-
-          const preTrick = state;
-          const predicted = resolveTrick(preTrick, { atout10: true });
-          const winner = predicted.lastTrickWinner;
-          if (winner === null) return;
-          const loser: PlayerIndex = winner === 0 ? 1 : 0;
-          const first = preTrick.trick[0]!;
-          const second = preTrick.trick[1]!;
-          const fromFirst = center(trickSlotRefs[first.player].current);
-          const fromSecond = center(trickSlotRefs[second.player].current);
-          const winnerPile = center(pileRefs[winner].current);
-          if (!fromFirst || !fromSecond || !winnerPile) return;
-
-          setAnimating(true);
-          setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
-
-          const lastDelay = 140;
-          setCollect([
-            { id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 },
-            { id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay },
-          ]);
-          animTimers.current.push(setTimeout(() => sfx.collect(), lastDelay + 120));
-          // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : il ne
-          // peut se juger qu'une fois le vainqueur du pli connu.
-          if (stealsBonne(preTrick.trick, winner))
-            animTimers.current.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
-
-          // Série de bonnes : au premier pli du tour (aucun tas encore
-          // entamé), on repart de zéro — y compris après un Pont rejoué.
-          if (preTrick.gains[0].length === 0 && preTrick.gains[1].length === 0) {
-            bonneStreak.current = { player: null, count: 0 };
-          }
-          if (preTrick.trick.some((e) => isBonne(e.card))) {
-            const precedent = bonneStreak.current;
-            const compte = precedent.player === winner ? precedent.count + 1 : 1;
-            bonneStreak.current = { player: winner, count: compte };
-            // Trois, quatre, cinq bonnes ou plus d'affilée : un rire de plus
-            // en plus franc, tant que l'adversaire n'en reprend aucune.
-            const rireDeSerie =
-              compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
-            if (compte >= 3)
-              animTimers.current.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
-          }
-
-          const sweeps = trickCapturesPile(preTrick, { atout10: true })
-            ? preTrick.gains[loser].length
-            : 0;
-          const loserPile = center(pileRefs[loser].current);
-
-          animTimers.current.push(
-            setTimeout(() => {
-              setCollect([]);
-              if (sweeps > 0 && loserPile) {
-                const layers = Math.min(6, sweeps);
-                sfx.sweep();
-                sfx.sweepLaugh();
-                setSweepFlights(
-                  Array.from({ length: layers }, (_, i) => ({
-                    id: i,
-                    from: loserPile,
-                    to: winnerPile,
-                    delay: i * 90,
-                  })),
-                );
-                animTimers.current.push(
-                  setTimeout(
-                    () => {
-                      setSweepFlights([]);
-                      setFrozenTable(null);
-                      setAnimating(false);
-                    },
-                    layers * 90 + 620,
-                  ),
-                );
-                return;
-              }
-              setFrozenTable(null);
-              setAnimating(false);
-            }, lastDelay + 560),
-          );
-        },
-        isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
-      ),
+    if (!state || state.phase !== "playing" || state.trick.length < 2) {
+      resolutionDemandee.current = "";
+      return;
+    }
+    if (apercusEnAttente > 0) return;
+    const cle = state.trick.map((e) => e.card.id).join("|");
+    if (resolutionDemandee.current === cle) return;
+    const t = setTimeout(
+      () => {
+        resolutionDemandee.current = cle;
+        void runAction({ type: "resolve_trick" }, { silent: true });
+      },
+      isHost ? TRICK_DELAY : TRICK_DELAY + 4000,
     );
-    return () => timers.forEach(clearTimeout);
-  }, [isHost, state, animating, runAction, pileRefs, trickSlotRefs]);
+    return () => clearTimeout(t);
+  }, [isHost, state, apercusEnAttente, runAction]);
 
+  // Le RAMASSAGE du pli, qui n'appartient qu'à l'écran : les deux joueurs le
+  // voient au même rythme.
+  //
+  // Il était jusqu'ici accroché à la demande ci-dessus, dont l'invité n'est
+  // que le recours à quatre secondes. Sa minuterie était donc annulée par la
+  // résolution de l'hôte, qui arrive bien avant : l'invité ne voyait JAMAIS
+  // ramasser un pli — les deux cartes disparaissaient d'un coup et les tas
+  // sautaient. La moitié des joueurs en ligne jouait ainsi sans animation.
+  //
+  // Une fois lancée, l'animation n'est plus annulable : ses minuteries vivent
+  // dans `animTimers`, hors du cycle des effets, et le pli déjà animé est
+  // retenu pour qu'un simple nouveau rendu ne le rejoue pas.
+  const pliAnime = useRef("");
   useEffect(() => {
-    if (animating) return;
-    if (!state || state.phase !== "playing") return;
-    if (state.drawPending.length === 0 || state.stock.length === 0) return;
+    if (!state || state.phase !== "playing" || state.trick.length < 2) {
+      pliAnime.current = "";
+      return;
+    }
+    // Le pli n'a l'air complet que grâce à un coup encore en route : on ne le
+    // ramasse pas avant que le serveur l'ait pris. Sans cette attente, un
+    // envoi qui échoue laisserait la table ramasser un pli qui n'a jamais
+    // existé pour l'adversaire.
+    if (apercusEnAttente > 0) return;
+    const cle = state.trick.map((e) => e.card.id).join("|");
+    if (pliAnime.current === cle) return;
+    pliAnime.current = cle;
+
+    const preTrick = state;
+    animTimers.current.push(
+      setTimeout(() => {
+        // Le résultat est calculé ICI, sur les mêmes fonctions pures que le
+        // serveur, à seule fin d'afficher le bon mouvement : l'affichage reste
+        // figé sur l'état d'avant résolution (`frozenTable`) le temps que
+        // l'animation joue, pendant que `state` avance en arrière-plan.
+        const predicted = resolveTrick(preTrick, { atout10: true });
+        const winner = predicted.lastTrickWinner;
+        if (winner === null) return;
+        const loser: PlayerIndex = winner === 0 ? 1 : 0;
+        const first = preTrick.trick[0]!;
+        const second = preTrick.trick[1]!;
+        const fromFirst = center(trickSlotRefs[first.player].current);
+        const fromSecond = center(trickSlotRefs[second.player].current);
+        const winnerPile = center(pileRefs[winner].current);
+        if (!fromFirst || !fromSecond || !winnerPile) return;
+
+        setAnimating(true);
+        setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
+
+        const lastDelay = 140;
+        setCollect([
+          { id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 },
+          { id: 2, card: second.card, from: fromSecond, to: winnerPile, delay: lastDelay },
+        ]);
+        animTimers.current.push(setTimeout(() => sfx.collect(), lastDelay + 120));
+        // Le rire salue la bonne PRISE À L'ADVERSAIRE, pas la sienne : il ne
+        // peut se juger qu'une fois le vainqueur du pli connu.
+        if (stealsBonne(preTrick.trick, winner))
+          animTimers.current.push(setTimeout(() => sfx.snicker(), lastDelay + 240));
+
+        // Série de bonnes : au premier pli du tour (aucun tas encore
+        // entamé), on repart de zéro — y compris après un Pont rejoué.
+        if (preTrick.gains[0].length === 0 && preTrick.gains[1].length === 0) {
+          bonneStreak.current = { player: null, count: 0 };
+        }
+        if (preTrick.trick.some((e) => isBonne(e.card))) {
+          const precedent = bonneStreak.current;
+          const compte = precedent.player === winner ? precedent.count + 1 : 1;
+          bonneStreak.current = { player: winner, count: compte };
+          // Trois, quatre, cinq bonnes ou plus d'affilée : un rire de plus
+          // en plus franc, tant que l'adversaire n'en reprend aucune.
+          const rireDeSerie =
+            compte === 3 ? sfx.streakLaugh : compte === 4 ? sfx.streakLaugh4 : sfx.streakLaugh5;
+          if (compte >= 3)
+            animTimers.current.push(setTimeout(() => rireDeSerie(), lastDelay + 420));
+        }
+
+        const sweeps = trickCapturesPile(preTrick, { atout10: true })
+          ? preTrick.gains[loser].length
+          : 0;
+        const loserPile = center(pileRefs[loser].current);
+
+        animTimers.current.push(
+          setTimeout(() => {
+            setCollect([]);
+            if (sweeps > 0 && loserPile) {
+              const layers = Math.min(6, sweeps);
+              sfx.sweep();
+              sfx.sweepLaugh();
+              setSweepFlights(
+                Array.from({ length: layers }, (_, i) => ({
+                  id: i,
+                  from: loserPile,
+                  to: winnerPile,
+                  delay: i * 90,
+                })),
+              );
+              animTimers.current.push(
+                setTimeout(
+                  () => {
+                    setSweepFlights([]);
+                    setFrozenTable(null);
+                    setAnimating(false);
+                  },
+                  layers * 90 + 620,
+                ),
+              );
+              return;
+            }
+            setFrozenTable(null);
+            setAnimating(false);
+          }, lastDelay + 560),
+        );
+      }, TRICK_DELAY),
+    );
+  }, [state, apercusEnAttente, pileRefs, trickSlotRefs]);
+
+  // La pioche en attente, s'il y en a une : qui doit piocher, et un repère qui
+  // désigne CETTE pioche-là — le talon baisse d'une carte à chaque fois, ce
+  // qui suffit à les distinguer.
+  const piocheEnCours = (() => {
+    if (animating || !state || state.phase !== "playing") return null;
+    if (state.drawPending.length === 0 || state.stock.length === 0) return null;
     const player = state.drawPending[0]!;
-    // Le vainqueur peut annoncer avant de piocher (5 cartes en main)
-    if (state.canAnnounce === player && availableMelds(state, player).length > 0) return;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(
-      setTimeout(
-        () => {
-          const from = center(stockRef.current);
-          const to = center(handRefs[player].current);
-          if (from && to) {
-            setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
-            animTimers.current.push(
-              setTimeout(() => {
-                setDrawFlights([]);
-                void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
-              }, 580),
-            );
-            return;
-          }
-          void runAction({ type: "draw_next" }, { silent: true }).then(() => sfx.draw());
-        },
-        isHost ? 700 : 4700,
-      ),
+    // Le vainqueur peut annoncer avant de piocher (5 cartes en main).
+    if (state.canAnnounce === player && availableMelds(state, player).length > 0) return null;
+    return { player, cle: `${player}-${state.stock.length}` };
+  })();
+  const piochePlayer = piocheEnCours?.player ?? null;
+  const piocheCle = piocheEnCours?.cle ?? null;
+
+  // Ce qu'on MONTRE de la pioche — même partage que pour le pli, et pour la
+  // même raison : accrochée à la demande, l'animation de l'invité était
+  // toujours annulée par la pioche de l'hôte, arrivée bien avant son propre
+  // recours. La carte apparaissait dans sa main sans qu'on la voie venir.
+  const piocheAnimee = useRef("");
+  useEffect(() => {
+    if (piochePlayer === null || piocheCle === null) {
+      piocheAnimee.current = "";
+      return;
+    }
+    if (piocheAnimee.current === piocheCle) return;
+    piocheAnimee.current = piocheCle;
+    animTimers.current.push(
+      setTimeout(() => {
+        const from = center(stockRef.current);
+        const to = center(handRefs[piochePlayer].current);
+        if (!from || !to) return;
+        setDrawFlights([{ id: Date.now(), player: piochePlayer, from, to, delay: 0 }]);
+        animTimers.current.push(
+          setTimeout(() => {
+            setDrawFlights([]);
+            // Le bruit de la pioche accompagne le geste qu'on voit, pas la
+            // réponse du serveur : chez l'invité, elle est déjà passée.
+            sfx.draw();
+          }, VOL_PIOCHE),
+        );
+      }, ATTENTE_PIOCHE),
     );
-    return () => timers.forEach(clearTimeout);
-  }, [isHost, state, animating, runAction, handRefs, stockRef]);
+  }, [piochePlayer, piocheCle, handRefs, stockRef]);
+
+  // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
+  // tranche, l'invité n'intervient qu'à défaut. Elle part une fois la carte
+  // arrivée à destination, pour que la main se garnisse au moment où le vol
+  // s'y pose.
+  const piocheDemandee = useRef("");
+  useEffect(() => {
+    if (piochePlayer === null || piocheCle === null) {
+      piocheDemandee.current = "";
+      return;
+    }
+    if (piocheDemandee.current === piocheCle) return;
+    const t = setTimeout(
+      () => {
+        piocheDemandee.current = piocheCle;
+        void runAction({ type: "draw_next" }, { silent: true });
+      },
+      (isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000) + VOL_PIOCHE,
+    );
+    return () => clearTimeout(t);
+  }, [isHost, piochePlayer, piocheCle, runAction]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
@@ -866,22 +1015,13 @@ function OnlineTable() {
     myMelds.length > 0 &&
     state.stock.length > 0;
 
-  // Affichage figé du pli et des tas pendant le ramassage/transfert animé
-  // (voir la déclaration de `frozenTable` plus haut) : le reste de l'état
-  // (mains, tour, pioche…) continue de refléter la vérité serveur normalement.
-  const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
-  const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
-
   const playMyCard = (card: Card, el: HTMLElement) => {
     if (!state || meldDecisionPending) return;
     const from = center(el);
-    if (from) {
-      // Le rectangle d'une carte penchée est plus grand qu'elle, mais son
-      // centre reste juste : on part de là, avec sa vraie largeur et son vrai
-      // angle, pour que le vol prenne le relais sans à-coup.
-      setFlying({ card, from, width: el.offsetWidth, rot: angleOf(el.parentElement) });
-      setTimeout(() => setFlying(null), 380);
-    }
+    // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
+    // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
+    // pour que le vol prenne le relais sans à-coup.
+    if (from) fly(card, from, el.offsetWidth, angleOf(el.parentElement));
     sfx.place();
     void runAction({ type: "play_card", cardId: card.id });
   };
@@ -1046,7 +1186,14 @@ function OnlineTable() {
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[opp]}>
-            <TrickPosition trick={displayTrick} player={opp} me={me} hidden={collect.length > 0} />
+            <TrickPosition
+              trick={displayTrick}
+              player={opp}
+              me={me}
+              hidden={collect.length > 0}
+              vols={etat}
+              cardRef={trickCardRefs[opp]}
+            />
           </div>
           <div className="flex min-h-20 flex-col items-center justify-center gap-1" ref={stockRef}>
             {state.stock.length > 0 ? (
@@ -1063,11 +1210,18 @@ function OnlineTable() {
             )}
           </div>
           <div ref={trickSlotRefs[me]}>
-            <TrickPosition trick={displayTrick} player={me} me={me} hidden={collect.length > 0} />
+            <TrickPosition
+              trick={displayTrick}
+              player={me}
+              me={me}
+              hidden={collect.length > 0}
+              vols={etat}
+              cardRef={trickCardRefs[me]}
+            />
           </div>
         </div>
 
-        {(sync.offline || sync.stale || retrying || sending > 0 || pendingReplay) && (
+        {(sync.offline || sync.stale || retrying || envoiLent || pendingReplay) && (
           <span className="gold-tag absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-gold/50 bg-felt-deep/95 px-2 py-0.5 text-[0.58rem] font-semibold text-gold">
             {sync.offline
               ? "Hors ligne · reprise automatique"
@@ -1356,16 +1510,13 @@ function OnlineTable() {
 
       {/* Carte en vol vers le tapis (la mienne au clic, celle de l'adversaire
           détectée dès qu'elle apparaît dans le pli) */}
-      {flying && (
+      {flight && (
         <FlyingCard
-          card={flying.card}
-          from={flying.from}
-          fromWidth={flying.width}
-          fromRotate={flying.rot}
-          to={(() => {
-            const r = tableRef.current?.getBoundingClientRect();
-            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : flying.from;
-          })()}
+          card={flight.card}
+          from={flight.from}
+          fromWidth={flight.width}
+          fromRotate={flight.rot}
+          to={volArrivee ?? flight.from}
         />
       )}
 

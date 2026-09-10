@@ -62,6 +62,7 @@ import {
   angleOf,
   FlyingCard,
   SweepCard,
+  useCardFlight,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
@@ -98,6 +99,12 @@ export const Route = createFileRoute("/")({
   component: Azteque,
 });
 
+/** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
+const center = (el: HTMLElement | null | undefined) => {
+  const r = el?.getBoundingClientRect();
+  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+};
+
 const TURN_LIMIT = 30;
 
 function Azteque() {
@@ -128,12 +135,6 @@ function Azteque() {
   >([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  const [flying, setFlying] = useState<{
-    card: Card;
-    from: { x: number; y: number };
-    width?: number;
-    rot?: number;
-  } | null>(null);
   const [collect, setCollect] = useState<
     {
       id: number;
@@ -172,10 +173,30 @@ function Azteque() {
     useRef<HTMLDivElement | null>(null),
     useRef<HTMLDivElement | null>(null),
   ] as const;
+  // Les cartes du pli elles-mêmes : le vol vise leur place au pixel près, le
+  // bloc qui les entoure portant aussi leur étiquette.
+  const trickCardRefs = [
+    useRef<HTMLElement | null>(null),
+    useRef<HTMLElement | null>(null),
+  ] as const;
   const pileRefs = [
     useRef<HTMLDivElement | null>(null),
     useRef<HTMLDivElement | null>(null),
   ] as const;
+
+  // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
+  // l'ordinateur quand il joue.
+  const { flight, etat, fly } = useCardFlight(state.trick);
+
+  // Où elle doit se poser : la place de CELUI qui l'a jouée. Le relais avec la
+  // carte qui s'y découvre est un échange net, sans fondu — il ne passe
+  // inaperçu que si les deux occupent exactement le même point.
+  const volArrivee = (() => {
+    if (!flight) return null;
+    const joueur = state.trick.find((e) => e.card.id === flight.card.id)?.player;
+    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
+    return place ?? center(tableRef.current) ?? flight.from;
+  })();
   const aiRedealChecked = useRef(-1);
   const askedForName = useRef(false);
   // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
@@ -470,10 +491,6 @@ function Azteque() {
     // le menu est affiché, et un rire finit par surprendre au bout d'un moment.
     if (!started || state.phase !== "playing" || state.trick.length < 2) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const center = (el: HTMLElement | null | undefined) => {
-      const r = el?.getBoundingClientRect();
-      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-    };
 
     timers.push(
       setTimeout(() => {
@@ -636,11 +653,6 @@ function Azteque() {
       if (availableMelds(state, 0).length > 0) return;
     }
 
-    const center = (el: HTMLElement | null | undefined) => {
-      const r = el?.getBoundingClientRect();
-      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-    };
-
     const t = setTimeout(() => {
       const from = center(stockRef.current);
       const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
@@ -668,16 +680,18 @@ function Azteque() {
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
     if (dealing) return;
     const t = setTimeout(() => {
-      setState((s) => {
-        if (s.phase !== "playing" || s.turn !== 1 || s.trick.length >= 2) return s;
-        if (s.drawPending.length > 0 || s.canAnnounce === 1) return s;
-        const card = aiChooseCardAt(s, settings.difficulty);
-        jouerPour(1, () => sfx.place());
-        return playCard(s, 1, card.id);
-      });
+      // La carte est choisie ICI, hors du calcul de mise à jour : elle doit
+      // être connue pour partir en vol EN MÊME TEMPS qu'elle est jouée. Elle
+      // se posait auparavant d'un coup sur le tapis, sans qu'on la voie
+      // quitter la main d'en face — seule celle du joueur volait.
+      const card = aiChooseCardAt(state, settings.difficulty);
+      const from = center(opponentHandRef.current);
+      if (from) fly(card, from);
+      jouerPour(1, () => sfx.place());
+      setState((s) => playCard(s, 1, card.id));
     }, 750);
     return () => clearTimeout(t);
-  }, [started, state, settings.difficulty, dealing]);
+  }, [started, state, settings.difficulty, dealing, fly]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
@@ -810,20 +824,11 @@ function Azteque() {
   const playMyCard = (card: Card, el: HTMLElement) => {
     // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
     if (meldDecisionPending) return;
-    const r = el.getBoundingClientRect();
-    const t = tableRef.current?.getBoundingClientRect();
-    if (t) {
-      setFlying({
-        card,
-        // Le rectangle d'une carte penchée est plus grand qu'elle, mais son
-        // centre reste juste : on part de là, avec sa vraie largeur et son
-        // vrai angle, pour que le vol prenne le relais sans à-coup.
-        from: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
-        width: el.offsetWidth,
-        rot: angleOf(el.parentElement),
-      });
-      setTimeout(() => setFlying(null), 380);
-    }
+    // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
+    // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
+    // pour que le vol prenne le relais sans à-coup.
+    const from = center(el);
+    if (from) fly(card, from, el.offsetWidth, angleOf(el.parentElement));
     jouerPour(0, () => sfx.place());
     setState((s) => playCard(s, 0, card.id));
   };
@@ -1010,7 +1015,13 @@ function Azteque() {
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[1]}>
-            <TrickPosition trick={state.trick} player={1} hidden={collect.length > 0} />
+            <TrickPosition
+              trick={state.trick}
+              player={1}
+              hidden={collect.length > 0}
+              vols={etat}
+              cardRef={trickCardRefs[1]}
+            />
           </div>
 
           <div
@@ -1035,7 +1046,13 @@ function Azteque() {
           </div>
 
           <div ref={trickSlotRefs[0]}>
-            <TrickPosition trick={state.trick} player={0} hidden={collect.length > 0} />
+            <TrickPosition
+              trick={state.trick}
+              player={0}
+              hidden={collect.length > 0}
+              vols={etat}
+              cardRef={trickCardRefs[0]}
+            />
           </div>
         </div>
 
@@ -1162,16 +1179,13 @@ function Azteque() {
       <div className="min-h-11 grow" aria-hidden="true" />
 
       {/* Carte en vol vers le tapis */}
-      {flying && (
+      {flight && (
         <FlyingCard
-          card={flying.card}
-          from={flying.from}
-          fromWidth={flying.width}
-          fromRotate={flying.rot}
-          to={(() => {
-            const r = tableRef.current?.getBoundingClientRect();
-            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : flying.from;
-          })()}
+          card={flight.card}
+          from={flight.from}
+          fromWidth={flight.width}
+          fromRotate={flight.rot}
+          to={volArrivee ?? flight.from}
         />
       )}
 

@@ -12,8 +12,9 @@ import { withRetry } from "@/lib/azteque/net";
  * rapide quand le temps réel est en panne, et déclenché aussi au retour du
  * réseau ou de l'onglet au premier plan.
  *
- * Les lignes plus anciennes que celle déjà affichée sont ignorées : un
- * rattrapage lent ne doit jamais faire reculer la table.
+ * Les lignes plus anciennes que celle déjà affichée sont ignorées, et celle
+ * déjà appliquée n'est jamais reposée : un rattrapage lent ne doit ni faire
+ * reculer la table, ni défaire le coup que le joueur vient de jouer.
  */
 
 const FAST_POLL_MS = 2_500;
@@ -28,6 +29,33 @@ const SLOW_POLL_MS = 9_000;
  * refait donc à neuf plutôt que d'espérer.
  */
 const RESUBSCRIBE_AFTER_MS = 15_000;
+
+/**
+ * Cette ligne apprend-elle quelque chose ?
+ *
+ * Deux façons de ne rien apprendre, et elles se distinguent :
+ *
+ * — Une ligne PLUS ANCIENNE que celle affichée ferait reculer la table. Un
+ *   rattrapage lancé avant le dernier coup peut très bien revenir après lui.
+ *
+ * — La ligne DÉJÀ APPLIQUÉE, elle, décrit exactement ce qu'on montre. La
+ *   reposer serait sans effet si l'écran s'en tenait au serveur ; mais il
+ *   montre aussi le coup que le joueur vient de jouer, avant même que le
+ *   serveur en ait connaissance (voir preview.ts). La reposer défait donc ce
+ *   coup : la carte repart dans la main, pour y revenir un instant plus tard.
+ *
+ * La comparaison se fait sur l'horodatage TEL QUEL, pas converti en
+ * millisecondes : `Date.getTime()` tronque, et deux écritures distinctes
+ * séparées de quelques microsecondes retomberaient sur la même milliseconde.
+ * Les écarter toutes deux perdrait une vraie mise à jour — bien pire qu'un
+ * scintillement, puisque la table resterait en retard jusqu'au rattrapage
+ * suivant.
+ */
+export function apporteDuNeuf(stamp: string, vue: { at: number; stamp: string }): boolean {
+  if (stamp === vue.stamp) return false;
+  const at = new Date(stamp).getTime();
+  return Number.isNaN(at) ? false : at >= vue.at;
+}
 
 export interface MatchSync {
   /** Le canal temps réel est établi. */
@@ -50,16 +78,18 @@ export function useMatchSync(
   const [stale, setStale] = useState(false);
 
   const lastAt = useRef(0);
+  /** L'horodatage de la ligne déjà appliquée, tel quel (voir `apporteDuNeuf`). */
+  const lastStamp = useRef("");
   const lastSeen = useRef(Date.now());
   const onRowRef = useRef(onRow);
   onRowRef.current = onRow;
 
   const accept = useCallback((row: MatchRow) => {
-    const at = new Date(row.updated_at).getTime();
     lastSeen.current = Date.now();
     setStale(false);
-    if (at < lastAt.current) return;
-    lastAt.current = at;
+    if (!apporteDuNeuf(row.updated_at, { at: lastAt.current, stamp: lastStamp.current })) return;
+    lastAt.current = new Date(row.updated_at).getTime();
+    lastStamp.current = row.updated_at;
     onRowRef.current(row);
   }, []);
 
