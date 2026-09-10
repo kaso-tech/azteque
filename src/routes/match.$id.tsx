@@ -179,15 +179,30 @@ function OnlineTable() {
   const [drawFlights, setDrawFlights] = useState<
     {
       id: number;
+      /** La pioche que ce vol représente : il ne s'efface qu'une fois CELLE-CI servie. */
+      cle: string;
       player: PlayerIndex;
       from: { x: number; y: number };
       to: { x: number; y: number };
       delay: number;
     }[]
   >([]);
+  /** Vol de pioche dont la durée minimale est écoulée : il peut céder la place. */
+  const [volPiocheAbouti, setVolPiocheAbouti] = useState("");
   const [sweepFlights, setSweepFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
+  /**
+   * Le pli déjà ramassé à l'écran.
+   *
+   * Le serveur peut mettre un instant à vider le pli — chez l'invité, sa propre
+   * demande de résolution n'est qu'un recours à quatre secondes. Sans ce
+   * repère, les deux cartes que l'on vient de voir partir vers le tas
+   * réapparaissaient sur le tapis le temps que la réponse arrive, puis
+   * disparaissaient d'un coup.
+   */
+  const [pliRamasse, setPliRamasse] = useState("");
+
   // Pendant la résolution d'un pli (ramassage puis éventuel transfert « atout
   // 10 »), le serveur a déjà avancé l'état bien avant que l'animation locale
   // n'ait fini de jouer (l'aller-retour réseau est plus rapide que le vol des
