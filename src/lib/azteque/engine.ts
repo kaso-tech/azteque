@@ -418,6 +418,31 @@ export function drawNext(state: GameState): GameState {
   return s;
 }
 
+/**
+ * Anticiper la fin du tour.
+ *
+ * Un joueur peut décider d'arrêter le tour avant que les cartes ne soient
+ * épuisées. Le prix est lourd et volontairement dissuasif : toutes les bonnes
+ * encore dans SA main, ainsi que toutes celles restées dans la pioche, sont
+ * versées au tas de l'adversaire. Le tour est ensuite décompté normalement.
+ */
+export function anticipate(state: GameState, p: PlayerIndex): GameState {
+  if (state.phase !== "playing") return state;
+  const s = clone(state);
+  const opp: PlayerIndex = p === 0 ? 1 : 0;
+  const moved = [...s.hands[p].filter(isBonne), ...s.stock.filter(isBonne)];
+  s.gains[opp].push(...moved);
+  s.hands = [[], []];
+  s.stock = [];
+  s.trick = [];
+  s.drawPending = [];
+  s.canAnnounce = null;
+  s.log.unshift(
+    `${name(p)} anticipe la fin du tour : ${moved.length} bonne(s) versée(s) à ${name(opp)}.`,
+  );
+  return endRound(s);
+}
+
 export function label(c: Card) {
   return `${c.rank}${SUIT_SYMBOL[c.suit]}`;
 }
