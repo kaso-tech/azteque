@@ -227,7 +227,6 @@ function OnlineTable() {
   // serveur l'ait bel et bien vidé.
   const pliMasque = collect.length > 0 || (pliRamasse !== "" && pliRamasse === cleAffichee);
 
-
   // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
   // l'adversaire dès qu'elle apparaît dans le pli. Elle s'appuie sur le pli
   // AFFICHÉ, pas sur l'état : pendant le ramassage, le serveur a déjà vidé le
@@ -738,7 +737,6 @@ function OnlineTable() {
         setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
         setPliRamasse(cle);
 
-
         const lastDelay = 140;
         setCollect([
           { id: 1, card: first.card, from: fromFirst, to: winnerPile, delay: 0 },
@@ -813,8 +811,6 @@ function OnlineTable() {
   useEffect(() => {
     if (pliRamasse !== "" && cleServeur !== pliRamasse) setPliRamasse("");
   }, [cleServeur, pliRamasse]);
-
-
 
   // La pioche en attente, s'il y en a une : qui doit piocher, et un repère qui
   // désigne CETTE pioche-là — le talon baisse d'une carte à chaque fois, ce
@@ -906,7 +902,6 @@ function OnlineTable() {
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
-
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = state ? `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}` : "";
