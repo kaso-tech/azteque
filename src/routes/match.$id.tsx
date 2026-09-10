@@ -222,6 +222,11 @@ function OnlineTable() {
   // serveur normalement.
   const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
   const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
+  const cleAffichee = displayTrick.map((e) => e.card.id).join("|");
+  // Le pli reste invisible depuis son envol vers le tas jusqu'à ce que le
+  // serveur l'ait bel et bien vidé.
+  const pliMasque = collect.length > 0 || (pliRamasse !== "" && pliRamasse === cleAffichee);
+
 
   // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
   // l'adversaire dès qu'elle apparaît dans le pli. Elle s'appuie sur le pli
