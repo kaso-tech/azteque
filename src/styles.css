@@ -266,6 +266,30 @@
     0 8px 18px -10px oklch(0 0 0 / 0.75);
 }
 
+/* La main du joueur en éventail.
+   La hauteur de la rangée commande la taille des cartes — elles s'y ajustent
+   par leur proportion — et l'écartement se compte en pourcentage de la
+   largeur : l'éventail garde donc les mêmes proportions du plus étroit des
+   téléphones à la tablette, sans un seul point de rupture. */
+@utility fan-row {
+  position: relative;
+  margin-inline: auto;
+  max-width: 28rem;
+  height: clamp(6rem, 16dvh, 8.5rem);
+}
+
+/* Le pivot est SOUS la carte : la rotation dessine alors l'arc d'elle-même,
+   sans qu'il faille décaler chaque carte en hauteur. */
+@utility fan-card {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% + var(--dx, 0%));
+  height: 100%;
+  aspect-ratio: 5 / 7;
+  transform-origin: 50% 148%;
+  transform: translateX(-50%) rotate(var(--rot, 0deg));
+}
+
 /* Surface réservée au tapis de jeu. Elle reproduit le modelé lumineux de la
    référence sans recolorer les panneaux, menus ou autres écrans. */
 @utility game-table-surface {

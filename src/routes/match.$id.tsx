@@ -1049,7 +1049,7 @@ function OnlineTable() {
       <section
         ref={tableRef}
         style={tapis}
-        className="game-table-surface relative flex min-h-44 max-h-[46dvh] flex-1 flex-col items-center justify-center gap-3 rounded-xl p-4"
+        className="game-table-surface relative flex min-h-44 max-h-[40dvh] grow-[999] flex-col items-center justify-center gap-3 rounded-xl p-4"
       >
         <div className="absolute left-3 top-3" ref={pileRefs[opp]}>
           <CapturedPile cards={displayGains[opp]} owner="opponent" />
@@ -1209,6 +1209,7 @@ function OnlineTable() {
             cards={state.hands[me]}
             exposedIds={state.exposed[me]}
             keepSlots={state.stock.length > 0}
+            fan
             isDisabled={(c) =>
               meldDecisionPending ||
               animating ||
@@ -1240,6 +1241,14 @@ function OnlineTable() {
           )}
         </div>
       </section>
+
+      {/* Bandeau du bas.
+          Le tapis est plafonné pour laisser de la hauteur aux cartes ; sur un
+          grand écran il reste malgré tout de la place, et elle échouait
+          jusqu'ici en vert mort sous les boutons. Ce bandeau la recueille au
+          ras du bord — il accueillera les gestes qui n'ont pas leur place au
+          milieu du jeu (son, stickers). Vide, il ne se voit pas. */}
+      <div className="min-h-11 grow" aria-hidden="true" />
 
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6">

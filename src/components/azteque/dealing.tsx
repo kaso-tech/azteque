@@ -71,6 +71,8 @@ interface Box {
   top: number;
   width: number;
   height: number;
+  /** Inclinaison de la case, en degrés : nulle à plat, réglée en éventail. */
+  rot: number;
 }
 
 interface Geometry {
@@ -80,16 +82,42 @@ interface Geometry {
 }
 
 function boxOf(r: DOMRect): Box {
-  return { left: r.left, top: r.top, width: r.width, height: r.height };
+  return { left: r.left, top: r.top, width: r.width, height: r.height, rot: 0 };
 }
 
-/** Les cartes réellement affichées dans un conteneur, dans l'ordre. */
+/** L'angle qu'un élément doit à sa transformation, en degrés. */
+function angleOf(el: Element | null): number {
+  if (!el) return 0;
+  const t = getComputedStyle(el).transform;
+  if (!t || t === "none") return 0;
+  const m = new DOMMatrixReadOnly(t);
+  return (Math.atan2(m.b, m.a) * 180) / Math.PI;
+}
+
+/**
+ * Les cartes réellement affichées dans un conteneur, dans l'ordre.
+ *
+ * Une carte inclinée occupe un rectangle plus large qu'elle : son
+ * `getBoundingClientRect` déborde de tous les côtés. On repart donc du CENTRE
+ * de ce rectangle — juste, quelle que soit l'inclinaison — et de la taille non
+ * transformée, pour que la carte en vol se pose exactement sur la carte
+ * qu'elle remplace, et non sur son encombrement.
+ */
 function cardBoxes(ref: RefObject<HTMLElement | null>): Box[] {
   const el = ref.current;
   if (!el) return [];
-  return Array.from(el.querySelectorAll<HTMLElement>(".playing-card")).map((c) =>
-    boxOf(c.getBoundingClientRect()),
-  );
+  return Array.from(el.querySelectorAll<HTMLElement>(".playing-card")).map((c) => {
+    const r = c.getBoundingClientRect();
+    const width = c.offsetWidth || r.width;
+    const height = c.offsetHeight || r.height;
+    return {
+      left: r.left + r.width / 2 - width / 2,
+      top: r.top + r.height / 2 - height / 2,
+      width,
+      height,
+      rot: angleOf(c.parentElement),
+    };
+  });
 }
 
 function measure(
@@ -206,31 +234,45 @@ export function DealCeremony({
           if (!slot) return null;
           const cx = slot.left + slot.width / 2;
           const cy = slot.top + slot.height / 2;
+          // La case porte déjà son inclinaison ; le vol se joue DANS ce repère
+          // incliné. On y ramène donc le vecteur qui mène au paquet, sans quoi
+          // la carte partirait d'à côté de la pioche.
+          const rad = (-slot.rot * Math.PI) / 180;
+          const dx = deckCx - cx;
+          const dy = deckCy - cy;
           return (
             <div
               key={`deal-${i}`}
-              className="animate-deal-fly absolute"
-              style={
-                {
-                  left: slot.left,
-                  top: slot.top,
-                  width: slot.width,
-                  height: slot.height,
-                  // La carte occupe d'emblée sa case, à la taille qu'elle y
-                  // aura : l'animation la fait partir du paquet et l'y ramène.
-                  // Décrire le vol ainsi évite d'avoir à corriger sa taille en
-                  // chemin, et garantit qu'elle se pose exactement en place.
-                  "--dx": `${deckCx - cx}px`,
-                  "--dy": `${deckCy - cy}px`,
-                  // Inclinaison au départ seulement : la carte se redresse en
-                  // arrivant, comme celle que la main affichera.
-                  "--dr": `${(slotOf(i) - 2.5) * 5}deg`,
-                  "--fly-duration": `${tempo.flight}ms`,
-                  animationDelay: `${i * tempo.step}ms`,
-                } as React.CSSProperties
-              }
+              className="absolute"
+              style={{
+                left: slot.left,
+                top: slot.top,
+                width: slot.width,
+                height: slot.height,
+                transform: `rotate(${slot.rot}deg)`,
+              }}
             >
-              <PlayingCard faceDown size="hand" />
+              <div
+                className="animate-deal-fly h-full w-full"
+                style={
+                  {
+                    // La carte occupe d'emblée sa case, à la taille qu'elle y
+                    // aura : l'animation la fait partir du paquet et l'y
+                    // ramène. Décrire le vol ainsi évite d'avoir à corriger sa
+                    // taille en chemin, et garantit qu'elle se pose exactement
+                    // en place — inclinaison de l'éventail comprise.
+                    "--dx": `${dx * Math.cos(rad) - dy * Math.sin(rad)}px`,
+                    "--dy": `${dx * Math.sin(rad) + dy * Math.cos(rad)}px`,
+                    // Inclinaison au départ seulement : la carte se redresse en
+                    // arrivant, comme celle que la main affichera.
+                    "--dr": `${(slotOf(i) - 2.5) * 5}deg`,
+                    "--fly-duration": `${tempo.flight}ms`,
+                    animationDelay: `${i * tempo.step}ms`,
+                  } as React.CSSProperties
+                }
+              >
+                <PlayingCard faceDown size="hand" />
+              </div>
             </div>
           );
         })}

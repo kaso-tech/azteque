@@ -148,6 +148,21 @@ export function GainsPanel({
   );
 }
 
+/**
+ * Écartement et inclinaison d'une carte dans l'éventail, selon son rang.
+ *
+ * Le décalage est exprimé en pourcentage de la LARGEUR de la rangée, jamais en
+ * pixels : l'éventail garde ainsi les mêmes proportions du plus étroit des
+ * téléphones à la tablette, et il suffit de borner la rangée pour le borner.
+ */
+const FAN_PAS = 10;
+const FAN_ROT = 3.6;
+
+function fanPlacement(index: number, total: number) {
+  const ecart = index - (total - 1) / 2;
+  return { dx: `${(ecart * FAN_PAS).toFixed(2)}%`, rot: `${(ecart * FAN_ROT).toFixed(2)}deg` };
+}
+
 export function HandRow({
   cards,
   exposedIds,
@@ -156,6 +171,7 @@ export function HandRow({
   interactive = true,
   faceDown,
   keepSlots = false,
+  fan = false,
 }: {
   cards: Card[];
   exposedIds: string[];
@@ -164,6 +180,12 @@ export function HandRow({
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
   keepSlots?: boolean;
+  /**
+   * Cartes chevauchées en éventail plutôt qu'alignées à plat. Réservé à la
+   * main du joueur : elle seule a besoin d'être lue, et le chevauchement lui
+   * permet des cartes bien plus larges à encombrement égal.
+   */
+  fan?: boolean;
 }) {
   const [slots, setSlots] = useState<(string | null)[]>([]);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -204,10 +226,19 @@ export function HandRow({
     if (!moved.current) return;
     const row = rowRef.current;
     if (!row) return;
+    // On vise la carte dont le CENTRE est le plus proche du doigt, plutôt que
+    // celle qu'il survole : en éventail les cartes se recouvrent, et un test
+    // de survol désignerait toujours la première de la pile.
     const children = Array.from(row.children) as HTMLElement[];
-    const target = children.findIndex((el) => {
+    let target = -1;
+    let plusProche = Infinity;
+    children.forEach((el, i) => {
       const r = el.getBoundingClientRect();
-      return e.clientX >= r.left && e.clientX <= r.right;
+      const d = Math.abs(e.clientX - (r.left + r.width / 2));
+      if (d < plusProche) {
+        plusProche = d;
+        target = i;
+      }
     });
     if (target < 0) return;
     setSlots((prev) => {
@@ -238,10 +269,22 @@ export function HandRow({
     return () => clearTimeout(t);
   }, [cards]);
 
+  // En éventail, chaque carte est placée à l'unité ; à plat, c'est la
+  // répartition en ligne qui s'en charge.
+  const place = (i: number): CSSProperties | undefined => {
+    if (!fan) return undefined;
+    const { dx, rot } = fanPlacement(i, ordered.length);
+    return { "--dx": dx, "--rot": rot, zIndex: i } as CSSProperties;
+  };
+  const caseClass = fan ? "fan-card" : "min-w-0 max-w-[4.5rem] flex-1";
+
   return (
     <div
       ref={rowRef}
-      className="flex w-full touch-none items-end justify-center gap-1 sm:gap-2"
+      className={cn(
+        "w-full touch-none",
+        fan ? "fan-row" : "flex items-end justify-center gap-1 sm:gap-2",
+      )}
       onPointerMove={interactive ? handlePointerMove : undefined}
       onPointerUp={interactive ? handlePointerUp : undefined}
       onPointerCancel={interactive ? handlePointerUp : undefined}
@@ -249,14 +292,15 @@ export function HandRow({
     >
       {ordered.map((c, i) =>
         c === null ? (
-          <div key={`empty-${i}`} className="min-w-0 max-w-[4.5rem] flex-1" aria-hidden="true">
+          <div key={`empty-${i}`} className={caseClass} style={place(i)} aria-hidden="true">
             <div className="animate-slot-wait aspect-[5/7] w-full rounded-[3px] border border-dashed border-gold/30" />
           </div>
         ) : (
           <div
             key={c.id}
             onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
-            className="min-w-0 max-w-[4.5rem] flex-1 transition-transform duration-300"
+            className={cn(caseClass, !fan && "transition-transform duration-300")}
+            style={place(i)}
           >
             <PlayingCard
               card={c}
