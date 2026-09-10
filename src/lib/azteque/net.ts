@@ -26,13 +26,46 @@ export function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+/**
+ * Motifs vérifiés dans les sources de `@supabase/postgrest-js` (celle qui
+ * porte tous les appels de ce jeu, directs ou via `applyMatchAction`) —
+ * jamais devinés.
+ *
+ * `PostgrestError` ne porte NI code HTTP NI cause détaillée : seuls
+ * `message`, `details`, `hint`, `code` (un code Postgres/PostgREST, pas un
+ * statut). Selon la façon dont la requête échoue, le texte à reconnaître
+ * change d'endroit :
+ *
+ * - Le fetch échoue avant toute réponse (coupure, DNS, borne — le cas le plus
+ *   courant en jeu) : `message` devient `"<NomErreur>: <message natif>"`
+ *   (p. ex. "TypeError: Failed to fetch" sur Chrome/Edge, "TypeError: Load
+ *   failed" sur Safari, "TypeError: NetworkError when attempting to fetch
+ *   resource" sur Firefox, "TypeError: fetch failed" sous Node/undici côté
+ *   serveur) — ces quatre expressions figurent ci-dessous telles quelles.
+ *   Le code de la cause Node (ECONNREFUSED, ECONNRESET, ETIMEDOUT,
+ *   ENOTFOUND, EAI_AGAIN) atterrit dans `details`, PAS dans `message` :
+ *   `isTransientError` lit donc les deux.
+ * - Le serveur répond mais avec un statut d'erreur HTTP (502/503/429 d'une
+ *   passerelle, pas de Postgrest lui-même) : le corps brut de la réponse
+ *   devient `message` tel quel. Le numéro n'y figure QUE si la page d'erreur
+ *   de l'infrastructure le mentionne (le cas le plus souvent, mais pas
+ *   garanti) — ces motifs sont donc un filet, pas une lecture fiable du
+ *   statut HTTP réel, qu'aucun appelant de ce dépôt ne conserve aujourd'hui
+ *   (chaque site d'appel ne garde que `error`, jamais le `status` que
+ *   postgrest-js calcule pourtant à côté).
+ */
 const TRANSIENT = [
   "network-timeout",
-  "failed to fetch",
-  "load failed",
-  "networkerror",
-  "network request failed",
-  "fetch failed",
+  "failed to fetch", // Chrome, Edge
+  "load failed", // Safari
+  "networkerror", // Firefox
+  "network request failed", // React Native
+  "fetch failed", // Node / undici (applyMatchAction appelé côté serveur)
+  "econnrefused",
+  "econnreset",
+  "etimedout",
+  "enotfound",
+  "eai_again",
   "aborted",
   "timeout",
   "socket",
@@ -46,11 +79,21 @@ const TRANSIENT = [
 /**
  * Vrai si l'échec vient du transport et non d'un refus raisonné du serveur.
  * Un refus métier porte un message en clair rédigé par `match-actions.ts`.
+ *
+ * Lit `message` ET `details` (voir `TRANSIENT` ci-dessus) : la cause précise
+ * d'un échec de fetch — les codes de connexion Node en particulier — n'est
+ * jamais dans `message` seul.
  */
 export function isTransientError(e: unknown): boolean {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
-  const msg = (e instanceof Error ? e.message : String(e ?? "")).toLowerCase();
-  return TRANSIENT.some((needle) => msg.includes(needle));
+  const details = (e as { details?: unknown } | null)?.details;
+  const texte = [
+    e instanceof Error ? e.message : String(e ?? ""),
+    typeof details === "string" ? details : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  return TRANSIENT.some((needle) => texte.includes(needle));
 }
 
 export interface RetryOptions {
