@@ -762,6 +762,22 @@ function Azteque() {
     setStarted(false);
   }, []);
 
+  // Anticiper la fin du tour : possible à son tour, hors animation, tant
+  // qu'aucune carte n'est posée et qu'aucune décision n'est en attente.
+  const [confirmAnticipate, setConfirmAnticipate] = useState(false);
+  const canAnticipate =
+    started &&
+    !dealing &&
+    state.phase === "playing" &&
+    state.turn === 0 &&
+    state.trick.length === 0 &&
+    state.drawPending.length === 0 &&
+    !meldDecisionPending;
+  const anticipateNow = () => {
+    setConfirmAnticipate(false);
+    setState((s) => anticipate(s, 0));
+  };
+
   // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
   // accepter une invitation pendant qu'on joue devra d'abord passer par
   // `quitTable`, avec l'avertissement qui va avec.
