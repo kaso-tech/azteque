@@ -34,6 +34,81 @@ const SNOOZE_FALLBACK_MS = 3 * 60 * 1000;
 const FRIEND_TOAST_COOLDOWN_MS = 5 * 60 * 1000;
 
 /**
+ * Identifiant fixe du popup d'invitation entrante.
+ *
+ * Un seul à la fois est montré (les suivantes attendent, voir `waitingCount`) :
+ * réutiliser le même identifiant à chaque mise à jour REMPLACE le popup en
+ * place au lieu d'en empiler un nouveau à chaque frappe de `busy` ou `error`.
+ */
+const INVITE_TOAST_ID = "incoming-game-invite";
+
+/**
+ * Contenu du popup d'invitation, affiché via `toast.custom` (voir plus bas).
+ *
+ * Non stylé par sonner (`unstyled`) : elle fournit son propre habillage
+ * `panel`, celui de tous les panneaux du jeu, plutôt que le look générique de
+ * la boîte à toasts — un popup, mais qui reste visuellement le jeu.
+ */
+function IncomingInvitePopup({
+  invite,
+  busy,
+  error,
+  waitingCount,
+  onAccept,
+  onLater,
+  onDecline,
+}: {
+  invite: GameInvite;
+  busy: boolean;
+  error: string | null;
+  waitingCount: number;
+  onAccept: () => void;
+  onLater: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="panel w-full max-w-sm p-4 text-left shadow-2xl">
+      <div className="flex items-center gap-3">
+        <PlayerAvatar className="h-11 w-11 shrink-0" profile={invite.from_avatar ?? null} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-foreground">
+            <span className="font-semibold text-gold">{invite.from_username}</span> vous invite à
+            jouer
+          </p>
+          {invite.from_rating !== undefined && <RankBadge rating={invite.from_rating} compact />}
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" className="flex-1" disabled={busy} onClick={onAccept}>
+          Accepter
+        </Button>
+        <Button size="sm" variant="outline" className="flex-1" disabled={busy} onClick={onLater}>
+          Plus tard
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 text-destructive hover:text-destructive"
+          disabled={busy}
+          onClick={onDecline}
+        >
+          Refuser
+        </Button>
+      </div>
+
+      {waitingCount > 0 && (
+        <p className="mt-2 text-[0.65rem] text-muted-foreground">
+          +{waitingCount} autre{waitingCount > 1 ? "s" : ""} invitation
+          {waitingCount > 1 ? "s" : ""} en attente
+        </p>
+      )}
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/**
  * Gestionnaire global des invitations à jouer.
  *
  * Monté une fois à la racine de l'application, il fonctionne quel que soit
@@ -271,89 +346,80 @@ export function InviteManager() {
     });
   }, [userId]);
 
+  /* ---------- Popup d'invitation entrante ---------- */
+
+  // Affiché EN POPUP (toast, en haut de l'écran) plutôt qu'en carte fixée au
+  // bas de l'écran : une invitation peut arriver en pleine réflexion, pendant
+  // que le compte à rebours du tour tourne, et le popup ne doit ni cacher les
+  // cartes du joueur ni se confondre avec le reste de la table. Le même
+  // identifiant (`INVITE_TOAST_ID`) est réutilisé à chaque mise à jour : le
+  // popup se met à jour en place au lieu de s'empiler.
+  useEffect(() => {
+    if (!visible) {
+      toast.dismiss(INVITE_TOAST_ID);
+      return;
+    }
+    toast.custom(
+      () => (
+        <IncomingInvitePopup
+          invite={visible}
+          busy={busy}
+          error={error}
+          waitingCount={waitingCount}
+          onAccept={() => accept(visible)}
+          onLater={() => later(visible)}
+          onDecline={() => decline(visible)}
+        />
+      ),
+      {
+        id: INVITE_TOAST_ID,
+        duration: Infinity,
+        unstyled: true,
+        // Ne se ferme que par une réponse explicite (Accepter / Plus tard /
+        // Refuser) : glisser le popup pour l'écarter ne changerait ni
+        // `invites` ni `snoozedIds`, et l'invitation resterait due sans plus
+        // jamais s'afficher tant qu'aucune de ces valeurs ne change.
+        dismissible: false,
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, busy, error, waitingCount]);
+
+  // Le popup ne doit pas survivre à ce gestionnaire (changement de compte,
+  // démontage de l'application).
+  useEffect(() => () => void toast.dismiss(INVITE_TOAST_ID), []);
+
   /* ---------- Rendu ---------- */
 
-  if (!visible && !busyWarning) return null;
+  if (!busyWarning) return null;
 
-  if (busyWarning) {
-    return (
-      <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-6">
-        <div className="panel w-full max-w-sm p-6 text-center">
-          <h2 className="gold-text text-2xl">Rejoindre {busyWarning.from_username} ?</h2>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Une partie est en cours. En rejoignant cette invitation, vous quittez votre partie
-            actuelle — elle comptera comme abandonnée.
-          </p>
-          <div className="mt-5 flex items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => setBusyWarning(null)}
-              className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
-            >
-              Rester ici
-            </button>
-            <button
-              type="button"
-              onClick={confirmLeaveAndAccept}
-              className="rounded-full bg-destructive-solid px-5 py-2 text-sm font-semibold text-destructive-foreground"
-            >
-              Quitter et rejoindre
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!visible) return null;
-
+  // Seule la confirmation d'abandon de la partie en cours (rejoindre une
+  // invitation en pleine partie) garde un écran bloquant classique : c'est
+  // une décision délibérée et rare, pas une notification.
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[80] flex justify-center sm:inset-x-auto sm:bottom-6 sm:right-6 sm:justify-end">
-      <div className="panel w-full max-w-sm p-4 text-left shadow-2xl">
-        <div className="flex items-center gap-3">
-          <PlayerAvatar className="h-11 w-11 shrink-0" profile={visible.from_avatar ?? null} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-foreground">
-              <span className="font-semibold text-gold">{visible.from_username}</span> vous invite à
-              jouer
-            </p>
-            {visible.from_rating !== undefined && (
-              <RankBadge rating={visible.from_rating} compact />
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" className="flex-1" disabled={busy} onClick={() => accept(visible)}>
-            Accepter
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            disabled={busy}
-            onClick={() => later(visible)}
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-6">
+      <div className="panel w-full max-w-sm p-6 text-center">
+        <h2 className="gold-text text-2xl">Rejoindre {busyWarning.from_username} ?</h2>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Une partie est en cours. En rejoignant cette invitation, vous quittez votre partie
+          actuelle — elle comptera comme abandonnée.
+        </p>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setBusyWarning(null)}
+            className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
           >
-            Plus tard
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-destructive hover:text-destructive"
-            disabled={busy}
-            onClick={() => decline(visible)}
+            Rester ici
+          </button>
+          <button
+            type="button"
+            onClick={confirmLeaveAndAccept}
+            className="rounded-full bg-destructive-solid px-5 py-2 text-sm font-semibold text-destructive-foreground"
           >
-            Refuser
-          </Button>
+            Quitter et rejoindre
+          </button>
         </div>
-
-        {waitingCount > 0 && (
-          <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            +{waitingCount} autre{waitingCount > 1 ? "s" : ""} invitation
-            {waitingCount > 1 ? "s" : ""} en attente
-          </p>
-        )}
-        {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </div>
     </div>
   );
