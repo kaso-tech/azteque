@@ -149,6 +149,52 @@ export async function resolveReadyNextRound(
   }
 }
 
+/** Motif d'abandon, tel qu'envoyé par le client. */
+export type ForfeitReason = NonNullable<GameState["forfeit"]>["reason"];
+
+/**
+ * Qui perd un abandon, et l'état de fin de champ qui en résulte.
+ *
+ * "quit" se déclare contre SOI-MÊME (`me` perd) : c'est le joueur qui
+ * abandonne qui envoie l'action. "timeout"/"disconnect" se déclarent contre
+ * l'ADVERSAIRE observé — c'est l'autre joueur qui perd, mais seulement si le
+ * délai qu'il prétend écoulé (`ageMs`, l'âge de la ligne côté serveur) l'est
+ * réellement : on ne se fie jamais à la seule horloge du client qui le
+ * déclare, elle pourrait avancer.
+ *
+ * Extraite du handler pour rester testable sans dépendre de Supabase — voir
+ * match-actions.forfeit.test.ts — sur le modèle de `resolveReadyNextRound`
+ * ci-dessus.
+ */
+export function resolveForfeit(
+  state: GameState | null,
+  me: PlayerIndex,
+  reason: ForfeitReason,
+  ageMs: number,
+): GameState {
+  if (!state || state.phase === "gameEnd") throw new Error("Partie déjà terminée.");
+  let loser: PlayerIndex = me;
+  if (reason === "timeout") {
+    // 30 s côté client, marge de sécurité incluse ici : voir declareForfeit
+    // dans match.$id.tsx pour le délai qui déclenche l'appel.
+    if (ageMs < 25_000) throw new Error("Délai non écoulé.");
+    loser = me === 0 ? 1 : 0;
+  } else if (reason === "disconnect") {
+    // Limitation connue : la présence en temps réel n'est pas persistée côté
+    // serveur, donc cette déclaration ne peut pas être vérifiée ici aussi
+    // strictement que le timeout — seule l'appartenance à la partie est
+    // garantie. Une vérification robuste nécessiterait de suivre la présence
+    // côté serveur (hors périmètre de ce correctif).
+    loser = me === 0 ? 1 : 0;
+  }
+  return {
+    ...state,
+    phase: "gameEnd",
+    champWinner: (loser === 0 ? 1 : 0) as PlayerIndex,
+    forfeit: { loser, reason },
+  };
+}
+
 export const applyMatchAction = createServerFn({ method: "POST", strict: { output: false } })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => requestSchema.parse(data))
@@ -324,30 +370,12 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
     }
 
     if (data.type === "forfeit") {
-      if (!state || state.phase === "gameEnd") throw new Error("Partie déjà terminée.");
-      let loser: PlayerIndex = me;
-      if (data.reason === "timeout") {
-        // Le joueur qui observe le dépassement de temps le déclare : on ne se
-        // fie pas à sa seule horloge et on vérifie côté serveur que l'état
-        // n'a effectivement pas bougé depuis au moins la durée du délai
-        // (30s côté client, marge de sécurité incluse ici).
-        const ageMs = Date.now() - new Date(row.updated_at).getTime();
-        if (ageMs < 25_000) throw new Error("Délai non écoulé.");
-        loser = me === 0 ? 1 : 0;
-      } else if (data.reason === "disconnect") {
-        // Limitation connue : la présence en temps réel n'est pas persistée
-        // côté serveur, donc cette déclaration ne peut pas être vérifiée ici
-        // aussi strictement que le timeout — seule l'appartenance à la
-        // partie est garantie. Une vérification robuste nécessiterait de
-        // suivre la présence côté serveur (hors périmètre de ce correctif).
-        loser = me === 0 ? 1 : 0;
-      }
-      const next: GameState = {
-        ...state,
-        phase: "gameEnd",
-        champWinner: (loser === 0 ? 1 : 0) as PlayerIndex,
-        forfeit: { loser, reason: data.reason },
-      };
+      // Le joueur qui observe le dépassement de temps déclare l'adversaire
+      // perdant : on ne se fie pas à sa seule horloge, resolveForfeit
+      // vérifie côté serveur que l'état n'a effectivement pas bougé depuis
+      // au moins la durée du délai (30s côté client, marge incluse ici).
+      const ageMs = Date.now() - new Date(row.updated_at).getTime();
+      const next = resolveForfeit(state, me, data.reason, ageMs);
       await writeState(next, "finished");
       return { state: next, settings };
     }
