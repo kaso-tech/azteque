@@ -736,6 +736,8 @@ function OnlineTable() {
 
         setAnimating(true);
         setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
+        setPliRamasse(cle);
+
 
         const lastDelay = 140;
         setCollect([
