@@ -8,6 +8,7 @@ import {
   aiChooseCardAt,
   aiWantsRedeal,
   announce,
+  anticipate,
   availableMelds,
   drawNext,
   hasMainBlanche,
