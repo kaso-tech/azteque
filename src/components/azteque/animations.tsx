@@ -135,6 +135,9 @@ const LARGEUR_PLI = 72;
  */
 export const DUREE_VOL = 420;
 
+/** Durée du trajet entre la pioche et une main. */
+export const DUREE_PIOCHE = 480;
+
 /**
  * La carte que l'on pose, de la main jusqu'au tapis.
  *
@@ -277,11 +280,10 @@ export function DrawCard({
         ...flightStyle(from, to, departed, {
           scale: 0.86,
           rotate: player === 0 ? 5 : -5,
-          duration: 480,
+          duration: DUREE_PIOCHE,
           ease: "cubic-bezier(.24,.82,.28,1)",
         }),
-        opacity: departed ? 0.05 : 1,
-        transitionDelay: "0ms, 320ms",
+        opacity: 1,
         filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))",
       }}
     >

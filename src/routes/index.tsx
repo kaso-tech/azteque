@@ -59,6 +59,7 @@ import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import {
   CoinBurst,
   CollectCard,
+  DUREE_PIOCHE,
   DrawCard,
   angleOf,
   FlyingCard,
@@ -661,12 +662,13 @@ function Azteque() {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
         jouerPour(player, () => sfx.draw());
       }
-      // La carte rejoint la main seulement quand l'animation est terminée
+      // La carte rejoint la main exactement à l'arrivée du vol. La main rend
+      // immédiatement son nouveau slot, sans seconde animation d'apparition.
       timers.push(
         setTimeout(() => {
-          setDrawFlights([]);
           setState((s) => drawNext(s));
-        }, 580),
+          setDrawFlights([]);
+        }, DUREE_PIOCHE),
       );
     }, 420);
     timers.push(t);
@@ -995,6 +997,7 @@ function Azteque() {
               faceDown={(c) => !state.exposed[1].includes(c.id)}
               interactive={false}
               refillable={state.stock.length > 0}
+              animateArrivals={false}
             />
           </div>
           <TurnBar total={TURN_LIMIT} active={oppTurnActive} resetKey={turnKey} />
@@ -1038,6 +1041,7 @@ function Azteque() {
               hidden={collect.length > 0}
               vols={etat}
               cardRef={trickCardRefs[1]}
+              showLabel={false}
             />
           </div>
 
@@ -1069,6 +1073,7 @@ function Azteque() {
               hidden={collect.length > 0}
               vols={etat}
               cardRef={trickCardRefs[0]}
+              showLabel={false}
             />
           </div>
         </div>
@@ -1149,6 +1154,7 @@ function Azteque() {
             exposedIds={state.exposed[0]}
             refillable={state.stock.length > 0}
             fan
+            animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
               state.turn !== 0 ||
