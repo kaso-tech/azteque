@@ -79,15 +79,6 @@ export async function getMatch(id: string) {
   return (data as unknown as MatchRow | null) ?? null;
 }
 
-export async function findMatch(code: string) {
-  const { data, error } = await supabase.rpc("join_match_by_code", {
-    _code: normalizeCode(code),
-    _guest_name: "Invité",
-  });
-  if (error) throw error;
-  return (data?.[0] as unknown as MatchRow | undefined) ?? null;
-}
-
 export async function joinMatch(code: string, guestName: string) {
   await ensureOnlineIdentity();
   const { data, error } = await supabase.rpc("join_match_by_code", {

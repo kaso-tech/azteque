@@ -299,15 +299,6 @@ export async function loadCatalogue(force = false): Promise<ShopItem[]> {
   return chargement;
 }
 
-/** Le catalogue en mémoire, sans attendre. */
-export function shopItems(): ShopItem[] {
-  return catalogue;
-}
-
-export function shopItem(id: string): ShopItem | undefined {
-  return catalogue.find((i) => i.id === id);
-}
-
 /** Le catalogue, chargé au premier rendu et tenu à jour. */
 export function useCatalogue(): ShopItem[] {
   const [items, setItems] = useState<ShopItem[]>(catalogue);
