@@ -217,8 +217,20 @@ export function announce(
     s.trump = trumpSuit;
     s.log.unshift(`L'atout est ${SUIT_NAME[trumpSuit]} ${SUIT_SYMBOL[trumpSuit]}.`);
   }
-  s.pendingUpgrade[p] = simpleAnnounced;
-  s.canAnnounce = null;
+  // Un compte simple attend sa pioche pour devenir triple. On n'écrase cette
+  // attente que si CETTE annonce en crée une nouvelle : annoncer ensuite un
+  // trio dans une autre couleur ne doit pas faire oublier le simple déclaré
+  // juste avant.
+  if (simpleAnnounced) s.pendingUpgrade[p] = simpleAnnounced;
+
+  // La fenêtre reste ouverte tant qu'il reste un compte à déclarer.
+  //
+  // Elle se refermait sur la première annonce, ce qui obligeait à tout
+  // déclarer d'un bloc ou à tout abandonner. Les comptes se décident
+  // maintenant un par un — et comme c'est le premier annoncé qui crée
+  // l'atout, ce choix a une vraie portée : on peut ouvrir sur la couleur
+  // qu'on veut voir maîtresse, puis décider du reste.
+  s.canAnnounce = availableMelds(s, p, true).length > 0 ? p : null;
   return s;
 }
 

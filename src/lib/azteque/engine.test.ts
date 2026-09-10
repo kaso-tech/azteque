@@ -403,6 +403,36 @@ describe("availableMelds / announce", () => {
     expect(bySuit["S"]).toMatchObject({ points: 2, first: false });
   });
 
+  it("deux comptes en main : annoncer l'un laisse la fenêtre ouverte pour l'autre", () => {
+    const hand = [card("K", "H"), card("Q", "H"), card("K", "S"), card("Q", "S"), card("7", "D")];
+    const state = makeState(preconditions(0, hand));
+
+    // Le joueur n'annonce QUE pique : c'est donc lui qui crée l'atout.
+    const un = announce(state, 0, ["S"], "S");
+    expect(un.trump).toBe("S");
+    expect(un.melds[0]).toHaveLength(1);
+    expect(un.melds[0][0]).toMatchObject({ suit: "S", points: 4, first: true });
+    // Cœur reste annonçable : la fenêtre ne s'est pas refermée sur lui.
+    expect(un.canAnnounce).toBe(0);
+    expect(availableMelds(un, 0).map((o) => o.suit)).toEqual(["H"]);
+
+    // Il peut alors le déclarer séparément, au barème réduit.
+    const deux = announce(un, 0, ["H"], null);
+    expect(deux.trump).toBe("S");
+    expect(deux.melds[0]).toHaveLength(2);
+    expect(deux.melds[0][1]).toMatchObject({ suit: "H", points: 2, first: false });
+    // Plus rien à déclarer : la fenêtre se referme d'elle-même.
+    expect(deux.canAnnounce).toBeNull();
+  });
+
+  it("annoncer un simple puis un trio garde l'attente de complément du simple", () => {
+    const hand = [card("K", "H"), card("Q", "H"), card("K", "S"), card("Q", "S"), card("J", "S")];
+    const state = makeState(preconditions(0, hand));
+    // Cœur d'abord (simple, donc en attente de son valet), pique ensuite (trio).
+    const apres = announce(announce(state, 0, ["H"], "H"), 0, ["S"], null);
+    expect(apres.pendingUpgrade[0]).toBe("H");
+  });
+
   it("un compte annoncé après que l'atout est fixé ne recrée pas d'atout et vaut le barème 'suivant'", () => {
     const hand = [card("K", "S"), card("Q", "S"), card("7", "D"), card("8", "D"), card("9", "D")];
     const state = makeState({ ...preconditions(0, hand), trump: "H" });

@@ -7,6 +7,7 @@ import {
   isBonne,
   stealsBonne,
   legalCards,
+  meldPoints,
   resolveTrick,
   trickCapturesPile,
   type Card,
@@ -26,6 +27,7 @@ import {
   CoinBurst,
   CollectCard,
   DrawCard,
+  angleOf,
   FlyingCard,
   SweepCard,
 } from "@/components/azteque/animations";
@@ -122,10 +124,6 @@ function OnlineTable() {
   // il se réessaie, alors qu'une partie disparue ou un siège usurpé, non.
   const [errorRetryable, setErrorRetryable] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [choosingTrump, setChoosingTrump] = useState(false);
-  // Comptes retenus pour l'annonce en cours. `null` = tous ceux que la main
-  // permet : le joueur peut en retirer un pour n'en annoncer qu'un seul.
-  const [selectedSuits, setSelectedSuits] = useState<Suit[] | null>(null);
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -155,7 +153,12 @@ function OnlineTable() {
     count: 0,
   });
 
-  const [flying, setFlying] = useState<{ card: Card; from: { x: number; y: number } } | null>(null);
+  const [flying, setFlying] = useState<{
+    card: Card;
+    from: { x: number; y: number };
+    width?: number;
+    rot?: number;
+  } | null>(null);
   const [collect, setCollect] = useState<
     {
       id: number;
@@ -863,14 +866,6 @@ function OnlineTable() {
     myMelds.length > 0 &&
     state.stock.length > 0;
 
-  // La sélection ne vaut que pour l'annonce en cours.
-  useEffect(() => {
-    if (!meldDecisionPending) {
-      setSelectedSuits(null);
-      setChoosingTrump(false);
-    }
-  }, [meldDecisionPending]);
-
   // Affichage figé du pli et des tas pendant le ramassage/transfert animé
   // (voir la déclaration de `frozenTable` plus haut) : le reste de l'état
   // (mains, tour, pioche…) continue de refléter la vérité serveur normalement.
@@ -881,55 +876,28 @@ function OnlineTable() {
     if (!state || meldDecisionPending) return;
     const from = center(el);
     if (from) {
-      setFlying({ card, from });
+      // Le rectangle d'une carte penchée est plus grand qu'elle, mais son
+      // centre reste juste : on part de là, avec sa vraie largeur et son vrai
+      // angle, pour que le vol prenne le relais sans à-coup.
+      setFlying({ card, from, width: el.offsetWidth, rot: angleOf(el.parentElement) });
       setTimeout(() => setFlying(null), 380);
     }
     sfx.place();
     void runAction({ type: "play_card", cardId: card.id });
   };
 
-  // Le joueur retient les comptes qu'il veut annoncer : les deux, ou l'un et
-  // pas l'autre. Tous sont cochés au départ, chacun valant des points.
-  const meldSuits = myMelds.map((m) => m.suit);
-  const chosenSuits = (selectedSuits ?? meldSuits).filter((s) => meldSuits.includes(s));
-  // L'atout n'est à désigner que s'il n'est pas encore fixé et qu'au moins
-  // deux comptes sont retenus.
-  const needsTrumpChoice = !!state && state.trump === null && chosenSuits.length > 1;
-  const meldSummary = myMelds
-    .filter((m) => chosenSuits.includes(m.suit))
-    .map((m) => `${SUIT_SYMBOL[m.suit]} ${m.type === "triple" ? "trio" : "simple"}`)
-    .join(" + ");
-  const toggleMeld = (s: Suit) =>
-    setSelectedSuits((cur) => {
-      const base = cur ?? meldSuits;
-      return base.includes(s) ? base.filter((x) => x !== s) : [...base, s];
-    });
-
-  const doAnnounce = (trumpChoice: Suit | null) => {
+  /** Déclare UN compte. Le premier de la donne crée l'atout dans sa couleur. */
+  const doAnnounce = (suit: Suit) => {
     if (!state) return;
-    const suits = chosenSuits;
-    if (suits.length === 0) return;
     // L'atout se fixe sur cette annonce précisément quand il n'était pas
     // encore choisi : un rire différent salue ce moment-là.
-    if (state.trump === null) sfx.trumpLaugh();
+    const fixeLAtout = state.trump === null;
+    if (fixeLAtout) sfx.trumpLaugh();
     else sfx.chuckle();
-    void runAction({ type: "announce", suits, trump: trumpChoice });
-    setChoosingTrump(false);
-    setSelectedSuits(null);
-  };
-
-  const announceMelds = () => {
-    if (!state || chosenSuits.length === 0) return;
-    if (needsTrumpChoice) {
-      setChoosingTrump(true);
-      return;
-    }
-    doAnnounce(state.trump === null ? (chosenSuits[0] ?? null) : null);
+    void runAction({ type: "announce", suits: [suit], trump: fixeLAtout ? suit : null });
   };
 
   const skipAnnounce = () => {
-    setChoosingTrump(false);
-    setSelectedSuits(null);
     void runAction({ type: "skip_announce" });
   };
 
@@ -1039,7 +1007,7 @@ function OnlineTable() {
             exposedIds={state.exposed[opp]}
             faceDown={(c) => !state.exposed[opp].includes(c.id)}
             interactive={false}
-            keepSlots={state.stock.length > 0}
+            refillable={state.stock.length > 0}
           />
         </div>
         <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} paused={waitingOnLink} />
@@ -1127,73 +1095,33 @@ function OnlineTable() {
           </span>
         )}
 
-        {/* Annonce de comptes : avec plusieurs comptes possibles, le joueur
-            choisit ceux qu'il annonce. Le choix de l'atout n'est demandé que
-            s'il n'est pas encore fixé et qu'au moins deux comptes sont retenus. */}
-        {meldDecisionPending && (
+        {/* Annonce de comptes : un bouton par compte, annoncé seul.
+            Le joueur en déclare un, la fenêtre se rouvre sur ce qui reste, et
+            il décide à nouveau — d'où la possibilité d'en garder un pour lui.
+            Tant que l'atout n'est pas fixé, le premier annoncé le crée. */}
+        {meldDecisionPending && state && (
           <div className="absolute bottom-2 left-2 z-30 max-w-[calc(100%_-_7rem)] rounded border border-gold/35 bg-felt-deep/95 p-2">
-            {choosingTrump ? (
-              <>
-                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-                  Quel compte fixe l'atout ?
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {myMelds
-                    .filter((m) => chosenSuits.includes(m.suit))
-                    .map((m) => (
-                      <button
-                        key={m.suit}
-                        onClick={() => doAnnounce(m.suit)}
-                        className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
-                      >
-                        {SUIT_SYMBOL[m.suit]} {SUIT_NAME[m.suit]}
-                      </button>
-                    ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
-                  {myMelds.length > 1 ? "Quels comptes annoncer ?" : `Annoncer ${meldSummary} ?`}
-                </p>
-                {myMelds.length > 1 && (
-                  <div className="mb-1 flex flex-wrap gap-1">
-                    {myMelds.map((m) => {
-                      const on = chosenSuits.includes(m.suit);
-                      return (
-                        <button
-                          key={m.suit}
-                          onClick={() => toggleMeld(m.suit)}
-                          className={`rounded border px-2 py-1 text-[0.6rem] font-semibold leading-none transition-colors ${
-                            on
-                              ? "border-gold bg-gold/25 text-gold"
-                              : "border-border text-muted-foreground"
-                          }`}
-                        >
-                          {on ? "✓ " : ""}
-                          {SUIT_SYMBOL[m.suit]} {m.type === "triple" ? "trio" : "simple"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={announceMelds}
-                    disabled={chosenSuits.length === 0}
-                    className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground disabled:opacity-40"
-                  >
-                    Annoncer
-                  </button>
-                  <button
-                    onClick={skipAnnounce}
-                    className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
-                  >
-                    Tout passer
-                  </button>
-                </div>
-              </>
-            )}
+            <p className="mb-1 text-[0.62rem] font-semibold leading-tight text-gold">
+              {state.trump === null ? "Annoncer un compte — il fixera l'atout" : "Annoncer"}
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {myMelds.map((m) => (
+                <button
+                  key={m.suit}
+                  onClick={() => doAnnounce(m.suit)}
+                  className="rounded bg-[image:var(--gradient-gold)] px-2 py-1 text-[0.6rem] font-semibold leading-none text-primary-foreground"
+                >
+                  {SUIT_SYMBOL[m.suit]} {m.type === "triple" ? "trio" : "simple"} ·{" "}
+                  {meldPoints(m.type, state.trump === null || m.suit === state.trump)} pts
+                </button>
+              ))}
+              <button
+                onClick={skipAnnounce}
+                className="rounded border border-border px-2 py-1 text-[0.6rem] leading-none text-muted-foreground"
+              >
+                {myMelds.length > 1 ? "Tout passer" : "Passer"}
+              </button>
+            </div>
           </div>
         )}
       </section>
@@ -1208,7 +1136,7 @@ function OnlineTable() {
           <HandRow
             cards={state.hands[me]}
             exposedIds={state.exposed[me]}
-            keepSlots={state.stock.length > 0}
+            refillable={state.stock.length > 0}
             fan
             isDisabled={(c) =>
               meldDecisionPending ||
@@ -1432,6 +1360,8 @@ function OnlineTable() {
         <FlyingCard
           card={flying.card}
           from={flying.from}
+          fromWidth={flying.width}
+          fromRotate={flying.rot}
           to={(() => {
             const r = tableRef.current?.getBoundingClientRect();
             return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : flying.from;

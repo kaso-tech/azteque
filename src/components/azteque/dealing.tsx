@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
+import { angleOf } from "@/components/azteque/animations";
 import { sfx } from "@/lib/azteque/sfx";
 import type { GameState } from "@/lib/azteque/engine";
 
@@ -83,15 +84,6 @@ interface Geometry {
 
 function boxOf(r: DOMRect): Box {
   return { left: r.left, top: r.top, width: r.width, height: r.height, rot: 0 };
-}
-
-/** L'angle qu'un élément doit à sa transformation, en degrés. */
-function angleOf(el: Element | null): number {
-  if (!el) return 0;
-  const t = getComputedStyle(el).transform;
-  if (!t || t === "none") return 0;
-  const m = new DOMMatrixReadOnly(t);
-  return (Math.atan2(m.b, m.a) * 180) / Math.PI;
 }
 
 /**

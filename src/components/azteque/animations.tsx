@@ -22,12 +22,28 @@ export function useDeparture(delay: number) {
   return departed;
 }
 
+/** L'angle qu'un élément doit à sa transformation, en degrés. */
+export function angleOf(el: Element | null | undefined): number {
+  if (!el) return 0;
+  const t = getComputedStyle(el).transform;
+  if (!t || t === "none") return 0;
+  const m = new DOMMatrixReadOnly(t);
+  return (Math.atan2(m.b, m.a) * 180) / Math.PI;
+}
+
 /** Mouvement fluide : uniquement des transformations (aucun recalcul de mise en page). */
 export function flightStyle(
   from: { x: number; y: number },
   to: { x: number; y: number },
   departed: boolean,
-  opts: { scale: number; rotate: number; duration: number; ease: string },
+  opts: {
+    scale: number;
+    rotate: number;
+    duration: number;
+    ease: string;
+    /** Inclinaison au DÉPART, redressée pendant le vol. */
+    startRotate?: number | undefined;
+  },
 ) {
   const dx = departed ? to.x - from.x : 0;
   const dy = departed ? to.y - from.y : 0;
@@ -36,7 +52,7 @@ export function flightStyle(
     top: from.y,
     transform: `translate3d(calc(${dx}px - 50%), calc(${dy}px - 50%), 0) scale(${
       departed ? opts.scale : 1
-    }) rotate(${departed ? opts.rotate : 0}deg)`,
+    }) rotate(${departed ? opts.rotate : (opts.startRotate ?? 0)}deg)`,
     transition: `transform ${opts.duration}ms ${opts.ease}, opacity ${opts.duration}ms ease-out`,
     willChange: "transform",
   } as const;
@@ -107,31 +123,46 @@ export function CollectCard({
   );
 }
 
+/** Largeur d'une carte au centre du tapis (`size="lg"`), en pixels. */
+const LARGEUR_PLI = 72;
+
 export function FlyingCard({
   card,
   from,
   to,
+  fromWidth,
+  fromRotate = 0,
 }: {
   card: Card;
   from: { x: number; y: number };
   to: { x: number; y: number };
+  /** Largeur qu'avait la carte dans la main, si elle en diffère. */
+  fromWidth?: number | undefined;
+  /** Inclinaison qu'elle avait dans l'éventail. */
+  fromRotate?: number | undefined;
 }) {
   const departed = useDeparture(0);
+  // La carte quitte la main à SA taille et à SON inclinaison, puis rétrécit et
+  // se redresse en chemin — comme une carte qu'on pose à plat. Partir
+  // directement au format du pli la faisait sauter d'un coup.
+  const width = fromWidth && fromWidth > 0 ? fromWidth : LARGEUR_PLI;
   return (
     <div
       className="pointer-events-none fixed z-50"
       style={{
         ...flightStyle(from, to, departed, {
-          scale: 0.94,
+          scale: (LARGEUR_PLI / width) * 0.98,
           rotate: 0,
+          startRotate: fromRotate,
           duration: 380,
           ease: "cubic-bezier(.3,.8,.25,1)",
         }),
+        width,
         opacity: departed ? 0 : 1,
         filter: "drop-shadow(0 14px 20px rgba(0,0,0,0.45))",
       }}
     >
-      <PlayingCard card={card} size="lg" />
+      <PlayingCard card={card} size="hand" />
     </div>
   );
 }

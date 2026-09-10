@@ -170,7 +170,7 @@ export function HandRow({
   onPlay,
   interactive = true,
   faceDown,
-  keepSlots = false,
+  refillable = false,
   fan = false,
 }: {
   cards: Card[];
@@ -179,7 +179,14 @@ export function HandRow({
   onPlay?: (c: Card, el: HTMLElement) => void;
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
-  keepSlots?: boolean;
+  /**
+   * Une carte peut encore venir combler un vide (il reste de la pioche). Les
+   * emplacements libres sont TOUJOURS réservés — c'est ce qui empêche la main
+   * de se recentrer à chaque carte jouée et de faire bouger tout le tapis —
+   * mais le liseré d'attente ne s'affiche que si un renfort est réellement
+   * en route : en fin de main, il promettrait une carte qui ne viendra pas.
+   */
+  refillable?: boolean;
   /**
    * Cartes chevauchées en éventail plutôt qu'alignées à plat. Réservé à la
    * main du joueur : elle seule a besoin d'être lue, et le chevauchement lui
@@ -196,8 +203,7 @@ export function HandRow({
   useEffect(() => {
     setSlots((prev) => {
       const ids = cards.map((c) => c.id);
-      let next = prev.map((id) => (id && ids.includes(id) ? id : null));
-      if (!keepSlots) next = next.filter((id): id is string => id !== null);
+      const next = prev.map((id) => (id && ids.includes(id) ? id : null));
       for (const id of ids) {
         if (next.includes(id)) continue;
         const empty = next.indexOf(null);
@@ -206,7 +212,7 @@ export function HandRow({
       }
       return next;
     });
-  }, [cards, keepSlots]);
+  }, [cards]);
 
   const ordered = useMemo(() => {
     const byId = new Map(cards.map((c) => [c.id, c] as const));
@@ -243,7 +249,7 @@ export function HandRow({
     if (target < 0) return;
     setSlots((prev) => {
       const from = prev.indexOf(id);
-      if (from < 0 || from === target || prev[target] === null) return prev;
+      if (from < 0 || from === target) return prev;
       const next = [...prev];
       next.splice(from, 1);
       next.splice(target, 0, id);
@@ -293,7 +299,12 @@ export function HandRow({
       {ordered.map((c, i) =>
         c === null ? (
           <div key={`empty-${i}`} className={caseClass} style={place(i)} aria-hidden="true">
-            <div className="animate-slot-wait aspect-[5/7] w-full rounded-[3px] border border-dashed border-gold/30" />
+            <div
+              className={cn(
+                "aspect-[5/7] w-full rounded-[3px]",
+                refillable && "animate-slot-wait border border-dashed border-gold/30",
+              )}
+            />
           </div>
         ) : (
           <div
