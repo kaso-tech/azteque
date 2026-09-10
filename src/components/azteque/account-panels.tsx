@@ -501,6 +501,49 @@ export function AccountIdentity({
 
 /* ---------- Amis, recherche et invitations ---------- */
 
+/** Critères de tri proposés pour la liste d'amis. */
+export type FriendSort = "online" | "name" | "rating";
+
+const FRIEND_SORT_KEY = "azteque-friends-sort";
+
+const FRIEND_SORT_LABELS: Record<FriendSort, string> = {
+  online: "En ligne d'abord",
+  name: "Alphabétique",
+  rating: "Cote",
+};
+
+/**
+ * Trie la liste d'amis selon le critère choisi.
+ *
+ * Chaque critère retombe sur l'ordre alphabétique en cas d'égalité (deux amis
+ * tous deux en ligne, ou de même cote) : sans lui, leur ordre resterait celui,
+ * non spécifié, dans lequel le serveur les a renvoyés — stable en apparence
+ * tant que la liste ne change pas, mais capable de sauter d'un rafraîchissement
+ * à l'autre.
+ */
+export function sortFriends(
+  list: Friend[],
+  sortBy: FriendSort,
+  online: ReadonlySet<string>,
+): Friend[] {
+  const parNom = (a: Friend, b: Friend) =>
+    a.username.localeCompare(b.username, "fr", { sensitivity: "base" });
+  const withTiebreak = (primaire: (a: Friend, b: Friend) => number) => (a: Friend, b: Friend) =>
+    primaire(a, b) || parNom(a, b);
+
+  switch (sortBy) {
+    case "name":
+      return [...list].sort(parNom);
+    case "rating":
+      return [...list].sort(withTiebreak((a, b) => b.rating - a.rating));
+    case "online":
+    default:
+      return [...list].sort(
+        withTiebreak((a, b) => Number(online.has(b.id)) - Number(online.has(a.id))),
+      );
+  }
+}
+
 export function FriendsPanel({
   profile,
   online,
@@ -517,6 +560,23 @@ export function FriendsPanel({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Retenu d'une visite à l'autre : un joueur qui préfère trier par cote n'a
+  // pas à le redemander à chaque ouverture du panneau.
+  const [sortBy, setSortBy] = useState<FriendSort>(() => {
+    try {
+      const saved = localStorage.getItem(FRIEND_SORT_KEY);
+      return saved === "name" || saved === "rating" || saved === "online" ? saved : "online";
+    } catch {
+      return "online";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(FRIEND_SORT_KEY, sortBy);
+    } catch {
+      /* préférence non retenue, sans conséquence sur le tri lui-même */
+    }
+  }, [sortBy]);
 
   const refresh = () => {
     listFriends()
@@ -635,47 +695,63 @@ export function FriendsPanel({
       )}
 
       <div>
-        <p className="text-sm text-foreground">
-          Mes amis{" "}
-          {accepted.length > 0 && (
-            <span className="text-muted-foreground">({accepted.length})</span>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-foreground">
+            Mes amis{" "}
+            {accepted.length > 0 && (
+              <span className="text-muted-foreground">({accepted.length})</span>
+            )}
+          </p>
+          {accepted.length > 1 && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              Trier :
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as FriendSort)}
+                className="rounded-md border border-input bg-background px-1.5 py-1 text-xs text-foreground outline-none focus:border-gold focus:ring-1 focus:ring-ring"
+              >
+                {(Object.keys(FRIEND_SORT_LABELS) as FriendSort[]).map((key) => (
+                  <option key={key} value={key}>
+                    {FRIEND_SORT_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
-        </p>
+        </div>
         {accepted.length === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">
             Cherchez un joueur par son pseudo pour l'ajouter.
           </p>
         ) : (
           <ul className="mt-2 space-y-1">
-            {[...accepted]
-              .sort((a, b) => Number(online.has(b.id)) - Number(online.has(a.id)))
-              .map((f) => (
-                <li
-                  key={f.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <OnlineDot on={online.has(f.id)} />
-                    <PlayerAvatar className="h-8 w-8" profile={f} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm">{f.username}</span>
-                      <RankBadge rating={f.rating} />
-                    </span>
+            {sortFriends(accepted, sortBy, online).map((f) => (
+              <li
+                key={f.id}
+                className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <OnlineDot on={online.has(f.id)} />
+                  <PlayerAvatar className="h-8 w-8" profile={f} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm">{f.username}</span>
+                    <RankBadge rating={f.rating} />
                   </span>
-                  <span className="flex shrink-0 gap-1">
-                    <Button
-                      size="sm"
-                      disabled={busyInvite === f.id}
-                      onClick={() => onInvite(f.id, f.username)}
-                    >
-                      Inviter
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => act(removeFriend(f.id))}>
-                      Retirer
-                    </Button>
-                  </span>
-                </li>
-              ))}
+                </span>
+                <span className="flex shrink-0 gap-1">
+                  <Button
+                    size="sm"
+                    disabled={busyInvite === f.id}
+                    onClick={() => onInvite(f.id, f.username)}
+                  >
+                    Inviter
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => act(removeFriend(f.id))}>
+                    Retirer
+                  </Button>
+                </span>
+              </li>
+            ))}
           </ul>
         )}
       </div>
