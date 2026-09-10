@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   announce,
+  anticipate,
   drawNext,
   newRound,
   playCard,
@@ -401,6 +402,10 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       case "resolve_trick":
         next = resolveTrick(state, { atout10: true });
         if (next === state) throw new Error("Aucun pli à résoudre.");
+        break;
+      case "anticipate":
+        next = anticipate(state, me);
+        if (next === state) throw new Error("Impossible d'anticiper maintenant.");
         break;
       case "draw_next":
         next = drawNext(state);
