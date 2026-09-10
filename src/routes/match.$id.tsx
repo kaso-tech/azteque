@@ -1266,7 +1266,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={opp}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[opp]}
             />
@@ -1290,7 +1290,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={me}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[me]}
             />
