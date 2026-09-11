@@ -654,7 +654,9 @@ function Azteque() {
 
     const t = setTimeout(() => {
       const from = center(stockRef.current);
-      const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
+      // Elle vise l'emplacement libre qu'elle vient combler, pas le milieu de
+      // la main : sinon elle atterrit au centre puis saute jusqu'à sa place.
+      const to = centreDuSlotLibre(player === 0 ? playerHandRef.current : opponentHandRef.current);
       if (from && to) {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
         jouerPour(player, () => sfx.draw());
