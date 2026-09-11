@@ -211,6 +211,8 @@ export function HandRow({
   /** Atténuation purement visuelle, indépendante du blocage des clics. */
   isMuted?: (c: Card) => boolean;
   onPlay?: (c: Card, el: HTMLElement) => void;
+  /** Clic sur une carte bloquée : permet d'afficher un retour visuel. */
+  onBlockedPlay?: () => void;
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
   /**
@@ -371,6 +373,7 @@ export function HandRow({
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
               muted={isMuted ? isMuted(c) : false}
+              {...(onBlockedPlay ? { onDisabledClick: onBlockedPlay } : {})}
               {...(interactive && onPlay
                 ? {
                     onClick: (el: HTMLElement) => {
