@@ -1372,6 +1372,15 @@ function OnlineTable() {
               state.drawPending.length > 0 ||
               !legalIds.has(c.id)
             }
+            isMuted={(c) =>
+              state.stock.length === 0 &&
+              state.phase === "playing" &&
+              state.turn === me &&
+              state.drawPending.length === 0 &&
+              state.trick.length < 2 &&
+              !meldDecisionPending &&
+              !legalIds.has(c.id)
+            }
             onPlay={(card, el) => playMyCard(card, el)}
           />
         </div>

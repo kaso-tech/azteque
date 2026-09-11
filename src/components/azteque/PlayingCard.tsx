@@ -72,7 +72,7 @@ export function PlayingCard({
         "flex flex-col justify-between select-none transition-all duration-200",
         onClick && !disabled && "hover:-translate-y-3 hover:shadow-xl cursor-pointer",
         onClick && disabled && "cursor-not-allowed",
-        muted && "opacity-45 saturate-50",
+        muted && "brightness-[0.72] saturate-[0.65]",
         exposed && "ring-2 ring-gold",
         className,
       )}

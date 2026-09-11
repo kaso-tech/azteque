@@ -1193,6 +1193,7 @@ function Azteque() {
               !legalIds.has(c.id)
             }
             isMuted={(c) =>
+              state.stock.length === 0 &&
               state.phase === "playing" &&
               state.turn === 0 &&
               state.drawPending.length === 0 &&
