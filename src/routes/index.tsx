@@ -65,6 +65,8 @@ import {
   FlyingCard,
   SweepCard,
   useCardFlight,
+  useVolArrivee,
+  centreDuSlotLibre,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
@@ -193,12 +195,7 @@ function Azteque() {
   // Où elle doit se poser : la place de CELUI qui l'a jouée. Le relais avec la
   // carte qui s'y découvre est un échange net, sans fondu — il ne passe
   // inaperçu que si les deux occupent exactement le même point.
-  const volArrivee = (() => {
-    if (!flight) return null;
-    const joueur = state.trick.find((e) => e.card.id === flight.card.id)?.player;
-    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
-    return place ?? center(tableRef.current) ?? flight.from;
-  })();
+  const volArrivee = useVolArrivee(flight, state.trick, trickCardRefs, tableRef);
   const aiRedealChecked = useRef(-1);
   const askedForName = useRef(false);
   // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
@@ -657,7 +654,9 @@ function Azteque() {
 
     const t = setTimeout(() => {
       const from = center(stockRef.current);
-      const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
+      // Elle vise l'emplacement libre qu'elle vient combler, pas le milieu de
+      // la main : sinon elle atterrit au centre puis saute jusqu'à sa place.
+      const to = centreDuSlotLibre(player === 0 ? playerHandRef.current : opponentHandRef.current);
       if (from && to) {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
         jouerPour(player, () => sfx.draw());

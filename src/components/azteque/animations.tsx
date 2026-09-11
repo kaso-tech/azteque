@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { sfx } from "@/lib/azteque/sfx";
 import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
@@ -371,4 +379,54 @@ export function CoinBurst({
       ))}
     </>
   );
+}
+
+/* ---------- Points d'arrivée exacts ---------- */
+
+/** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
+export function centreDe(el: Element | null | undefined) {
+  const r = el?.getBoundingClientRect();
+  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+}
+
+/**
+ * L'emplacement que la carte piochée viendra occuper dans la main.
+ *
+ * La main réserve toujours la place laissée libre par la carte jouée (voir
+ * `HandRow`) : le vol vise CETTE case précise plutôt que le milieu de la
+ * rangée, sinon la carte atterrit au centre puis saute jusqu'à sa place.
+ */
+export function centreDuSlotLibre(row: HTMLElement | null | undefined) {
+  const libre = row?.querySelector<HTMLElement>("[data-empty-slot]");
+  return centreDe(libre) ?? centreDe(row);
+}
+
+/**
+ * Où la carte en vol doit se poser : la place de CELUI qui l'a jouée.
+ *
+ * Elle se mesure APRÈS le rendu : au moment où le vol commence, la place sur
+ * le tapis n'existe pas encore dans le document, et la mesurer pendant le
+ * rendu renvoyait toujours le repli — le centre de la table. Toutes les cartes
+ * convergeaient donc au milieu au lieu de rejoindre leur emplacement.
+ */
+export function useVolArrivee(
+  flight: Vol | null,
+  trick: GameState["trick"],
+  cardRefs: readonly [RefObject<HTMLElement | null>, RefObject<HTMLElement | null>],
+  fallbackRef: RefObject<HTMLElement | null>,
+) {
+  const [arrivee, setArrivee] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!flight) {
+      setArrivee(null);
+      return;
+    }
+    const joueur = trick.find((e) => e.card.id === flight.card.id)?.player;
+    const place =
+      (joueur === undefined ? null : centreDe(cardRefs[joueur].current)) ??
+      centreDe(fallbackRef.current);
+    if (!place) return;
+    setArrivee((p) => (p && p.x === place.x && p.y === place.y ? p : place));
+  }, [flight, trick, cardRefs, fallbackRef]);
+  return arrivee;
 }
