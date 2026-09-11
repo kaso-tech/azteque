@@ -198,6 +198,7 @@ export function HandRow({
   isDisabled,
   isMuted,
   onPlay,
+  onBlockedPlay,
   interactive = true,
   faceDown,
   refillable = false,
