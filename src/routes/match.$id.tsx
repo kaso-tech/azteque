@@ -1397,18 +1397,14 @@ function OnlineTable() {
           </button>
           <button
             type="button"
-            disabled={
-              !!dealing ||
-              !!animating ||
-              state.phase !== "playing" ||
-              state.turn !== me ||
-              state.trick.length > 0 ||
-              state.drawPending.length > 0 ||
-              meldDecisionPending
-            }
+            // Anticiper sert surtout en fin de main, quand la suite est
+            // perdue d'avance : le bouton reste actif toute la manche, seules
+            // la distribution et les animations en cours le suspendent.
+            disabled={!!dealing || !!animating || state.phase !== "playing"}
             onClick={() => setConfirmAnticipate(true)}
             className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold disabled:opacity-40"
           >
+
             Anticiper la fin
           </button>
           {state.phase !== "gameEnd" && (
