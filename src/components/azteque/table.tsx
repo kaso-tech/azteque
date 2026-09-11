@@ -356,6 +356,9 @@ export function HandRow({
             className={cn(caseClass, "pointer-events-none")}
             style={place(i)}
             aria-hidden="true"
+            // Repère du vol de pioche : la carte vise CETTE case (voir
+            // `centreDuSlotLibre`), pas le milieu de la rangée.
+            data-empty-slot="true"
           >
             <div
               className={cn(
