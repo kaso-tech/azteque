@@ -173,6 +173,12 @@ function RootComponent() {
     void import("@/lib/azteque/admin").then((m) => m.loadSoundSettings());
   }, []);
 
+  // Toutes les images de cartes sont mises en cache dès l'ouverture : sans
+  // cela, une carte s'affiche blanche le temps de télécharger son dessin.
+  useEffect(() => {
+    void import("@/lib/azteque/card-preload").then((m) => m.preloadCardAssets());
+  }, []);
+
   // Un lien de parrainage porte le code dans l'adresse. Il faut le mettre de
   // côté tout de suite : le joueur va naviguer vers le salon puis passer par
   // Google, et l'adresse n'aura pas survécu au voyage.
