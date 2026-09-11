@@ -239,12 +239,7 @@ function OnlineTable() {
   // Où la carte en vol doit se poser : la place de CELUI qui l'a jouée. Le
   // relais avec la carte qui s'y découvre est un échange net, sans fondu — il
   // ne passe inaperçu que si les deux occupent exactement le même point.
-  const volArrivee = (() => {
-    if (!flight) return null;
-    const joueur = displayTrick.find((e) => e.card.id === flight.card.id)?.player;
-    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
-    return place ?? center(tableRef.current) ?? flight.from;
-  })();
+  const volArrivee = useVolArrivee(flight, displayTrick, trickCardRefs, tableRef);
 
   /**
    * Minuteries d'une animation DÉJÀ COMMENCÉE.
