@@ -840,6 +840,18 @@ function Azteque() {
     });
   };
 
+  // Retour visuel quand on clique pendant un blocage : la main tremble un
+  // instant et un message rappelle que la pioche doit d'abord arriver. On ne
+  // touche plus à l'opacité des cartes.
+  const [piocheFlash, setPiocheFlash] = useState(false);
+  const piocheFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signalBlocage = () => {
+    if (state.drawPending.length === 0) return;
+    setPiocheFlash(true);
+    if (piocheFlashTimer.current) clearTimeout(piocheFlashTimer.current);
+    piocheFlashTimer.current = setTimeout(() => setPiocheFlash(false), 700);
+  };
+
   const playMyCard = (card: Card, el: HTMLElement) => {
     // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
     if (meldDecisionPending) return;
@@ -1152,7 +1164,20 @@ function Azteque() {
         {/* Pendant la donne, la main garde sa place — ses cases servent de
             cibles aux cartes qui arrivent — mais reste invisible : on ne
             distribue pas des cartes déjà posées. */}
-        <div ref={playerHandRef} style={{ opacity: dealing ? 0 : 1 }}>
+        {/* Message de blocage : hauteur réservée pour ne pas faire bouger
+            la main quand il apparaît. */}
+        <div className="flex h-5 items-center justify-center" aria-live="polite">
+          {piocheFlash && (
+            <span className="animate-banner rounded-full border border-gold/40 bg-felt-deep/70 px-3 py-0.5 text-[0.68rem] font-semibold text-gold">
+              Pioche en cours…
+            </span>
+          )}
+        </div>
+        <div
+          ref={playerHandRef}
+          className={piocheFlash ? "animate-blocked-shake" : undefined}
+          style={{ opacity: dealing ? 0 : 1 }}
+        >
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
@@ -1176,6 +1201,7 @@ function Azteque() {
               !legalIds.has(c.id)
             }
             onPlay={playMyCard}
+            onBlockedPlay={signalBlocage}
           />
         </div>
 

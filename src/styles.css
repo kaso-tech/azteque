@@ -416,6 +416,22 @@
     transform: none;
   }
 }
+/* Tremblement bref de la main quand on clique pendant un blocage (pioche). */
+@keyframes blocked-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+}
 @utility animate-deal {
   animation: deal-in 0.35s ease-out both;
 }
@@ -427,6 +443,9 @@
 }
 @utility animate-slot-wait {
   animation: slot-wait 1.6s ease-in-out infinite;
+}
+@utility animate-blocked-shake {
+  animation: blocked-shake 0.4s ease;
 }
 @utility animate-banner {
   animation: banner-in 0.25s ease-out both;
