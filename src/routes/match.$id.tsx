@@ -839,7 +839,9 @@ function OnlineTable() {
     animTimers.current.push(
       setTimeout(() => {
         const from = center(stockRef.current);
-        const to = center(handRefs[piochePlayer].current);
+        // Cap sur l'emplacement libre que la carte vient combler, pas sur le
+        // milieu de la main.
+        const to = centreDuSlotLibre(handRefs[piochePlayer].current);
         if (!from || !to) return;
         setDrawFlights([{ id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 }]);
         animTimers.current.push(
