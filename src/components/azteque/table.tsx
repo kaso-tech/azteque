@@ -348,7 +348,15 @@ export function HandRow({
     >
       {ordered.map((c, i) =>
         c === null ? (
-          <div key={`empty-${i}`} className={caseClass} style={place(i)} aria-hidden="true">
+          // L'emplacement libre garde la place de la carte à venir, mais il ne
+          // doit rien intercepter : posé au-dessus de sa voisine en éventail,
+          // il rendait sourde toute la partie de carte qu'il recouvrait.
+          <div
+            key={`empty-${i}`}
+            className={cn(caseClass, "pointer-events-none")}
+            style={place(i)}
+            aria-hidden="true"
+          >
             <div
               className={cn(
                 "aspect-[5/7] w-full rounded-[3px]",
