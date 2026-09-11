@@ -1242,18 +1242,20 @@ function OnlineTable() {
         </div>
 
         {/* Aligné sur les mêmes conditions que la barre de temps, pour que
-            l'annonce du tour et le compte à rebours apparaissent ensemble. */}
-        {state.trick.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {state.phase !== "playing"
+            l'annonce du tour et le compte à rebours apparaissent ensemble.
+            La ligne est TOUJOURS rendue : la faire disparaître dès la première
+            carte posée remonterait la pioche et le pli de toute sa hauteur. */}
+        <p className="text-sm text-muted-foreground">
+          {state.trick.length > 0
+            ? "\u00a0"
+            : state.phase !== "playing"
               ? "Tour terminé."
               : myMustAct
                 ? "À vous de jouer."
                 : oppMustAct
                   ? `${oppName} réfléchit…`
                   : "\u00a0"}
-          </p>
-        )}
+        </p>
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[opp]}>
@@ -1394,15 +1396,10 @@ function OnlineTable() {
           </button>
           <button
             type="button"
-            disabled={
-              !!dealing ||
-              !!animating ||
-              state.phase !== "playing" ||
-              state.turn !== me ||
-              state.trick.length > 0 ||
-              state.drawPending.length > 0 ||
-              meldDecisionPending
-            }
+            // Anticiper sert surtout en fin de main, quand la suite est
+            // perdue d'avance : le bouton reste actif toute la manche, seules
+            // la distribution et les animations en cours le suspendent.
+            disabled={!!dealing || !!animating || state.phase !== "playing"}
             onClick={() => setConfirmAnticipate(true)}
             className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold disabled:opacity-40"
           >

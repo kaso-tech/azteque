@@ -764,17 +764,12 @@ function Azteque() {
     setStarted(false);
   }, []);
 
-  // Anticiper la fin du tour : possible à son tour, hors animation, tant
-  // qu'aucune carte n'est posée et qu'aucune décision n'est en attente.
+  // Anticiper la fin du tour : c'est justement en fin de main, quand on sait
+  // la suite perdue, qu'on en a besoin. Le bouton reste donc actif pendant
+  // toute la manche ; seule la distribution en cours le suspend.
   const [confirmAnticipate, setConfirmAnticipate] = useState(false);
-  const canAnticipate =
-    started &&
-    !dealing &&
-    state.phase === "playing" &&
-    state.turn === 0 &&
-    state.trick.length === 0 &&
-    state.drawPending.length === 0 &&
-    !meldDecisionPending;
+  const canAnticipate = started && !dealing && state.phase === "playing";
+
   const anticipateNow = () => {
     setConfirmAnticipate(false);
     setState((s) => anticipate(s, 0));
@@ -1037,17 +1032,19 @@ function Azteque() {
         {/* Aligné sur les mêmes conditions que la barre de temps, pour que
             l'annonce du tour et le compte à rebours apparaissent ensemble.
             L'espace insécable réserve la ligne pendant la pioche. */}
-        {state.trick.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {state.phase !== "playing"
+        {/* Toujours rendue, même une fois la première carte posée : la retirer
+            remonterait la pioche et le pli de toute la hauteur de la ligne. */}
+        <p className="text-sm text-muted-foreground">
+          {state.trick.length > 0
+            ? "\u00a0"
+            : state.phase !== "playing"
               ? "Tour terminé."
               : myTurnActive && !meldDecisionPending
                 ? "À vous de mener."
                 : oppTurnActive
                   ? "L'adversaire réfléchit…"
                   : "\u00a0"}
-          </p>
-        )}
+        </p>
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[1]}>
