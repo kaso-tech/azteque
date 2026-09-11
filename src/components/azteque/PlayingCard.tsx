@@ -6,6 +6,7 @@ interface Props {
   card?: Card;
   faceDown?: boolean;
   disabled?: boolean;
+  muted?: boolean;
   exposed?: boolean;
   size?: "sm" | "md" | "lg" | "hand";
   onClick?: (el: HTMLElement) => void;
@@ -23,6 +24,7 @@ export function PlayingCard({
   card,
   faceDown,
   disabled,
+  muted,
   exposed,
   size = "md",
   onClick,
@@ -59,7 +61,7 @@ export function PlayingCard({
         "playing-card relative min-w-0 max-w-full overflow-hidden rounded-[3px] bg-card-face shadow-[var(--shadow-card)]",
         "flex flex-col justify-between select-none transition-all duration-200",
         onClick && !disabled && "hover:-translate-y-3 hover:shadow-xl cursor-pointer",
-        disabled && "opacity-45 saturate-50",
+        muted && "opacity-45 saturate-50",
         exposed && "ring-2 ring-gold",
         className,
       )}

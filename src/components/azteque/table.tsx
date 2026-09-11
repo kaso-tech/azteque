@@ -196,6 +196,7 @@ export function HandRow({
   cards,
   exposedIds,
   isDisabled,
+  isMuted,
   onPlay,
   interactive = true,
   faceDown,
@@ -206,6 +207,8 @@ export function HandRow({
   cards: Card[];
   exposedIds: string[];
   isDisabled?: (c: Card) => boolean;
+  /** Atténuation purement visuelle, indépendante du blocage des clics. */
+  isMuted?: (c: Card) => boolean;
   onPlay?: (c: Card, el: HTMLElement) => void;
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
@@ -366,6 +369,7 @@ export function HandRow({
               faceDown={faceDown ? faceDown(c) : false}
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
+              muted={isMuted ? isMuted(c) : false}
               {...(interactive && onPlay
                 ? {
                     onClick: (el: HTMLElement) => {
