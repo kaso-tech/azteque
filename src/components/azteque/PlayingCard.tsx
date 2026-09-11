@@ -10,6 +10,8 @@ interface Props {
   exposed?: boolean;
   size?: "sm" | "md" | "lg" | "hand";
   onClick?: (el: HTMLElement) => void;
+  /** Appelé quand on clique une carte désactivée (retour visuel du blocage). */
+  onDisabledClick?: () => void;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export function PlayingCard({
   exposed,
   size = "md",
   onClick,
+  onDisabledClick,
   className,
 }: Props) {
   if (faceDown || !card) {
@@ -54,13 +57,21 @@ export function PlayingCard({
 
   return (
     <Tag
-      onClick={onClick ? (e: React.MouseEvent<HTMLElement>) => onClick(e.currentTarget) : undefined}
-      disabled={onClick ? disabled : undefined}
+      onClick={
+        onClick
+          ? (e: React.MouseEvent<HTMLElement>) =>
+              disabled ? onDisabledClick?.() : onClick(e.currentTarget)
+          : undefined
+      }
+      // aria-disabled plutôt que disabled : un vrai disabled avale le clic et
+      // empêcherait le retour visuel du blocage (curseur + tremblement).
+      aria-disabled={onClick ? disabled : undefined}
       className={cn(
         sizes[size],
         "playing-card relative min-w-0 max-w-full overflow-hidden rounded-[3px] bg-card-face shadow-[var(--shadow-card)]",
         "flex flex-col justify-between select-none transition-all duration-200",
         onClick && !disabled && "hover:-translate-y-3 hover:shadow-xl cursor-pointer",
+        onClick && disabled && "cursor-not-allowed",
         muted && "opacity-45 saturate-50",
         exposed && "ring-2 ring-gold",
         className,
