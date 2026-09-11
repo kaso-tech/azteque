@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { sfx } from "@/lib/azteque/sfx";
 import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
