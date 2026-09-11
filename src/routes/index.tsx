@@ -843,6 +843,10 @@ function Azteque() {
   const playMyCard = (card: Card, el: HTMLElement) => {
     // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
     if (meldDecisionPending) return;
+    // Ni tant qu'une pioche est en cours : la carte volante doit d'abord
+    // rejoindre la main. Ce garde-fou remplace le grisage des cartes, qui
+    // rendait toute la main translucide le temps du vol.
+    if (state.drawPending.length > 0) return;
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
     // pour que le vol prenne le relais sans à-coup.
@@ -1160,7 +1164,6 @@ function Azteque() {
               state.turn !== 0 ||
               state.phase !== "playing" ||
               state.trick.length >= 2 ||
-              state.drawPending.length > 0 ||
               !legalIds.has(c.id)
             }
             onPlay={playMyCard}
