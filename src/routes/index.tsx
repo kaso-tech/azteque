@@ -1161,9 +1161,18 @@ function Azteque() {
             animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
+              state.drawPending.length > 0 ||
               state.turn !== 0 ||
               state.phase !== "playing" ||
               state.trick.length >= 2 ||
+              !legalIds.has(c.id)
+            }
+            isMuted={(c) =>
+              state.phase === "playing" &&
+              state.turn === 0 &&
+              state.drawPending.length === 0 &&
+              state.trick.length < 2 &&
+              !meldDecisionPending &&
               !legalIds.has(c.id)
             }
             onPlay={playMyCard}
