@@ -764,17 +764,12 @@ function Azteque() {
     setStarted(false);
   }, []);
 
-  // Anticiper la fin du tour : possible à son tour, hors animation, tant
-  // qu'aucune carte n'est posée et qu'aucune décision n'est en attente.
+  // Anticiper la fin du tour : c'est justement en fin de main, quand on sait
+  // la suite perdue, qu'on en a besoin. Le bouton reste donc actif pendant
+  // toute la manche ; seule la distribution en cours le suspend.
   const [confirmAnticipate, setConfirmAnticipate] = useState(false);
-  const canAnticipate =
-    started &&
-    !dealing &&
-    state.phase === "playing" &&
-    state.turn === 0 &&
-    state.trick.length === 0 &&
-    state.drawPending.length === 0 &&
-    !meldDecisionPending;
+  const canAnticipate = started && !dealing && state.phase === "playing";
+
   const anticipateNow = () => {
     setConfirmAnticipate(false);
     setState((s) => anticipate(s, 0));
