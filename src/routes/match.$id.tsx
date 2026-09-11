@@ -1257,7 +1257,6 @@ function OnlineTable() {
                   : "\u00a0"}
         </p>
 
-
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[opp]}>
             <TrickPosition
@@ -1404,7 +1403,6 @@ function OnlineTable() {
             onClick={() => setConfirmAnticipate(true)}
             className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold disabled:opacity-40"
           >
-
             Anticiper la fin
           </button>
           {state.phase !== "gameEnd" && (

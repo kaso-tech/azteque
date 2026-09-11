@@ -1046,7 +1046,6 @@ function Azteque() {
                   : "\u00a0"}
         </p>
 
-
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[1]}>
             <TrickPosition
