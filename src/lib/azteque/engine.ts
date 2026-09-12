@@ -663,6 +663,25 @@ const TUNE = {
    * alias de transition, jusqu'à PR8b qui isolera Légende).
    */
   grandMaitreTrumpFloor: 1,
+  /**
+   * PR8b-1 — Activation de la recherche PIMC étendue pour Légende.
+   *
+   * La recherche PIMC résout la position à information complète (minimax sur
+   * plusieurs plis). Aujourd'hui, Grand Maître l'active à `stock <= 2` (le
+   * dernier pli encore annonçable, où deux cartes restent inconnues).
+   *
+   * Légende active la recherche dès que `stock <= 8`, soit deux tours complets
+   * plus tôt. Le banc d'essai (à faire en PR8b-4) doit montrer que l'apport
+   * est positif sur ces positions, sans régression ailleurs.
+   *
+   * Profondeur réduite de 12 à 4 plis pour rester sous budget : on regarde
+   * moins loin que le solveur endgame, mais on couvre deux tours de plis.
+   */
+  legendePimcStockThreshold: 8,
+  /** Profondeur de recherche PIMC pour Légende (en plis). */
+  legendePimcDepth: 4,
+  /** Nombre d'échantillons de mains adverses pour Légende. */
+  legendePimcSamples: 8,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -1624,15 +1643,28 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   }
   if (level === "expert") return aiTacticalCard(state, level);
 
-  // Maître et Légende : une fois la pioche vide, les cartes encore invisibles
-  // SONT exactement la main adverse. La position est donc à information
-  // complète et se résout intégralement — ce n'est plus une estimation mais
-  // le meilleur coup, protection des bonnes et 10 d'atout compris.
+  // PR8a — Grand Maître active la recherche PIMC à stock <= 2 (le dernier
+  // pli encore annonçable, où deux cartes restent inconnues).
   //
-  // PR8a — Grand Maître hérite du même seuil que Légende. PR8b isolera le
-  // nouveau Légende (recherche étendue, modèle d'intention, solveur endgame).
+  // PR8b-1 — Légende active la recherche BEAUCOUP plus tôt : dès qu'il reste
+  // 8 cartes en pioche (deux tours complets plus tôt), avec une profondeur
+  // de 4 plis au lieu de 12. Le but est d'anticiper les conséquences
+  // plusieurs plis à l'avance : encaisser une bonne, protéger un compte,
+  // éviter d'ouvrir la fenêtre d'annonce adverse, etc.
+  //
+  // On sépare les deux niveaux : Légende ne réutilise PAS le seuil de Grand
+  // Maître. PR8b-2 et PR8b-3 ajouteront modèle d'intention et solveur endgame
+  // au-dessus de cette base.
   const from =
     level === "legende" || level === "grand_maitre" ? 2 : 0;
+  const legendeFrom = TUNE.legendePimcStockThreshold;
+  if (level === "legende" && state.stock.length <= legendeFrom) {
+    const samples =
+      state.stock.length === 0 ? 1 : TUNE.legendePimcSamples;
+    const depth = TUNE.legendePimcDepth;
+    const exact = pimcChoose(state, samples, depth);
+    if (exact) return exact;
+  }
   if (state.stock.length <= from) {
     const samples = state.stock.length === 0 ? 1 : 8;
     const exact = pimcChoose(state, samples, 12);
