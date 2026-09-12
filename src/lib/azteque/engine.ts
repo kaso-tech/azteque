@@ -1127,6 +1127,155 @@ function endgameLead(
   return { wins: true, captured: isBonne(given) ? 1 : 0, given };
 }
 
+/* ---------- PR8b-3 : Solveur endgame ----------
+ *
+ * `endgameLead` calcule l'issue d'UN pli, mais l'IA joue pli par pli sans
+ * optimiser la séquence complète. PR8b-3 ajoute un vrai solveur alpha-bêta
+ * sur les plis restants, quand la pioche est vide (main adverse connue) et
+ * qu'il reste peu de plis à jouer.
+ *
+ * On utilise l'état allégé SimState (déjà défini pour pimcChoose) : il
+ * évite le clonage profond de GameState, bien trop coûteux.
+ */
+
+/**
+ * Budget de nœuds pour le solveur endgame Légende. Plus élevé que la
+ * recherche PIMC standard car ces positions sont rares et décisives.
+ */
+const LEGENDE_ENDGAME_NODE_BUDGET = 4000;
+
+/**
+ * Évaluation finale d'un état d'endgame. Compte les bonnes en stock +
+ * les comptes déjà annoncés. À la différence de `simSearch` qui est
+ * générique, cette évaluation valorise plus les bonnes que les comptes
+ * (les bonnes sont l'objectif du jeu, les comptes sont des bonus).
+ */
+function endgameEval(s: SimState): number {
+  // 1 point par bonne empochée (moi - adversaire).
+  const diffBonnes = s.bonnes[1] - s.bonnes[0];
+  // Comptes déjà annoncés : pondération moindre (les 4-5 points sont
+  // déjà acquis, ils ne servent plus à rien tactiquement).
+  const diffMelded = s.melded[1] - s.melded[0];
+  return diffBonnes * 10 + diffMelded;
+}
+
+/**
+ * Solveur endgame alpha-bêta pour Légende. Renvoie la carte optimale à
+ * jouer MAINTENANT (celle qui maximise l'évaluation finale en considérant
+ * les N plis restants).
+ *
+ * Renvoie null si le solveur n'est pas applicable (pioche non vide, ou
+ * main adverse inconnue).
+ */
+function endgameSolver(state: GameState): Card | null {
+  // Conditions d'application : pioche vide ET main adverse connue.
+  if (state.stock.length > 0) return null;
+  const opp = readOpponent(state);
+  if (!opp.known) return null;
+
+  // Construction de l'état allégé.
+  const exposed = new Set(state.exposed[0]);
+  const sim = makeEndgameSimState(state, opp.known, exposed);
+  if (!sim) return null;
+
+  const legal = simLegal(sim, 1);
+  if (legal.length === 0) return null;
+
+  // Pour chaque carte candidate, on joue le coup et on lance le solveur.
+  let best: Card | null = null;
+  let bestV = -Infinity;
+  const budget = { n: LEGENDE_ENDGAME_NODE_BUDGET };
+  for (const c of legal) {
+    const ns = simPlay(sim, c);
+    const v = endgameAlphaBeta(ns, -Infinity, Infinity, budget);
+    if (v > bestV) {
+      bestV = v;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Alpha-bêta récursif sur l'état allégé d'endgame. Renvoie l'évaluation
+ * finale du meilleur coup pour le joueur dont c'est le tour.
+ *
+ * Utilise `endgameEval` (pas `simEval`) car l'endgame valorise surtout les
+ * bonnes (10 points par bonne de différence) plus que les comptes.
+ */
+function endgameAlphaBeta(
+  s: SimState,
+  alpha: number,
+  beta: number,
+  budget: { n: number },
+): number {
+  if (s.hands[0].length === 0 && s.hands[1].length === 0) return endgameEval(s);
+  if (budget.n <= 0) return endgameEval(s);
+  budget.n -= 1;
+
+  const p = s.turn;
+  const moves = simOrder(s, dedupe(simLegal(s, p)));
+  if (moves.length === 0) return endgameEval(s);
+
+  let best = p === 1 ? -Infinity : Infinity;
+  for (const c of moves) {
+    const ns = simPlay(s, c);
+    const v = endgameAlphaBeta(ns, alpha, beta, budget);
+    if (p === 1) {
+      if (v > best) best = v;
+      if (best > alpha) alpha = best;
+    } else {
+      if (v < best) best = v;
+      if (best < beta) beta = best;
+    }
+    if (alpha >= beta) break;
+  }
+  return best === Infinity || best === -Infinity ? endgameEval(s) : best;
+}
+
+/**
+ * Construit l'état allégé SimState pour le solveur endgame.
+ *
+ * Différences avec `determinize` (utilisé par PIMC) :
+ *   - Pioche vide, donc le `stock` est []
+ *   - Comptes déjà annoncés sont reportés dans `melded`
+ *   - L'adversaire est player 0 (sa main est connue), nous sommes player 1
+ */
+function makeEndgameSimState(
+  state: GameState,
+  oppHand: Card[],
+  exposed: Set<string>,
+): SimState | null {
+  // Vérification de cohérence : la main adverse + notre main doit faire
+  // 52 cartes moins les plis ramassés.
+  const totalCards =
+    state.hands[0].length + state.hands[1].length + state.gains[0].length + state.gains[1].length;
+  if (totalCards !== 52 - state.trick.length * 2 && state.trick.length !== 0) {
+    return null; // comptage incohérent, abandon
+  }
+
+  return {
+    hands: [oppHand, [...state.hands[1]]],
+    stock: [],
+    bonnes: [
+      state.gains[0].filter(isBonne).length,
+      state.gains[1].filter(isBonne).length,
+    ],
+    melded: [
+      state.melds[0].reduce((sum, m) => sum + m.points, 0),
+      state.melds[1].reduce((sum, m) => sum + m.points, 0),
+    ],
+    trump: state.trump,
+    lead: null,
+    turn: 1, // c'est à nous de jouer
+    room: [
+      { S: 0, H: 0, D: 0, C: 0 },
+      { S: 0, H: 0, D: 0, C: 0 },
+    ],
+    used: [exposed, new Set(state.exposed[1])],
+  };
+}
+
 /* ---------- Valeur de conservation d'une carte ---------- */
 
 /** Points encore espérés d'un compte que cette carte permettrait. */
@@ -1895,12 +2044,18 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // plusieurs plis à l'avance : encaisser une bonne, protéger un compte,
   // éviter d'ouvrir la fenêtre d'annonce adverse, etc.
   //
+  // PR8b-3 — Légende utilise un solveur endgame exact (alpha-bêta) sur
+  // la phase finale (pioche vide), au lieu de jouer pli par pli.
+  //
   // On sépare les deux niveaux : Légende ne réutilise PAS le seuil de Grand
-  // Maître. PR8b-2 et PR8b-3 ajouteront modèle d'intention et solveur endgame
-  // au-dessus de cette base.
+  // Maître. PR8b-2 (modèle d'intention) s'active dans aiTacticalCard.
   const from =
     level === "legende" || level === "grand_maitre" ? 2 : 0;
   const legendeFrom = TUNE.legendePimcStockThreshold;
+  if (level === "legende" && state.stock.length === 0) {
+    const solved = endgameSolver(state);
+    if (solved) return solved;
+  }
   if (level === "legende" && state.stock.length <= legendeFrom) {
     const samples =
       state.stock.length === 0 ? 1 : TUNE.legendePimcSamples;
