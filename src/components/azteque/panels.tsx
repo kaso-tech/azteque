@@ -37,9 +37,9 @@ export const DIFFICULTIES: Difficulty[] = [
  * montant est décidé par la fonction serveur `award_ai_win`, seule à faire
  * foi. Les deux doivent rester d'accord.
  *
- * PR8a — Grand Maître et Légende partagent la même récompense (100). PR8b
- * séparera les deux : Légende montera à 150 quand son nouveau moteur sera
- * actif.
+ * PR8b-4 — Légende séparée de Grand Maître : 150 jetons (vs 100). La
+ * séparation reflète la puissance supérieure du moteur (PIMC étendue,
+ * modèle d'intention, solveur endgame).
  */
 export const TOKEN_REWARDS: Record<Difficulty, number> = {
   facile: 20,
@@ -47,7 +47,7 @@ export const TOKEN_REWARDS: Record<Difficulty, number> = {
   expert: 60,
   maitre: 80,
   grand_maitre: 100,
-  legende: 100,
+  legende: 150,
 };
 
 export function ProfileButton({
