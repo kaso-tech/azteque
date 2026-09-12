@@ -515,13 +515,25 @@ export function hasMainBlanche(state: GameState, p: PlayerIndex): boolean {
 
 /* ---------- Niveaux de difficulté ---------- */
 
-export type Difficulty = "facile" | "normal" | "expert" | "maitre" | "legende";
+export type Difficulty =
+  | "facile"
+  | "normal"
+  | "expert"
+  | "maitre"
+  | "grand_maitre"
+  | "legende";
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   facile: "Facile",
   normal: "Normal",
   expert: "Expert",
   maitre: "Maître",
+  // PR8a — alias de transition : Grand Maître et Légende partagent le même
+  // moteur de jeu (les comportements spécifiques sont déclenchés par
+  // `level === "legende" || level === "grand_maitre"`). PR8b séparera les
+  // deux : Légende gagnera la recherche PIMC étendue, le modèle d'intention
+  // et le solveur endgame.
+  grand_maitre: "Grand Maître",
   legende: "Légende",
 };
 
@@ -1005,8 +1017,12 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   if (legal.length === 1) return legal[0]!;
   const trump = state.trump;
   const opp = readOpponent(state);
-  // Attention particulière de la Légende au 10 d'atout : voir `trump10Peril`.
-  const peril = level === "legende" ? trump10Peril(state, opp) : 0;
+  // PR8a — Grand Maître hérite du comportement Légende (alias de transition).
+  // PR8b isolera le vrai Légende sur ce point si nécessaire.
+  const peril =
+    level === "legende" || level === "grand_maitre"
+      ? trump10Peril(state, opp)
+      : 0;
   /**
    * Prime à encaisser le 10 d'atout sur un pli qu'on GAGNE : c'est la seule
    * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
@@ -1033,7 +1049,12 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
    * tout. Ce supplément relève le plancher sans toucher aux autres niveaux.
    */
   const atoutDeReserve = (c: Card) => {
-    if (level !== "legende" || !trump || c.suit !== trump) return 0;
+    if (
+      (level !== "legende" && level !== "grand_maitre") ||
+      !trump ||
+      c.suit !== trump
+    )
+      return 0;
     const plancher = TUNE.legendeTrumpFloor;
     if (plancher <= 0) return 0;
     const urgence = Math.min(1, state.stock.length / 12);
@@ -1603,14 +1624,10 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // complète et se résout intégralement — ce n'est plus une estimation mais
   // le meilleur coup, protection des bonnes et 10 d'atout compris.
   //
-  // Légende attaque cette résolution deux cartes plus tôt : à ce stade, seules
-  // les deux dernières cartes de pioche restent inconnues, l'échantillonnage
-  // les couvre sans peine. Au-delà, le banc d'essai est net : élargir la
-  // fenêtre AFFAIBLIT le jeu (51 % à quatre cartes d'avance contre 57 % ici),
-  // car l'incertitude de la pioche rend les mondes tirés trompeurs — mieux vaut
-  // alors l'heuristique, qui raisonne sur les probabilités plutôt que sur un
-  // tirage particulier. Cette fenêtre étroite est aussi trois fois plus rapide.
-  const from = level === "legende" ? 2 : 0;
+  // PR8a — Grand Maître hérite du même seuil que Légende. PR8b isolera le
+  // nouveau Légende (recherche étendue, modèle d'intention, solveur endgame).
+  const from =
+    level === "legende" || level === "grand_maitre" ? 2 : 0;
   if (state.stock.length <= from) {
     const samples = state.stock.length === 0 ? 1 : 8;
     const exact = pimcChoose(state, samples, 12);

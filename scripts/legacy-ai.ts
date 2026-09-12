@@ -33,7 +33,12 @@ export function legacyAnnounceAt(
 ): { suits: Suit[]; trump: Suit | null } | null {
   const base = aiAnnounce(state);
   if (!base) return null;
-  if (level !== "maitre" && level !== "legende") return base;
+  if (
+    level !== "maitre" &&
+    level !== "grand_maitre" &&
+    level !== "legende"
+  )
+    return base;
 
   // L'atout est déjà fixé : plus rien à optimiser, on encaisse les points.
   if (state.trump !== null || !base.trump) return base;
@@ -252,7 +257,7 @@ export function legacyChooseCardAt(state: GameState, level: Difficulty): Card {
     if (Math.random() < 0.25) return legal[Math.floor(Math.random() * legal.length)]!;
     return aiChooseCard(state);
   }
-  if (level === "maitre") return aiSmartCard(state, false);
+  if (level === "maitre" || level === "grand_maitre") return aiSmartCard(state, false);
   if (level === "legende") return aiSmartCard(state, true);
   // Expert : heuristique complète + conservation des atouts forts en début de tour
   const trump = state.trump;

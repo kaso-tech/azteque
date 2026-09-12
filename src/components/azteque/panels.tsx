@@ -21,7 +21,14 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
 };
 
-export const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
+export const DIFFICULTIES: Difficulty[] = [
+  "facile",
+  "normal",
+  "expert",
+  "maitre",
+  "grand_maitre",
+  "legende",
+];
 
 /**
  * Récompense d'une victoire contre l'IA.
@@ -29,12 +36,17 @@ export const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre
  * Ce barème n'est que le repli hors connexion : pour un joueur connecté, le
  * montant est décidé par la fonction serveur `award_ai_win`, seule à faire
  * foi. Les deux doivent rester d'accord.
+ *
+ * PR8a — Grand Maître et Légende partagent la même récompense (100). PR8b
+ * séparera les deux : Légende montera à 150 quand son nouveau moteur sera
+ * actif.
  */
 export const TOKEN_REWARDS: Record<Difficulty, number> = {
   facile: 20,
   normal: 40,
   expert: 60,
   maitre: 80,
+  grand_maitre: 100,
   legende: 100,
 };
 
