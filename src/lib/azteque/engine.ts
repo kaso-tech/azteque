@@ -646,7 +646,8 @@ const TUNE = {
    */
   trump10Cash: 1.2,
   /**
-   * Plancher de valeur d'un atout pour la Légende. Voir `atoutDeReserve`.
+   * Plancher de valeur d'un atout pour Grand Maître et Légende.
+   * Voir `atoutDeReserve`.
    *
    * À 1, la décroissance de `trumpKeepValue` est exactement annulée : un atout
    * garde toute sa valeur jusqu'au bout. Ce n'est pas un point de réglage
@@ -656,8 +657,12 @@ const TUNE = {
    * Ne pas monter au-delà : à 1.4 le gain se retourne partout. À force de
    * garder ses atouts, l'IA cesse de remporter des plis — donc d'annoncer ses
    * comptes, qui valent 2 à 5 points chacun.
+   *
+   * Renommé `legendeTrumpFloor` → `grandMaitreTrumpFloor` en PR8a pour
+   * refléter que ce paramètre s'applique à Grand Maître (et à Légende par
+   * alias de transition, jusqu'à PR8b qui isolera Légende).
    */
-  legendeTrumpFloor: 1,
+  grandMaitreTrumpFloor: 1,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -1055,7 +1060,7 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
       c.suit !== trump
     )
       return 0;
-    const plancher = TUNE.legendeTrumpFloor;
+    const plancher = TUNE.grandMaitreTrumpFloor;
     if (plancher <= 0) return 0;
     const urgence = Math.min(1, state.stock.length / 12);
     if (urgence >= plancher) return 0;

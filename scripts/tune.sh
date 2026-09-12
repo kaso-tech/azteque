@@ -15,7 +15,7 @@ echo "== $KEY (valeur actuelle : $ORIG) =="
 
 for v in "$@"; do
   sed -i -E "s/^  $KEY: [0-9.]+,/  $KEY: $v,/" "$FILE"
-  line=$(timeout 280 bun scripts/ai-bench.ts expert old:legende 300 2>&1 | tail -1)
+  line=$(timeout 280 bun scripts/ai-bench.ts expert old:grand_maitre 300 2>&1 | tail -1)
   pts=$(echo "$line" | sed -E 's/.*pts +([0-9.]+) \/ +([0-9.]+).*/\1 \2/')
   win=$(echo "$line" | sed -E 's/.*victoires +([0-9.]+)%.*/\1/')
   diff=$(awk -v p="$pts" 'BEGIN{split(p,a," "); printf "%+.2f", a[1]-a[2]}')
