@@ -738,6 +738,190 @@ function oppHas(m: OppModel, pred: (c: Card) => boolean): number {
   return chanceAtLeastOne(m.unseen, m.hidden, pred);
 }
 
+/**
+ * PR8b-2 — Modèle d'intention adverse.
+ *
+ * `oppHas` répond à « l'adversaire a-t-il cette carte ? ». `oppWillPlay`
+ * répond à « l'adversaire va-t-il JOUER cette carte maintenant ? » — la
+ * nuance est capitale : un joueur peut détenir un As d'atout sans le jouer
+ * sur un pli qu'il ne peut pas gagner, ou suivre la couleur plutôt que
+ * couper quand il a le choix.
+ *
+ * Le modèle prend en compte :
+ *   - la contrainte de fournir / couper (règlement)
+ *   - la protection des propres bonnes de l'adversaire
+ *   - la fenêtre d'annonce (s'il doit gagner un pli pour annoncer)
+ *   - la couleur demandée (s'il fournit, c'est obligatoire)
+ *
+ * PR8b-2 n'utilise ce modèle que pour `level === "legende"`, via
+ * `oppLeadGainIntent`. Grand Maître continue d'utiliser l'ancien `oppHas`.
+ */
+
+export interface PlayContext {
+  /** L'adversaire fournit le pli en cours, ou il le mène. */
+  position: "follow" | "lead";
+  /** Couleur demandée par l'entame, s'il y en a une (null en phase finale). */
+  ledSuit: Suit | null;
+  /** Carte qui a mené le pli (pour calculer si on peut la battre). */
+  ledCard: Card | null;
+  /** Cartes encore en pioche — la fenêtre d'annonce en dépend. */
+  stockLeft: number;
+}
+
+/**
+ * Probabilité que l'adversaire JOUE cette carte MAINTENANT, dans ce contexte.
+ *
+ * Renvoie une valeur entre 0 et 1. Quand la main adverse est connue
+ * (`m.known !== null`), le résultat est exact (0 ou 1) — le règlement
+ * détermine ce qu'il DOIT jouer, et son intention est alors calculable.
+ *
+ * Exporté pour les tests unitaires ; utilisé en interne par
+ * `oppLeadGainIntent`.
+ */
+export function oppWillPlay(
+  state: GameState,
+  m: OppModel,
+  card: Card,
+  ctx: PlayContext,
+): number {
+  // Cas déterministe : main adverse connue (pioche vide). On peut raisonner
+  // exactement sur ce qu'il a, et le règlement dicte ses obligations.
+  if (m.known) {
+    const has = m.known.some((c) => c.id === card.id);
+    if (!has) return 0;
+    return willPlayFromKnown(state, m.known, card, ctx);
+  }
+
+  // Cas probabiliste : on regarde si l'adversaire a probablement la carte,
+  // puis on applique la pondération d'intention. Si la carte est improbable,
+  // le résultat tend vers 0 — pas la peine d'analyser l'intention.
+  const has = oppHas(m, (c) => c.id === card.id);
+  if (has <= 0) return 0;
+  return has * willPlayIntent(state, m, card, ctx);
+}
+
+/**
+ * Logique d'intention quand la main adverse est connue.
+ *
+ * Suit le règlement strictement :
+ *   - suivre la couleur si on l'a
+ *   - couper à défaut (en jouant l'atout le plus faible qui bat l'entame)
+ *   - défausser (n'importe quelle carte non-bonne en priorité)
+ *
+ * Exceptions :
+ *   - un compte posé ne peut pas être repris (les K/Q/J exposés sont sacrés)
+ *   - en phase finale, les défausses cherchent à protéger ses bonnes
+ */
+function willPlayFromKnown(
+  state: GameState,
+  hand: Card[],
+  card: Card,
+  ctx: PlayContext,
+): number {
+  const trump = state.trump;
+  const exposed = new Set(state.exposed[0]); // l'adversaire est player 0
+  const own = hand.find((c) => c.id === card.id);
+  if (!own) return 0;
+  if (exposed.has(own.id)) return 0; // carte posée dans un compte, intouchable
+
+  if (ctx.position === "follow" && ctx.ledSuit !== null) {
+    const same = hand.filter(
+      (c) => c.suit === ctx.ledSuit && !exposed.has(c.id),
+    );
+    if (same.length > 0) return 1; // a la couleur, doit fournir
+    const trumps = trump
+      ? hand.filter((c) => c.suit === trump && !exposed.has(c.id))
+      : [];
+    if (own.suit === trump) return 1; // joue atout
+    return 1; // défausse libre
+  }
+
+  // position === "lead" : il choisit. Son INTENTION compte, pas une contrainte.
+  return willPlayLeadIntent(state, hand, card, ctx);
+}
+
+/**
+ * Quand l'adversaire mène (pas de contrainte de règlement), on estime s'il
+ * jouerait cette carte-ci ou une autre.
+ */
+function willPlayLeadIntent(
+  state: GameState,
+  hand: Card[],
+  card: Card,
+  ctx: PlayContext,
+): number {
+  const trump = state.trump;
+  const sameSuit = hand.filter(
+    (c) => c.suit === card.suit && c.id !== card.id,
+  );
+  const hasHigherInSuit = sameSuit.some(
+    (c) => rankValue(c.rank) > rankValue(card.rank),
+  );
+
+  // Bonne d'atout : il la protège sauf s'il n'a pas le choix (fenêtre
+  // d'annonce fermée ou plus faible atout disponible).
+  if (trump && card.suit === trump && isBonne(card)) {
+    const hasLowerTrump = sameSuit.some(
+      (c) => rankValue(c.rank) < rankValue(card.rank),
+    );
+    if (hasLowerTrump) return 0.2;
+    return ctx.stockLeft <= 2 ? 0.6 : 0.3;
+  }
+
+  // Roi ou Dame non-posé d'une couleur où il a peut-être un compte :
+  // il les garde tant qu'il peut former le compte.
+  if (
+    (card.rank === "K" || card.rank === "Q") &&
+    card.suit !== trump &&
+    sameSuit.some((c) => c.rank === "Q" || c.rank === "K")
+  ) {
+    return 0.4;
+  }
+
+  if (hasHigherInSuit) return 0.3;
+  return 0.8;
+}
+
+/**
+ * Pondération d'intention quand la main adverse est inconnue.
+ *
+ * Plus simple que `willPlayFromKnown` : on regarde les grandes lignes
+ * (contrainte de fournir, protection des bonnes, fenêtre d'annonce) sans
+ * connaître la main exacte.
+ */
+function willPlayIntent(
+  state: GameState,
+  m: OppModel,
+  card: Card,
+  ctx: PlayContext,
+): number {
+  const trump = state.trump;
+
+  if (ctx.position === "follow" && ctx.ledSuit !== null) {
+    if (card.suit === ctx.ledSuit) {
+      // Il fournit. Probabilité haute sauf s'il a mieux dans la couleur.
+      const pHigher = oppHas(
+        m,
+        (c) =>
+          c.suit === ctx.ledSuit &&
+          rankValue(c.rank) > rankValue(card.rank),
+      );
+      return Math.max(0.5, 1 - pHigher * 0.5);
+    }
+    if (trump && card.suit === trump) {
+      const pLedSuit = oppHas(m, (c) => c.suit === ctx.ledSuit);
+      return pLedSuit > 0.3 ? 0.7 : 0.9;
+    }
+    return 0.9;
+  }
+
+  // Mène (lead) : intention.
+  if (trump && card.suit === trump && isBonne(card)) {
+    return ctx.stockLeft <= 2 ? 0.6 : 0.3;
+  }
+  return 0.8;
+}
+
 /* ---------- Valeur de la main (« la devanture ») ---------- */
 
 /**
@@ -819,6 +1003,59 @@ function oppLeadGain(state: GameState, m: OppModel): number {
     }
   }
   return TUNE.tempoBase + meldWindow(state) * threat;
+}
+
+/**
+ * PR8b-2 — Variante Légende de `oppLeadGain`.
+ *
+ * Reprend le calcul de base, mais pondère la menace par `oppWillPlay` :
+ * on ne craint pas un compte que l'adversaire a peut-être, mais qu'il ne
+ * va pas forcément annoncer ce pli-ci. À l'inverse, on craint plus un As
+ * d'atout qu'il va probablement jouer.
+ *
+ * Pour l'instant l'intégration est minimaliste : on ajuste la threat de
+ * ±20 % selon que la couleur "dangereuse" est probable en intention ou
+ * pas. PR8b-4 affinera par A/B testing.
+ */
+function oppLeadGainIntent(state: GameState, m: OppModel): number {
+  const base = oppLeadGain(state, m);
+  if (state.stock.length === 0) return base; // phase finale = déterministe
+
+  const trump = state.trump;
+  const stockLeft = state.stock.length;
+  // Si l'adversaire est sur le point de gagner un pli (mène le suivant),
+  // on estime l'intention avec laquelle il va jouer sa couleur la plus
+  // probable. Si cette intention est forte, on majore la threat de 20 %.
+  const ctx: PlayContext = {
+    position: "lead",
+    ledSuit: null,
+    ledCard: null,
+    stockLeft,
+  };
+
+  // On regarde l'As d'atout — c'est la carte qui pèse le plus dans la
+  // décision de l'adversaire. S'il l'a ET qu'il est probable qu'il la joue
+  // au prochain tour, la threat monte.
+  if (trump) {
+    const aceTrump: Card = { id: "ace-trump-probe", suit: trump, rank: "A" };
+    const willPlay = oppWillPlay(state, m, aceTrump, ctx);
+    if (willPlay > 0.5) return base * 1.2;
+  }
+
+  // Sinon, on regarde le 10 de la couleur non-atout où il a le plus de
+  // cartes — signe d'un compte en formation.
+  let maxBoost = 1;
+  for (const s of SUITS) {
+    if (s === trump) continue;
+    const tenProbe: Card = { id: `ten-${s}-probe`, suit: s, rank: "10" };
+    const willPlay = oppWillPlay(state, m, tenProbe, ctx);
+    if (willPlay > 0.5) {
+      // 10 non-atout : l'adversaire le joue seulement pour rafler une bonne.
+      // Si sa fenêtre d'annonce se ferme, il est plus pressé.
+      maxBoost = Math.max(maxBoost, 1 + 0.1 * meldWindow(state));
+    }
+  }
+  return base * maxBoost;
 }
 
 /**
@@ -1059,7 +1296,13 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   // ou priver l'adversaire du sien. Les deux termes tirent dans le même sens :
   // leur somme mesure ce que vaut la lutte pour ce pli.
   const myLead = myLeadGain(state);
-  const oppLead = oppLeadGain(state, opp);
+  // PR8b-2 — Légende utilise le modèle d'intention pour évaluer la menace
+  // que représente l'adversaire s'il gagne ce pli. Grand Maître garde
+  // l'estimation purement probabiliste (oppLeadGain).
+  const oppLead =
+    level === "legende"
+      ? oppLeadGainIntent(state, opp)
+      : oppLeadGain(state, opp);
 
   /**
    * Ce qu'un atout vaut de PLUS pour la Légende à l'approche de la fin.
