@@ -804,10 +804,13 @@ function Azteque() {
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
-  // Changer de niveau en cours de partie reviendrait à finir en Légende un
-  // champ commencé en Facile — et à empocher la récompense du niveau le plus
-  // élevé sans l'avoir affrontée. Tout changement repart donc d'une partie
-  // neuve, quel que soit l'écran par lequel il passe.
+  // Changer de niveau d'IA en cours de partie reviendrait à finir une partie
+  // Facile contre le niveau Légende — et à empocher la récompense du niveau
+  // le plus élevé sans l'avoir affrontée. Tout changement repart donc d'une
+  // partie neuve, quel que soit l'écran par lequel il passe.
+  //
+  // À ne pas confondre avec le grade Elo « Légende » (tier 9 dans
+  // src/lib/azteque/rank.ts), qui est un palier de cote et n'a aucun lien.
   //
   // Mais pas avant que le joueur soit revenu à la table : la donne lancée
   // pendant que le panneau de l'adversaire est encore ouvert se jouait

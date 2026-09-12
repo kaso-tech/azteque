@@ -598,7 +598,7 @@ describe("aiChooseCardAt (non-régression)", () => {
       hands: [[card("7", "H")], [card("A", "S"), card("8", "D")]],
       trick: [],
     });
-    const choice = aiChooseCardAt(state, "legende");
+    const choice = aiChooseCardAt(state, "grand_maitre");
     expect({ rank: choice.rank, suit: choice.suit }).toMatchSnapshot();
   });
 });
@@ -742,7 +742,7 @@ describe("tactiques de l'IA", () => {
       gains,
     });
     // Le Maître coupe pour la main ; la Légende garde son atout.
-    expect(aiChooseCardAt(state, "legende").id).toBe(dechet.id);
+    expect(aiChooseCardAt(state, "grand_maitre").id).toBe(dechet.id);
     expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
   });
 
@@ -784,7 +784,7 @@ describe("tactiques de l'IA", () => {
       // Un tas déjà fourni : c'est lui que le 10 met en jeu.
       gains: [gains[0], [...gains[1], card("A", "H"), card("10", "H"), card("A", "D")]],
     });
-    expect(aiChooseCardAt(state, "legende").id).toBe(dixAtout.id);
+    expect(aiChooseCardAt(state, "grand_maitre").id).toBe(dixAtout.id);
     // Le Maître n'a pas cette attention : elle est propre à la Légende.
     expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
   });
@@ -807,7 +807,7 @@ describe("tactiques de l'IA", () => {
       ],
       gains,
     });
-    expect(aiChooseCardAt(state, "legende").id).toBe(low.id);
+    expect(aiChooseCardAt(state, "grand_maitre").id).toBe(low.id);
   });
   it("en phase finale, surpasse avec le 10 et garde l'As de la même couleur", () => {
     // L'adversaire mène le Roi de pique ; l'IA tient le 10 et l'As de pique.
