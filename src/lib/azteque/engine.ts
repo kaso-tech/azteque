@@ -147,13 +147,14 @@ export function availableMelds(state: GameState, p: PlayerIndex, anytime = false
   if (!anytime && state.canAnnounce !== p) return [];
   const hand = state.hands[p];
   const used = new Set(state.exposed[p]);
-  const done = new Set(state.melds[p].map((m) => m.suit));
+  const done = state.melds[p];
   const out: MeldOption[] = [];
   for (const s of SUITS) {
-    // Une deuxième annonce dans la même couleur n'est permise que pour
-    // l'atout : le second jeu de cartes peut fournir un second Roi + Dame
-    // (+ Valet) de la couleur d'atout, qui se compte comme le premier.
-    if (done.has(s) && s !== state.trump) continue;
+    // Le jeu est double : chaque couleur peut fournir DEUX Roi + Dame (+ Valet)
+    // distincts, donc deux comptes dans la même couleur, atout ou non. Tout
+    // compte réuni se déclare dès qu'on a la devanture ; seule la limite
+    // physique du paquet (deux exemplaires) s'applique.
+    if (done.filter((m) => m.suit === s).length >= 2) continue;
     const k = hand.find((c) => c.suit === s && c.rank === "K" && !used.has(c.id));
     const q = hand.find((c) => c.suit === s && c.rank === "Q" && !used.has(c.id));
     if (!k || !q) continue;
@@ -405,7 +406,9 @@ export function drawNext(state: GameState): GameState {
   // Compléter un compte simple au premier tirage suivant l'annonce
   const pend = s.pendingUpgrade[p];
   if (pend && drawn.suit === pend && drawn.rank === "J") {
-    const m = s.melds[p].find((x) => x.suit === pend && x.type === "simple");
+    // Deux comptes peuvent coexister dans la même couleur : c'est le dernier
+    // annoncé qui attend son valet.
+    const m = [...s.melds[p]].reverse().find((x) => x.suit === pend && x.type === "simple");
     if (m) {
       m.type = "triple";
       m.points = meldPoints("triple", m.first);
@@ -1010,8 +1013,7 @@ function meldPointsFor(state: GameState, p: PlayerIndex, hand: Card[]): number {
   let total = 0;
   let bestFirst = 0;
   for (const s of SUITS) {
-    const max = s === state.trump ? 2 : 1;
-    if (done.filter((m) => m.suit === s).length >= max) continue;
+    if (done.filter((m) => m.suit === s).length >= 2) continue;
     const has = (r: Rank) => hand.some((c) => c.suit === s && c.rank === r && !used.has(c.id));
     if (!has("K") || !has("Q")) continue;
     const type = has("J") ? "triple" : "simple";
@@ -1059,8 +1061,7 @@ function oppLeadGain(state: GameState, m: OppModel, level: Difficulty = "expert"
     // même couleur encore libre.
     threat = 0;
     for (const s of SUITS) {
-      const max = s === state.trump ? 2 : 1;
-      if (state.melds[0].filter((x) => x.suit === s).length >= max) continue;
+      if (state.melds[0].filter((x) => x.suit === s).length >= 2) continue;
       const p = (r: Rank) => oppHas(m, (c) => c.suit === s && c.rank === r);
       const pair = p("K") * p("Q");
       if (pair <= 0) continue;
@@ -1352,11 +1353,10 @@ function meldValue(state: GameState, c: Card): number {
   // Une carte déjà posée dans un compte est acquise : la garder ne rapporte plus.
   const exposed = new Set(state.exposed[1]);
   if (exposed.has(c.id)) return 0;
-  // Le compte de cette couleur est-il encore ouvert ? (une seule annonce par
-  // couleur, sauf à l'atout où le second jeu autorise un deuxième compte)
+  // Le compte de cette couleur est-il encore ouvert ? (le jeu est double :
+  // deux comptes possibles par couleur, atout ou non)
   const already = state.melds[1].filter((m) => m.suit === c.suit).length;
-  const maxMelds = c.suit === state.trump ? 2 : 1;
-  if (already >= maxMelds) return 0;
+  if (already >= 2) return 0;
 
   const hand = state.hands[1];
   const free = (r: Rank) =>
@@ -1939,14 +1939,12 @@ function determinize(state: GameState, unseen: Card[]): SimState {
   const oppHand = [...known, ...pool.slice(0, need)];
   const lead = state.trick.length === 1 ? state.trick[0]! : null;
 
-  // Comptes restants par couleur : un seul par couleur, deux à l'atout
-  // (le second jeu de cartes fournit le deuxième Roi + Dame).
+  // Comptes restants par couleur : deux au plus, le jeu étant double.
   const roomOf = (p: PlayerIndex): MeldRoom => {
     const room = {} as MeldRoom;
     for (const s of SUITS) {
-      const max = s === state.trump ? 2 : 1;
       const done = state.melds[p].filter((m) => m.suit === s).length;
-      room[s] = Math.max(0, max - done);
+      room[s] = Math.max(0, 2 - done);
     }
     return room;
   };
