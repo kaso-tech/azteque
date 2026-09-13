@@ -706,10 +706,6 @@ const TUNE = {
   legendeTrumpForce: 0.3,
   /** Pénalité si la couleur est encore très présente chez l'adversaire. */
   legendeTrumpAdverse: 0.5,
-  /** Prime à mener atout pour arracher ceux de l'adversaire (Légende). */
-  legendeChasse: 0.4,
-  /** Talon maximal au-dessous duquel la chasse aux atouts a un sens. */
-  legendeChasseStock: 8,
 };
 
 /* ---------- Réglages propres à la Légende ----------
@@ -1514,10 +1510,9 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
   const opp = readOpponent(state);
   // PR8a — Grand Maître hérite du comportement Légende (alias de transition).
   // PR8b isolera le vrai Légende sur ce point si nécessaire.
-  const peril =
-    level === "legende" || level === "grand_maitre"
-      ? trump10Peril(state, opp)
-      : 0;
+  // L'échelle des niveaux se joue ici : le péril du 10 d'atout, la réserve
+  // d'atouts et la recherche de fin de partie sont réservés à la Légende.
+  const peril = level === "legende" ? trump10Peril(state, opp) : 0;
   /**
    * Prime à encaisser le 10 d'atout sur un pli qu'on GAGNE : c'est la seule
    * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
@@ -1552,12 +1547,7 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
    * tout. Ce supplément relève le plancher sans toucher aux autres niveaux.
    */
   const atoutDeReserve = (c: Card) => {
-    if (
-      (level !== "legende" && level !== "grand_maitre") ||
-      !trump ||
-      c.suit !== trump
-    )
-      return 0;
+    if (level !== "legende" || !trump || c.suit !== trump) return 0;
     const plancher = T("grandMaitreTrumpFloor");
     if (plancher <= 0) return 0;
     const urgence = Math.min(1, state.stock.length / 12);
@@ -1604,36 +1594,6 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
     return notes;
   }
 
-  /**
-   * Chasse aux atouts (Légende).
-   *
-   * Tactique classique des jeux à atout, absente jusqu'ici : quand on est plus
-   * long à l'atout que l'adversaire, mener atout lui arrache les siens un par
-   * un. Une fois sec, il ne peut plus couper — et les bonnes qu'on garde dans
-   * les autres couleurs, jusque-là exposées à la coupe, deviennent imprenables
-   * pour la phase finale, où fournir est obligatoire.
-   *
-   * Deux conditions la rendent valide : la pioche doit être assez basse pour
-   * que les atouts arrachés ne soient pas remplacés, et on doit avoir des
-   * bonnes hors atout à protéger — sinon on brûle ses atouts pour rien.
-   */
-  const chasseAuxAtouts = (c: Card) => {
-    if (level !== "legende" || !trump || c.suit !== trump) return 0;
-    const poids = T("legendeChasse");
-    if (poids <= 0 || state.stock.length > T("legendeChasseStock")) return 0;
-    const miens = state.hands[1].filter((x) => x.suit === trump).length;
-    const siens = opp.known
-      ? opp.known.filter((x) => x.suit === trump).length
-      : (opp.hidden * opp.unseen.filter((x) => x.suit === trump).length) /
-        Math.max(1, opp.unseen.length);
-    const avance = miens - siens;
-    if (avance <= 0) return 0;
-    const bonnesHors = state.hands[1].filter((x) => isBonne(x) && x.suit !== trump).length;
-    if (bonnesHors === 0) return 0;
-    const force = rankValue(c.rank) / (RANKS.length - 1);
-    return poids * force * Math.min(2, avance) * Math.min(2, bonnesHors);
-  };
-
   /* --- Entame : encaisser les bonnes imprenables, sinon écarter du déchet --- */
   for (const c of legal) {
     const bonne = isBonne(c);
@@ -1679,7 +1639,6 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
       risk * (pts + oppLead + trump10Exposure(state, c)) -
       keepValue(state, c, opp) -
       atoutDeReserve(c) +
-      chasseAuxAtouts(c) +
       deadWeight(state, c);
     notes.set(c, score);
   }
@@ -2355,7 +2314,7 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // Grand Maître strictement intact ; Légende y ajoute, au-dessus du seuil,
   // une anticipation d'un pli contre un adversaire modélisé.
   const legende = level === "legende";
-  const from = legende ? TUNE.legendePimcStock : level === "grand_maitre" ? 2 : 0;
+  const from = legende ? TUNE.legendePimcStock : 0;
   if (state.stock.length <= from) {
     const samples =
       state.stock.length === 0 ? 1 : legende ? TUNE.legendePimcSamples2 : 8;
