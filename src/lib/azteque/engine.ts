@@ -702,6 +702,10 @@ const TUNE = {
   legendePimcBudget: 120000,
   /** Poids de l'anticipation d'un pli dans la note finale (Légende). */
   legendeAnticipation: 0.15,
+  /** Poids de la hauteur de la couleur dans le choix de l'atout (Légende). */
+  legendeTrumpForce: 0.3,
+  /** Pénalité si la couleur est encore très présente chez l'adversaire. */
+  legendeTrumpAdverse: 0.5,
   /** Prime à mener atout pour arracher ceux de l'adversaire (Légende). */
   legendeChasse: 0.4,
   /** Talon maximal au-dessous duquel la chasse aux atouts a un sens. */
@@ -720,7 +724,7 @@ const TUNE = {
  * strictement inchangé. Chaque valeur est mesurée en A/B contre Grand Maître
  * au banc d'essai (`bun scripts/ai-bench.ts legende grand_maitre 1200`).
  */
-const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = {};
+const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = { legendeTrumpForce: 0.7 };
 
 /**
  * Niveau en cours de décision. La pile de décision de l'IA est entièrement
