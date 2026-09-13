@@ -116,7 +116,7 @@ function CguPage() {
           </ul>
           <p>
             Les articles de la boutique (avatars, stickers, tapis, sons) sont des contenus
-            numériques à valoir装饰atif : aucun d'eux n'influe sur les chances de gagner
+            numériques à valoir décoratif : aucun d'eux n'influe sur les chances de gagner
             une partie. Tous les articles sont achetés facultativement, en plus des jetons
             déjà acquis en jeu.
           </p>
