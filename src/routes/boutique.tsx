@@ -283,7 +283,7 @@ function Boutique() {
               s,
               <Sticker
                 id={s.art ?? s.id}
-                assetUrl={s.assetUrl ?? undefined}
+                assetUrl={s.assetUrl ?? null}
                 className="h-16 w-16"
               />,
             ),
@@ -304,7 +304,7 @@ function Boutique() {
               s,
               <Sticker
                 id={s.id}
-                assetUrl={s.assetUrl ?? undefined}
+                assetUrl={s.assetUrl ?? null}
                 className="h-16 w-16"
               />,
               <button

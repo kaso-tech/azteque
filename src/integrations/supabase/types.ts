@@ -357,6 +357,7 @@ export type Database = {
       shop_items: {
         Row: {
           active: boolean
+          asset_url: string | null
           data: Json
           hint: string | null
           id: string
@@ -367,6 +368,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          asset_url?: string | null
           data?: Json
           hint?: string | null
           id: string
@@ -377,6 +379,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          asset_url?: string | null
           data?: Json
           hint?: string | null
           id?: string
@@ -618,6 +621,10 @@ export type Database = {
       }
       admin_set_item: {
         Args: { _active: boolean; _item_id: string; _price: number }
+        Returns: undefined
+      }
+      admin_set_item_asset: {
+        Args: { _asset_url: string; _id: string }
         Returns: undefined
       }
       admin_set_setting: {

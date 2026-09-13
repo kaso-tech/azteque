@@ -20,6 +20,12 @@ const migrationFonds = readFileSync(
   "utf8",
 );
 const migrationTapis = readFileSync("supabase/migrations/20260909200000_tapis_de_jeu.sql", "utf8");
+// Les sons sont arrivés plus tard encore, avec leur propre migration :
+// la concordance vaut pour eux aussi, lue dans ce troisième fichier.
+const migrationSons = readFileSync(
+  "supabase/migrations/20260913223833_5a0bbd29-fffd-4246-afc9-cfb8dd095be6.sql",
+  "utf8",
+);
 
 // Le catalogue vit désormais en base ; ces constantes en sont la version
 // d'origine, celle que la migration installe et que le code sert de recours.
@@ -37,7 +43,12 @@ function bareme(): Map<string, { kind: string; price: number }> {
   );
   const lignes = [...bloc.matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+)\)/g)];
   const fonds = [...blocDesFonds().matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+),/g)];
-  return new Map([...lignes, ...fonds].map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]));
+  // Les sons insèrent (id, kind, name, hint, price, ...) : le prix est le
+  // premier nombre de la ligne, après le nom et l'indice entre apostrophes.
+  const sons = [...migrationSons.matchAll(/\('([a-z_]+)',\s*'(\w+)'[^)]*?,\s*(\d+),/g)];
+  return new Map(
+    [...lignes, ...fonds, ...sons].map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]),
+  );
 }
 
 /**
