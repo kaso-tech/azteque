@@ -39,6 +39,7 @@ import { sfx, setSoundContext } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
 import { Recap } from "@/components/azteque/panels";
+import { HeaderSettingsButton } from "@/components/azteque/header-settings-button";
 import {
   ensureOnlineIdentity,
   getMatch,
@@ -1228,6 +1229,9 @@ function OnlineTable() {
               <RankBadge rating={myRank} compact className="mt-0.5 text-[0.65rem]" />
             )}
           </div>
+          {/* PR15 — Bouton paramètres : ouvre le panneau avec toggles
+              pour les sons et stickers achetés. */}
+          <HeaderSettingsButton owned={owned} />
         </div>
         <div className="min-w-16 text-center">
           <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>

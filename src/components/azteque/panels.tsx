@@ -313,6 +313,10 @@ export function PlayerProfilePanel({
           Les deux cartes restent visibles au milieu pendant ce temps.
         </p>
 
+        {/* PR15 — Note : le panneau paramètres utilisateur a été déplacé
+            dans `HeaderSettingsButton` (bouton ⚙️ du header de match en ligne).
+            En solo, les préférences sont gérées directement dans la barre de
+            MatchChat sans panneau dédié. */}
         <div className="mt-6 grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" onClick={onRules}>
             <BookOpen aria-hidden="true" /> Règles
