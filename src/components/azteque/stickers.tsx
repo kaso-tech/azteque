@@ -168,6 +168,71 @@ function Couronne() {
   );
 }
 
+function SonRire() {
+  // PR14 — Visuel du son « Rire » : visage souriant + éclats de joie.
+  return (
+    <>
+      <circle cx="32" cy="34" r="22" fill={CREME} stroke={ENCRE} strokeWidth="2" />
+      {/* Yeux fermés (sourires) */}
+      <path d="M21 28c2 3 6 3 8 0M35 28c2 3 6 3 8 0" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      {/* Bouche ouverte qui rit */}
+      <path d="M22 38c2 6 10 6 12 0" fill={ROUGE} stroke={ENCRE} strokeWidth="2" />
+      {/* Éclats de joie */}
+      <path d="M8 8l4 4M56 8l-4 4M32 4v6" stroke={OR} strokeWidth="3" strokeLinecap="round" />
+    </>
+  );
+}
+
+function SonPleurer() {
+  // PR14 — Visuel du son « Pleurer » : visage avec larmes.
+  return (
+    <>
+      <circle cx="32" cy="34" r="22" fill={CREME} stroke={ENCRE} strokeWidth="2" />
+      {/* Yeux tristes */}
+      <path d="M22 26c3 1 6 1 8 0M34 26c3 1 6 1 8 0" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      {/* Bouche tombante */}
+      <path d="M24 42c2-3 6-3 8 0" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      {/* Larmes */}
+      <path d="M22 32c-2 4-4 6-2 10s4 0 6-4" fill="#7ab8e6" stroke="#3a78b5" strokeWidth="1.5" />
+      <path d="M42 32c2 4 4 6 2 10s-4 0-6-4" fill="#7ab8e6" stroke="#3a78b5" strokeWidth="1.5" />
+    </>
+  );
+}
+
+function SonMoquerie() {
+  // PR14 — Visuel du son « Moquerie » : visage qui tire la langue.
+  return (
+    <>
+      <circle cx="32" cy="34" r="22" fill={CREME} stroke={ENCRE} strokeWidth="2" />
+      {/* Œil plissé (moue) */}
+      <path d="M22 30c2 1 6 1 8 0" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      {/* Œil ouvert avec clin d'œil */}
+      <path d="M34 30h8" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="38" cy="30" r="1.5" fill={ENCRE} />
+      {/* Bouche moqueuse avec langue tirée */}
+      <path d="M24 40h12c0 4-4 4-4 8-2-1-4-2-4-2" fill={ROUGE} stroke={ENCRE} strokeWidth="2" />
+      <ellipse cx="32" cy="46" rx="3" ry="2" fill={ROUGE} />
+    </>
+  );
+}
+
+function SonFelicitations() {
+  // PR14 — Visuel du son « Félicitations » : visage qui applaudit.
+  return (
+    <>
+      <circle cx="32" cy="34" r="22" fill={CREME} stroke={ENCRE} strokeWidth="2" />
+      {/* Yeux heureux */}
+      <path d="M22 28c2 2 6 2 8 0M34 28c2 2 6 2 8 0" stroke={ENCRE} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      {/* Bouche ouverte (joie) */}
+      <path d="M24 36c0 5 16 5 16 0" fill={ROUGE} stroke={ENCRE} strokeWidth="2" />
+      {/* Mains qui applaudissent */}
+      <path d="M6 50l6-8 4 4zM58 50l-6-8-4 4z" fill={PEAU} stroke={ENCRE} strokeWidth="1.5" />
+      {/* Éclats */}
+      <path d="M4 24l3 2M60 24l-3 2M32 4v5" stroke={OR} strokeWidth="2.4" strokeLinecap="round" />
+    </>
+  );
+}
+
 const DESSINS: Record<string, () => React.JSX.Element> = {
   st_bravo: Bravo,
   st_rire: Rire,
@@ -175,6 +240,10 @@ const DESSINS: Record<string, () => React.JSX.Element> = {
   st_atout: Atout,
   st_feu: Feu,
   st_couronne: Couronne,
+  snd_rire: SonRire,
+  snd_pleurer: SonPleurer,
+  snd_moquerie: SonMoquerie,
+  snd_felicitations: SonFelicitations,
 };
 
 /** Vrai si cet identifiant correspond à un sticker dessiné. */

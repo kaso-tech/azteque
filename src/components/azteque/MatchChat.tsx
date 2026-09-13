@@ -3,7 +3,7 @@ import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
 import { Sticker, isSticker } from "@/components/azteque/stickers";
-import { ownedPhrases, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
+import { ownedPhrases, ownedSounds, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
 
 const QUICK_PHRASES = [
   "Bien joué !",
@@ -47,6 +47,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
   const catalogue = useCatalogue();
   const mesStickers = useMemo(() => ownedStickers(acquis, catalogue), [acquis, catalogue]);
   const mesPhrases = useMemo(() => ownedPhrases(acquis, catalogue), [acquis, catalogue]);
+  const mesSons = useMemo(() => ownedSounds(acquis, catalogue), [acquis, catalogue]);
   const [open, setOpen] = useState(false);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
@@ -55,6 +56,16 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
   useEffect(() => {
     const chat = openChat(matchId, (msg) => {
       setBubbles((b) => [...b.slice(-5), { ...msg, mine: false, at: Date.now() }]);
+      // PR14 — Lecture du son à la réception d'un sticker-son.
+      if (msg.soundId) {
+        switch (msg.soundId) {
+          case "laugh": sfx.laugh(); break;
+          case "cry": sfx.cry(); break;
+          case "taunt": sfx.taunt(); break;
+          case "cheer": sfx.cheer(); break;
+          default: break;
+        }
+      }
       if (msg.reaction === "taunt") sfx.taunt();
       if (msg.reaction === "cheer") sfx.cheer();
     });
@@ -111,9 +122,10 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
     text: string,
     reaction: "taunt" | "cheer" | null = null,
     sticker: string | null = null,
+    soundId: string | null = null,
   ) => {
     const clean = text.trim().slice(0, 120);
-    if (!clean && !sticker) return;
+    if (!clean && !sticker && !soundId) return;
     const msg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       seat,
@@ -121,13 +133,30 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
       text: clean,
       reaction,
       sticker,
+      soundId,
     };
     chatRef.current?.send(msg);
     setBubbles((b) => [...b.slice(-5), { ...msg, mine: true, at: Date.now() }]);
+    // Lecture du son côté émetteur (l'adversaire lira aussi via l'event
+    // broadcast). On utilise une table de dispatch pour rester compatible
+    // avec n'importe quel SoundId ajouté à l'avenir.
+    if (soundId) jouerSon(soundId);
     if (reaction === "taunt") sfx.taunt();
     if (reaction === "cheer") sfx.cheer();
     setDraft("");
     setOpen(false);
+  };
+
+  // PR14 — Lecture d'un son par identifiant. Évite un long switch sur
+  // chaque SoundId. Tout son non reconnu est silencieusement ignoré.
+  const jouerSon = (soundId: string) => {
+    switch (soundId) {
+      case "laugh": sfx.laugh(); break;
+      case "cry": sfx.cry(); break;
+      case "taunt": sfx.taunt(); break;
+      case "cheer": sfx.cheer(); break;
+      default: break;
+    }
   };
 
   return (
@@ -160,15 +189,35 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
         })}
       </div>
 
-      {/* Bouton d'ouverture */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Ouvrir la discussion"
-        className="fixed bottom-4 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-gold/50 bg-felt-deep/95 text-lg text-gold shadow-lg"
-      >
-        💬
-      </button>
+      {/* PR14 — Barre de boutons stickers-sons, à droite du bouton Message.
+          Chaque bouton représente un son acheté ; au clic, le sticker visuel
+          est diffusé à l'adversaire et le son se joue localement. Les sons
+          non-achetés n'apparaissent pas (filtre par owned). */}
+      <div className="fixed bottom-4 right-4 z-40 flex items-end gap-2">
+        {mesSons.length > 0 && (
+          <div className="flex gap-1.5">
+            {mesSons.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                title={s.name}
+                onClick={() => send("", null, s.id, s.soundId ?? null)}
+                className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
+              >
+                <Sticker id={s.id} className="h-6 w-6" />
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Ouvrir la discussion"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/50 bg-felt-deep/95 text-lg text-gold shadow-lg"
+        >
+          💬
+        </button>
+      </div>
 
       {open && (
         <div className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md rounded-t-2xl border border-gold/35 bg-felt-deep/98 p-3 shadow-2xl">
