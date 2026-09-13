@@ -2089,7 +2089,29 @@ export function aiAnnounceAt(
     const triple = opts.find((o) => o.suit === s)?.type === "triple" ? 1 : 0;
     // Longueur et bonnes de la couleur deviennent imprenables ; les bonnes
     // des autres couleurs, elles, deviennent coupables par l'adversaire.
-    return 1.0 * length + 0.9 * bonnesIn - 0.55 * bonnesOut + 0.3 * triple;
+    let v = 1.0 * length + 0.9 * bonnesIn - 0.55 * bonnesOut + 0.3 * triple;
+    if (level === "legende") {
+      /*
+       * La Légende ne regarde pas que la longueur : un atout se juge aussi à
+       * sa HAUTEUR. Cinq petites cartes d'une couleur coupent une fois puis
+       * se font surcouper ; trois cartes hautes gardent la main. On ajoute
+       * donc la force moyenne des cartes de la couleur, et on retranche ce
+       * que l'adversaire en détient probablement (plus il en a, moins la
+       * couleur nous appartient).
+       */
+      const mienne = hand.filter((c) => c.suit === s);
+      const force =
+        mienne.reduce((a, c) => a + rankValue(c.rank) / (RANKS.length - 1), 0) /
+        Math.max(1, mienne.length);
+      const invisibles = unseenCards(state);
+      const partAdverse = invisibles.length
+        ? invisibles.filter((c) => c.suit === s).length / invisibles.length
+        : 0;
+      v +=
+        T("legendeTrumpForce") * force * length -
+        T("legendeTrumpAdverse") * partAdverse * 4;
+    }
+    return v;
   };
   const trump = [...suits].sort((a, b) => score(b) - score(a))[0]!;
   return { suits, trump };
