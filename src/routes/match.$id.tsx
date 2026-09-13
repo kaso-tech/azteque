@@ -4,6 +4,7 @@ import {
   SUIT_NAME,
   SUIT_SYMBOL,
   availableMelds,
+  hasMainBlanche,
   isBonne,
   stealsBonne,
   legalCards,
@@ -140,6 +141,12 @@ function OnlineTable() {
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  // Repère « main blanche tranchée » par le joueur local. Se remet à zéro
+  // automatiquement quand une nouvelle donne arrive (state.stock === 48).
+  const [redealDecided, setRedealDecided] = useState(false);
+  // Repère de donne — change à chaque (re)distribution, pour reset
+  // redealDecided et déclencher le panneau main blanche le cas échéant.
+  const donneKey = state ? `${state.stock.length}-${state.roundScore?.[0]?.total ?? 0}-${state.roundScore?.[1]?.total ?? 0}` : "none";
 
   // --- Animations de déplacement des cartes -----------------------------
   // Le serveur reste seul maître du résultat (voir match-actions.ts) : ces
@@ -355,6 +362,18 @@ function OnlineTable() {
     const t = setTimeout(() => setEnvoiLent(true), 700);
     return () => clearTimeout(t);
   }, [sending]);
+
+  // Reset du panneau main blanche à chaque nouvelle donne.
+  // On utilise donneKey comme signature : stock length + scores totaux.
+  // À chaque changement de donne, le panneau réapparaît si la nouvelle main
+  // est blanche, sinon il disparaît tout seul (canRedeal devient false).
+  const donneKeyRef = useRef(donneKey);
+  useEffect(() => {
+    if (donneKeyRef.current !== donneKey) {
+      donneKeyRef.current = donneKey;
+      setRedealDecided(false);
+    }
+  }, [donneKey]);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   // Coups montrés d'avance dont le serveur n'a pas encore accusé réception.
   // Tant qu'il en reste, la table ne tire aucune conséquence de ce qu'elle
@@ -1049,6 +1068,22 @@ function OnlineTable() {
   }, [waitingOnLink, linkHealthy, oppOnline, state, declareForfeit]);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
+  // Panneau main blanche : visible en début de tour, si le joueur local a
+  // une main blanche (aucun K, Q, J), et qu'il n'a pas encore tranché.
+  // À la différence du jeu solo, l'adversaire n'a pas son propre panneau :
+  // il peut demander une redistribution via cette même UI à son tour.
+  const canRedeal =
+    state !== null &&
+    state.phase === "playing" &&
+    state.trick.length === 0 &&
+    state.gains[0].length === 0 &&
+    state.gains[1].length === 0 &&
+    !redealDecided &&
+    hasMainBlanche(state, me);
+  const requestRedeal = useCallback(() => {
+    void runAction({ type: "request_redeal" });
+    setRedealDecided(true);
+  }, [runAction]);
   const legalIds = useMemo(() => {
     if (!state) return new Set<string>();
     const ok =
@@ -1071,6 +1106,11 @@ function OnlineTable() {
 
   const playMyCard = (card: Card, el: HTMLElement) => {
     if (!state || meldDecisionPending) return;
+    // PR10+ — Main blanche : si le joueur a une main blanche en début de tour
+    // et qu'il n'a pas tranché, on bloque la pose de carte. Sinon il joue
+    // sans avoir vu le panneau (qui s'affiche de façon synchrone côté
+    // adversaire).
+    if (canRedeal) return;
     const from = center(el);
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
@@ -1208,6 +1248,34 @@ function OnlineTable() {
           <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
         </div>
       </header>
+
+      {/* Panneau main blanche : le joueur local (et seulement lui) peut
+          demander une redistribution tant qu'il n'a pas tranché. Le serveur
+          vérifie qu'au moins un joueur a une main blanche avant d'agir. */}
+      {canRedeal && (
+        <div className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]">
+          <p className="text-xs text-accent">
+            Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={requestRedeal}
+              disabled={sending > 0}
+              className="rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              Demander une redistribution
+            </button>
+            <button
+              type="button"
+              onClick={() => setRedealDecided(true)}
+              className="text-xs text-muted-foreground underline"
+            >
+              Garder ma main
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main adverse */}
       <section>
