@@ -249,6 +249,10 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       <span className="text-2xl">💬</span>
     ) : b.kind === "background" ? (
       <ApercuFond css={b.css} className="h-12 w-20" />
+    ) : b.kind === "sound" ? (
+      // PR16 — Aperçu d'un son : on utilise le sticker-son (snd_*)
+      // correspondant si le soundId est connu, sinon une icône générique.
+      <Sticker id={`snd_${b.soundId === "laugh" ? "rire" : b.soundId === "cry" ? "pleurer" : b.soundId === "taunt" ? "moquerie" : b.soundId === "cheer" ? "felicitations" : "rire"}`} className="h-11 w-11" />
     ) : b.kind === "avatar" ? (
       <PlayerAvatar className="h-12 w-12" profile={{ avatar_kind: b.art }} />
     ) : (
@@ -285,6 +289,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
           <option value="background">Tapis de jeu</option>
+          <option value="sound">Sons</option>
         </FiltrePill>
         <FiltrePill
           label="Statut"
@@ -506,6 +511,14 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                               <Sticker id={i.art ?? i.id} className="h-8 w-8" />
                             ) : i.kind === "background" ? (
                               <ApercuFond css={i.css ?? ""} className="h-8 w-14" />
+                            ) : i.kind === "sound" ? (
+                              // PR16 — Aperçu d'un son dans le tableau : on
+                              // utilise le sticker-son correspondant au
+                              // soundId, ou un placeholder si non connu.
+                              <Sticker
+                                id={`snd_${i.soundId === "laugh" ? "rire" : i.soundId === "cry" ? "pleurer" : i.soundId === "taunt" ? "moquerie" : i.soundId === "cheer" ? "felicitations" : "rire"}`}
+                                className="h-8 w-8"
+                              />
                             ) : (
                               <span className="text-xl">💬</span>
                             )}
@@ -516,7 +529,9 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                               {i.id} · {i.hint}
                               {i.kind === "messages"
                                 ? ` · ${(i.phrases ?? []).length} phrases`
-                                : ""}
+                                : i.kind === "sound" && i.soundId
+                                  ? ` · son : ${i.soundId}`
+                                  : ""}
                             </div>
                           </div>
                         </div>
