@@ -43,7 +43,12 @@ function bareme(): Map<string, { kind: string; price: number }> {
   );
   const lignes = [...bloc.matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+)\)/g)];
   const fonds = [...blocDesFonds().matchAll(/\('([a-z_]+)',\s*'(\w+)',\s*(\d+),/g)];
-  return new Map([...lignes, ...fonds].map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]));
+  // Les sons insèrent (id, kind, name, hint, price, ...) : le prix est le
+  // premier nombre de la ligne, après le nom et l'indice entre apostrophes.
+  const sons = [...migrationSons.matchAll(/\('([a-z_]+)',\s*'(\w+)'[^)]*?,\s*(\d+),/g)];
+  return new Map(
+    [...lignes, ...fonds, ...sons].map((m) => [m[1]!, { kind: m[2]!, price: Number(m[3]) }]),
+  );
 }
 
 /**
