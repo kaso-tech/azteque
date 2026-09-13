@@ -21,6 +21,7 @@ const KIND_LABEL: Record<ShopKind, string> = {
   sticker: "Sticker",
   messages: "Lot de messages",
   background: "Tapis de jeu",
+  sound: "Son",
 };
 
 type FiltreKind = "tous" | ShopKind;
@@ -37,6 +38,8 @@ interface Brouillon {
   art: string;
   phrases: string;
   css: string;
+  /** PR13 — Identifiant du son (pour un son), partagé avec sfx.SoundId. */
+  soundId: string;
   sort: string;
   nouveau: boolean;
 }
@@ -52,6 +55,7 @@ function brouillonDe(i: ShopItem): Brouillon {
     art: i.art ?? "",
     phrases: (i.phrases ?? []).join("\n"),
     css: i.css ?? "",
+    soundId: i.soundId ?? "",
     sort: String(i.sort),
     nouveau: false,
   };
@@ -68,6 +72,7 @@ function brouillonNeuf(kind: ShopKind, sort: number): Brouillon {
     art: kind === "avatar" ? DESSINS_AVATAR[0]! : kind === "sticker" ? DESSINS_STICKER[0]! : "",
     phrases: "",
     css: kind === "background" ? (BACKGROUND_PRESETS[FONDS_LIVRES[0]!] ?? "") : "",
+    soundId: kind === "sound" ? "laugh" : "",
     sort: String(sort),
     nouveau: true,
   };
@@ -177,6 +182,12 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       );
       return;
     }
+    // PR13 — Un son doit avoir un soundId, sinon la table ne sait pas
+    // quel son jouer à l'achat.
+    if (brouillon.kind === "sound" && !brouillon.soundId.trim()) {
+      onErreur("Un son doit avoir un identifiant de son.");
+      return;
+    }
     setBusy(true);
     onErreur(null);
     adminUpsertItem({
@@ -191,7 +202,9 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           ? { phrases }
           : brouillon.kind === "background"
             ? { css }
-            : { art: brouillon.art },
+            : brouillon.kind === "sound"
+              ? { soundId: brouillon.soundId.trim() }
+              : { art: brouillon.art },
       sort: Number(brouillon.sort) || 0,
     })
       .then(() => {
@@ -379,6 +392,23 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                 </div>
               </div>
             </div>
+          ) : brouillon.kind === "sound" ? (
+            // PR13 — Sélecteur de soundId (un son par article). On liste
+            // uniquement les sons qui ont du sens comme réaction libre
+            // (rire, pleurer, moquerie, félicitations).
+            <label className="mt-2 block text-[0.68rem] text-muted-foreground">
+              Identifiant du son (à choisir parmi les sons disponibles)
+              <select
+                value={brouillon.soundId}
+                onChange={(e) => setBrouillon({ ...brouillon, soundId: e.target.value })}
+                className="mt-0.5 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="laugh">laugh — Rire franc</option>
+                <option value="cry">cry — Sanglot</option>
+                <option value="taunt">taunt — Moquerie</option>
+                <option value="cheer">cheer — Félicitations</option>
+              </select>
+            </label>
           ) : (
             <div className="mt-2">
               <p className="text-[0.68rem] text-muted-foreground">Dessin</p>
