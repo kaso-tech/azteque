@@ -1640,12 +1640,9 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
       keepValue(state, c, opp) -
       atoutDeReserve(c) +
       deadWeight(state, c);
-    if (score > bestScore) {
-      bestScore = score;
-      best = c;
-    }
+    notes.set(c, score);
   }
-  return best!;
+  return notes;
 }
 
 /* ==================================================================
