@@ -315,6 +315,20 @@ export async function adminSetItem(id: string, price: number, active: boolean): 
   if (error) throw error;
 }
 
+/**
+ * PR19 — Pose l'URL publique d'un asset uploadé (sticker/son/tapis)
+ * sur un article boutique. Utilisée par la console admin après
+ * l'upload vers Supabase Storage (admin-shop-upload.ts).
+ *
+ * On passe par une RPC dédiée pour ne pas dépendre d'une modification
+ * du RPC historique `admin_upsert_item` (qui aurait pu casser
+ * l'existant côté Lovable).
+ */
+export async function adminSetItemAsset(id: string, assetUrl: string | null): Promise<void> {
+  const { error } = await rpc("admin_set_item_asset", { _id: id, _asset_url: assetUrl });
+  if (error) throw error;
+}
+
 export async function adminLog(limit = 50): Promise<AdminLogEntry[]> {
   const { data, error } = await anyTable("admin_log")
     .select("*")

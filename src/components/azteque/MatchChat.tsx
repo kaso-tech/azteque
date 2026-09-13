@@ -56,8 +56,13 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
   useEffect(() => {
     const chat = openChat(matchId, (msg) => {
       setBubbles((b) => [...b.slice(-5), { ...msg, mine: false, at: Date.now() }]);
-      // PR14 — Lecture du son à la réception d'un sticker-son.
-      if (msg.soundId) {
+      // PR19 — Si l'adversaire a envoyé un fichier audio custom, on le joue.
+      if (msg.soundUrl) {
+        const audio = new Audio(msg.soundUrl);
+        audio.volume = 0.8;
+        void audio.play();
+      } else if (msg.soundId) {
+        // PR14 — Lecture du son à la réception d'un sticker-son.
         switch (msg.soundId) {
           case "laugh": sfx.laugh(); break;
           case "cry": sfx.cry(); break;
@@ -123,9 +128,10 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
     reaction: "taunt" | "cheer" | null = null,
     sticker: string | null = null,
     soundId: string | null = null,
+    soundUrl: string | null = null,
   ) => {
     const clean = text.trim().slice(0, 120);
-    if (!clean && !sticker && !soundId) return;
+    if (!clean && !sticker && !soundId && !soundUrl) return;
     const msg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       seat,
@@ -134,13 +140,20 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
       reaction,
       sticker,
       soundId,
+      soundUrl,
     };
     chatRef.current?.send(msg);
     setBubbles((b) => [...b.slice(-5), { ...msg, mine: true, at: Date.now() }]);
     // Lecture du son côté émetteur (l'adversaire lira aussi via l'event
     // broadcast). On utilise une table de dispatch pour rester compatible
     // avec n'importe quel SoundId ajouté à l'avenir.
-    if (soundId) jouerSon(soundId);
+    if (soundUrl) {
+      const audio = new Audio(soundUrl);
+      audio.volume = 0.8;
+      void audio.play();
+    } else if (soundId) {
+      jouerSon(soundId);
+    }
     if (reaction === "taunt") sfx.taunt();
     if (reaction === "cheer") sfx.cheer();
     setDraft("");
@@ -201,10 +214,12 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
                 key={s.id}
                 type="button"
                 title={s.name}
-                onClick={() => send("", null, s.id, s.soundId ?? null)}
+                onClick={() =>
+                  send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)
+                }
                 className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
               >
-                <Sticker id={s.id} className="h-6 w-6" />
+                <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-6 w-6" />
               </button>
             ))}
           </div>

@@ -279,7 +279,14 @@ function Boutique() {
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {visibles("sticker").map((s) =>
-            carte(s, <Sticker id={s.art ?? s.id} className="h-16 w-16" />),
+            carte(
+              s,
+              <Sticker
+                id={s.art ?? s.id}
+                assetUrl={s.assetUrl ?? undefined}
+                className="h-16 w-16"
+              />,
+            ),
           )}
         </div>
       </section>
@@ -295,12 +302,23 @@ function Boutique() {
           {visibles("sound").map((s) =>
             carte(
               s,
-              <Sticker id={s.id} className="h-16 w-16" />,
+              <Sticker
+                id={s.id}
+                assetUrl={s.assetUrl ?? undefined}
+                className="h-16 w-16"
+              />,
               <button
                 type="button"
                 onClick={(ev) => {
                   ev.stopPropagation();
-                  if (s.soundId) playSound(s.soundId);
+                  if (s.assetUrl) {
+                    // PR19 — Son custom uploadé : on joue le fichier.
+                    const audio = new Audio(s.assetUrl);
+                    audio.volume = 0.8;
+                    void audio.play();
+                  } else if (s.soundId) {
+                    playSound(s.soundId);
+                  }
                 }}
                 className="rounded-full border border-gold/40 px-3 py-1 text-[0.7rem] font-semibold text-gold hover:bg-gold/10"
               >
