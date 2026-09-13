@@ -1487,6 +1487,17 @@ function trump10Peril(state: GameState, m: OppModel): number {
   return pAs * (1 + state.gains[1].filter(isBonne).length);
 }
 
+/** Ordre de compétence des niveaux : sert à graduer les tactiques. */
+const RANGS_IA: Record<Difficulty, number> = {
+  facile: 0,
+  normal: 1,
+  expert: 2,
+  maitre: 3,
+  grand_maitre: 4,
+  legende: 5,
+};
+const rangIA = (l: Difficulty) => RANGS_IA[l];
+
 /* ---------- Heuristique tactique (expert et repli des niveaux hauts) ---------- */
 
 function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
@@ -1513,12 +1524,18 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
   const legal = legalCards(state, 1);
   const notes = new Map<Card, number>();
   const trump = state.trump;
-  const opp = readOpponent(state, level === "legende");
+  const opp = readOpponent(state, rangIA(level) >= rangIA("grand_maitre"));
   // PR8a — Grand Maître hérite du comportement Légende (alias de transition).
   // PR8b isolera le vrai Légende sur ce point si nécessaire.
-  // L'échelle des niveaux se joue ici : le péril du 10 d'atout, la réserve
-  // d'atouts et la recherche de fin de partie sont réservés à la Légende.
-  const peril = level === "legende" ? trump10Peril(state, opp) : 0;
+  /*
+   * L'échelle des niveaux se joue ici. Chaque palier ajoute une compétence
+   * que le précédent n'a pas :
+   *   Expert       — l'heuristique de base ;
+   *   Maître       — garde ses atouts en réserve pour la phase finale ;
+   *   Grand Maître — surveille le 10 d'atout et déduit la main adverse ;
+   *   Légende      — tout cela, plus la recherche de fin de partie.
+   */
+  const peril = rangIA(level) >= rangIA("grand_maitre") ? trump10Peril(state, opp) : 0;
   /**
    * Prime à encaisser le 10 d'atout sur un pli qu'on GAGNE : c'est la seule
    * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
@@ -1553,7 +1570,7 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
    * tout. Ce supplément relève le plancher sans toucher aux autres niveaux.
    */
   const atoutDeReserve = (c: Card) => {
-    if (level !== "legende" || !trump || c.suit !== trump) return 0;
+    if (rangIA(level) < rangIA("maitre") || !trump || c.suit !== trump) return 0;
     const plancher = T("grandMaitreTrumpFloor");
     if (plancher <= 0) return 0;
     const urgence = Math.min(1, state.stock.length / 12);
