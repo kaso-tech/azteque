@@ -2237,13 +2237,32 @@ function legendeAnticipe(state: GameState): Card | null {
     for (const c of cands) {
       const v = deroulePli(monde, c);
       if (v === null) continue;
-      totaux.set(c, (totaux.get(c) ?? 0) + v);
+      totaux.set(c, (totaux.get(c) ?? 0) + v / MONDES_LEGENDE);
     }
   }
+  if (totaux.size === 0) return null;
 
+  /*
+   * L'anticipation CORRIGE l'heuristique, elle ne la remplace pas.
+   *
+   * Mesuré : substituer l'évaluation de fin de pli à l'heuristique fait
+   * chuter le jeu de moitié — un regard d'un pli avec une évaluation grossière
+   * vaut moins que vingt ans de finesses accumulées dans `tacticalScores`
+   * (valeur de conservation, embuscade à l'As, péril du 10 d'atout…).
+   * On ne garde donc de l'anticipation que l'ÉCART entre les coups, centré sur
+   * sa moyenne, pondéré par `T("legendeAnticipation")` : elle départage ce que
+   * l'heuristique juge équivalent, et ne renverse son verdict que lorsque la
+   * simulation est massivement d'un autre avis.
+   */
+  const notes = tacticalScores(state, "legende");
+  const moyenne = [...totaux.values()].reduce((a, b) => a + b, 0) / totaux.size;
+  const poids = T("legendeAnticipation");
   let best: Card | null = null;
   let bestV = -Infinity;
-  for (const [c, v] of totaux) {
+  for (const c of cands) {
+    const anticipation = totaux.get(c);
+    if (anticipation === undefined) continue;
+    const v = (notes.get(c) ?? 0) + poids * (anticipation - moyenne);
     if (v > bestV) {
       bestV = v;
       best = c;
