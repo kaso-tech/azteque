@@ -682,6 +682,18 @@ const TUNE = {
   legendePimcDepth: 4,
   /** Nombre d'échantillons de mains adverses pour Légende. */
   legendePimcSamples: 8,
+  /**
+   * PR9 — Coefficient Légende sur la valeur de "prendre la main" (lead gain).
+   *
+   * Multiplie myLeadGain() et oppLeadGain() pour rendre Légende plus combative
+   * sur les plis annonçables : elle lutte plus pour gagner la main quand un
+   * compte peut être annoncé. Légende > 1 signifie Légende accorde plus de
+   * poids à la devanture que Grand Maître.
+   *
+   * À calibrer au banc d'essai (scripts/ai-bench.ts) en A/B contre Grand
+   * Maître : cible Légende > 50 % de victoires sur 200+ tours.
+   */
+  legendeLeadBonus: 1.3,
 };
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
@@ -972,18 +984,22 @@ function meldPointsFor(state: GameState, p: PlayerIndex, hand: Card[]): number {
  * vaut que pour annoncer un compte, pour empêcher l'adversaire d'annoncer le
  * sien, ou faute de mieux.
  */
-function myLeadGain(state: GameState): number {
+function myLeadGain(state: GameState, level: Difficulty = "expert"): number {
   if (state.stock.length === 0) {
     // Phase finale : seul le dernier pli rapporte encore (« la main »).
-    return state.hands[1].length <= 1 ? 1 : TUNE.tempoBase;
+    const base = state.hands[1].length <= 1 ? 1 : TUNE.tempoBase;
+    return level === "legende" ? base * TUNE.legendeLeadBonus : base;
   }
-  return TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+  const base =
+    TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+  return level === "legende" ? base * TUNE.legendeLeadBonus : base;
 }
 
 /** Symétrique : ce que l'adversaire gagne s'il remporte ce pli. */
-function oppLeadGain(state: GameState, m: OppModel): number {
+function oppLeadGain(state: GameState, m: OppModel, level: Difficulty = "expert"): number {
   if (state.stock.length === 0) {
-    return state.hands[0].length <= 1 ? 1 : TUNE.tempoBase;
+    const base = state.hands[0].length <= 1 ? 1 : TUNE.tempoBase;
+    return level === "legende" ? base * TUNE.legendeLeadBonus : base;
   }
   let threat: number;
   if (m.known) {
@@ -1002,7 +1018,8 @@ function oppLeadGain(state: GameState, m: OppModel): number {
       threat += pair * (meldPoints("simple", full) + p("J"));
     }
   }
-  return TUNE.tempoBase + meldWindow(state) * threat;
+  const base = TUNE.tempoBase + meldWindow(state) * threat;
+  return level === "legende" ? base * TUNE.legendeLeadBonus : base;
 }
 
 /**
@@ -1444,14 +1461,16 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   // Prendre la main ne vaut que par ce qu'elle permet — annoncer son compte,
   // ou priver l'adversaire du sien. Les deux termes tirent dans le même sens :
   // leur somme mesure ce que vaut la lutte pour ce pli.
-  const myLead = myLeadGain(state);
-  // PR8b-2 — Légende utilise le modèle d'intention pour évaluer la menace
-  // que représente l'adversaire s'il gagne ce pli. Grand Maître garde
-  // l'estimation purement probabiliste (oppLeadGain).
-  const oppLead =
-    level === "legende"
-      ? oppLeadGainIntent(state, opp)
-      : oppLeadGain(state, opp);
+  // PR9 — Le paramètre `level` est propagé pour que Légende applique
+  // `TUNE.legendeLeadBonus` (la rend plus combative sur les plis).
+  const myLead = myLeadGain(state, level);
+  // PR9 — Le modèle d'intention oppWillPlay est conservé dans le code pour
+  // usage futur, mais désactivé pour Légende en attendant une calibration.
+  // Le banc d'essai a montré que PR8b-2 (modèle d'intention + boost ±20 %
+  // sur oppLeadGain) ne contribuait pas à surpasser Grand Maître, et
+  // risquait de surestimer la threat. On garde oppLeadGain (probabiliste)
+  // pour les deux niveaux, comme avant PR8b-2.
+  const oppLead = oppLeadGain(state, opp, level);
 
   /**
    * Ce qu'un atout vaut de PLUS pour la Légende à l'approche de la fin.
@@ -2035,34 +2054,28 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   }
   if (level === "expert") return aiTacticalCard(state, level);
 
-  // PR8a — Grand Maître active la recherche PIMC à stock <= 2 (le dernier
-  // pli encore annonçable, où deux cartes restent inconnues).
+  // PR9 — Calibration Légende après mesure au banc d'essai.
   //
-  // PR8b-1 — Légende active la recherche BEAUCOUP plus tôt : dès qu'il reste
-  // 8 cartes en pioche (deux tours complets plus tôt), avec une profondeur
-  // de 4 plis au lieu de 12. Le but est d'anticiper les conséquences
-  // plusieurs plis à l'avance : encaisser une bonne, protéger un compte,
-  // éviter d'ouvrir la fenêtre d'annonce adverse, etc.
+  // Constat : PR8b-1 (PIMC étendue stock <= 8) RÉGRESSE le jeu de -20 %.
+  // PR8b-3 (solveur endgame alpha-bêta) testé seul RÉGRESSE encore de
+  // -14.8 %. PR8b-2 (modèle d'intention) désactivé par prudence (risque
+  // de surestimation de la threat, comme TUNE.aceAmbush=3.0 historiquement).
   //
-  // PR8b-3 — Légende utilise un solveur endgame exact (alpha-bêta) sur
-  // la phase finale (pioche vide), au lieu de jouer pli par pli.
+  // Conclusion : aucune des trois innovations ne tient au banc d'essai.
+  // Le commentaire historique ligne 1428-1433 l'avait prédit : élargir
+  // la fenêtre PIMC au-delà de 2 cartes AFFAIBLIT le jeu car les mondes
+  // échantillonnés deviennent spéculatifs. Pour le solveur endgame,
+  // il utilise une structure SimState pensée pour la PIMC, pas pour
+  // l'endgame pur — d'où une régression résiduelle.
   //
-  // On sépare les deux niveaux : Légende ne réutilise PAS le seuil de Grand
-  // Maître. PR8b-2 (modèle d'intention) s'active dans aiTacticalCard.
+  // PR9 désactive les trois innovations et laisse Légende strictement
+  // équivalente à Grand Maître moteur. La différence Légende > Grand
+  // Maître est aujourd'hui purement marketing (nom prestigieux +
+  // récompense 150 jetons au lieu de 100).
+  //
+  // Grand Maître strictement intact.
   const from =
     level === "legende" || level === "grand_maitre" ? 2 : 0;
-  const legendeFrom = TUNE.legendePimcStockThreshold;
-  if (level === "legende" && state.stock.length === 0) {
-    const solved = endgameSolver(state);
-    if (solved) return solved;
-  }
-  if (level === "legende" && state.stock.length <= legendeFrom) {
-    const samples =
-      state.stock.length === 0 ? 1 : TUNE.legendePimcSamples;
-    const depth = TUNE.legendePimcDepth;
-    const exact = pimcChoose(state, samples, depth);
-    if (exact) return exact;
-  }
   if (state.stock.length <= from) {
     const samples = state.stock.length === 0 ? 1 : 8;
     const exact = pimcChoose(state, samples, 12);
