@@ -1535,7 +1535,7 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
    *   Grand Maître — surveille le 10 d'atout et déduit la main adverse ;
    *   Légende      — tout cela, plus la recherche de fin de partie.
    */
-  const peril = rangIA(level) >= rangIA("grand_maitre") ? trump10Peril(state, opp) : 0;
+  const peril = level === "legende" ? trump10Peril(state, opp) : 0;
   /**
    * Prime à encaisser le 10 d'atout sur un pli qu'on GAGNE : c'est la seule
    * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
