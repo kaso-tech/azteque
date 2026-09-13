@@ -20,6 +20,12 @@ const migrationFonds = readFileSync(
   "utf8",
 );
 const migrationTapis = readFileSync("supabase/migrations/20260909200000_tapis_de_jeu.sql", "utf8");
+// Les sons sont arrivés plus tard encore, avec leur propre migration :
+// la concordance vaut pour eux aussi, lue dans ce troisième fichier.
+const migrationSons = readFileSync(
+  "supabase/migrations/20260913223833_5a0bbd29-fffd-4246-afc9-cfb8dd095be6.sql",
+  "utf8",
+);
 
 // Le catalogue vit désormais en base ; ces constantes en sont la version
 // d'origine, celle que la migration installe et que le code sert de recours.
