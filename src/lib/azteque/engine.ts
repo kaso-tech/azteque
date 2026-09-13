@@ -777,9 +777,15 @@ interface OppModel {
   hidden: number;
 }
 
-function readOpponent(state: GameState): OppModel {
+/**
+ * `deduit` distingue les niveaux : seule la Légende tient la comptabilité des
+ * cartes jusqu'au bout et sait donc, talon épuisé, exactement ce que
+ * l'adversaire tient en main. Les niveaux inférieurs continuent de jouer aux
+ * probabilités, comme un joueur humain qui n'a pas tout retenu.
+ */
+function readOpponent(state: GameState, deduit = true): OppModel {
   return {
-    known: knownOppHand(state),
+    known: deduit ? knownOppHand(state) : null,
     unseen: unseenCards(state),
     hidden: oppHiddenCount(state),
   };
@@ -1231,7 +1237,7 @@ function endgameEval(s: SimState): number {
 function endgameSolver(state: GameState): Card | null {
   // Conditions d'application : pioche vide ET main adverse connue.
   if (state.stock.length > 0) return null;
-  const opp = readOpponent(state);
+  const opp = readOpponent(state, level === "legende");
   if (!opp.known) return null;
 
   // Construction de l'état allégé.
