@@ -498,6 +498,10 @@ function OnlineTable() {
   // Mise remportée : les jetons volent vers le nom du joueur, qui tient lieu
   // de compte dans l'en-tête d'une table en ligne.
   const monNomRef = useRef<HTMLParagraphElement | null>(null);
+  // PR12 — Refs vers les avatars du header pour le positionnement des bulles
+  // de chat. La bulle de l'auteur flotte sous son propre avatar.
+  const myAvatarRef = useRef<HTMLDivElement | null>(null);
+  const oppAvatarRef = useRef<HTMLDivElement | null>(null);
   const [coinFlight, setCoinFlight] = useState<{
     from: { x: number; y: number };
     to: { x: number; y: number };
@@ -1213,7 +1217,9 @@ function OnlineTable() {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          <div ref={myAvatarRef}>
+            <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          </div>
           <div className="min-w-0 text-left">
             <p ref={monNomRef} className="truncate text-xs font-semibold text-foreground">
               {myName}
@@ -1245,7 +1251,9 @@ function OnlineTable() {
               <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
             )}
           </div>
-          <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
+          <div ref={oppAvatarRef}>
+            <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
+          </div>
         </div>
       </header>
 
@@ -1739,7 +1747,14 @@ function OnlineTable() {
         <SweepCard key={flight.id} {...flight} />
       ))}
 
-      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} owned={owned} />
+      <MatchChat
+        matchId={id}
+        seat={verifiedSeat}
+        myName={myName}
+        owned={owned}
+        myAvatarRef={myAvatarRef}
+        oppAvatarRef={oppAvatarRef}
+      />
 
       {dealing && (
         <DealCeremony

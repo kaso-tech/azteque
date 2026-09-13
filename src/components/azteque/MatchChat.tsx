@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,9 @@ interface Props {
   myName: string;
   /** Articles achetés en boutique : stickers et lots de messages. */
   owned?: ReadonlySet<string>;
+  /** PR12 — Refs vers les avatars du header, pour ancrer les bulles. */
+  myAvatarRef?: RefObject<HTMLDivElement | null>;
+  oppAvatarRef?: RefObject<HTMLDivElement | null>;
 }
 
 interface Bubble extends ChatMessage {
@@ -38,7 +41,7 @@ interface Bubble extends ChatMessage {
 const bulle =
   "max-w-[85%] animate-[banner-in_180ms_ease-out] rounded-full border bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold";
 
-export function MatchChat({ matchId, seat, myName, owned }: Props) {
+export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatarRef }: Props) {
   const vide = useMemo(() => new Set<string>(), []);
   const acquis = owned ?? vide;
   const catalogue = useCatalogue();
@@ -61,6 +64,39 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
       chatRef.current = null;
     };
   }, [matchId]);
+
+  // PR12 — Calcul de la position sous chaque avatar. La bulle est ancrée au
+  // centre horizontal de l'avatar et à `bottom: rect.top` (juste sous le
+  // header). Le décalage vertical `extra` permet d'empiler les bulles
+  // successives sans chevauchement.
+  const [positions, setPositions] = useState<
+    Record<string, { left: number; top: number }>
+  >({});
+  useEffect(() => {
+    if (bubbles.length === 0) return;
+    const recalc = () => {
+      const next: Record<string, { left: number; top: number }> = {};
+      for (let i = 0; i < bubbles.length; i += 1) {
+        const b = bubbles[i]!;
+        const ref = b.mine ? myAvatarRef?.current : oppAvatarRef?.current;
+        if (!ref) continue;
+        const r = ref.getBoundingClientRect();
+        next[b.id] = {
+          left: r.left + r.width / 2,
+          top: r.bottom + 6 + i * 32,
+        };
+      }
+      setPositions(next);
+    };
+    recalc();
+    // Recalcule aussi en cas de resize / scroll de la page.
+    window.addEventListener("resize", recalc);
+    window.addEventListener("scroll", recalc, true);
+    return () => {
+      window.removeEventListener("resize", recalc);
+      window.removeEventListener("scroll", recalc, true);
+    };
+  }, [bubbles, myAvatarRef, oppAvatarRef]);
 
   // Les bulles s'effacent après quelques secondes
   useEffect(() => {
@@ -96,29 +132,32 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
 
   return (
     <>
-      {/* Bulles flottantes */}
-      <div className="pointer-events-none fixed inset-x-0 top-24 z-40 flex flex-col items-center gap-1 px-3">
-        {bubbles.map((b) => (
-          <span
-            key={b.id}
-            className={
-              b.mine
-                ? cn(bulle, "border-gold/50 text-gold")
-                : cn(bulle, "border-border text-foreground")
-            }
-          >
-            {b.sticker && isSticker(b.sticker) ? (
-              <span className="flex items-center gap-1.5">
-                {b.name}
+      {/* PR12 — Bulles ancrées sous chaque avatar, sans le nom de l'auteur
+          (le contexte « qui parle » est donné par l'avatar juste au-dessus). */}
+      <div className="pointer-events-none fixed inset-0 z-40">
+        {bubbles.map((b) => {
+          const pos = positions[b.id];
+          if (!pos) return null;
+          return (
+            <span
+              key={b.id}
+              className={cn(
+                bulle,
+                "absolute -translate-x-1/2",
+                b.mine
+                  ? "border-gold/50 text-gold"
+                  : "border-border text-foreground",
+              )}
+              style={{ left: pos.left, top: pos.top }}
+            >
+              {b.sticker && isSticker(b.sticker) ? (
                 <Sticker id={b.sticker} className="h-7 w-7" />
-              </span>
-            ) : (
-              <>
-                {b.name} : {b.text}
-              </>
-            )}
-          </span>
-        ))}
+              ) : (
+                b.text
+              )}
+            </span>
+          );
+        })}
       </div>
 
       {/* Bouton d'ouverture */}
