@@ -1937,14 +1937,12 @@ function determinize(state: GameState, unseen: Card[]): SimState {
   const oppHand = [...known, ...pool.slice(0, need)];
   const lead = state.trick.length === 1 ? state.trick[0]! : null;
 
-  // Comptes restants par couleur : un seul par couleur, deux à l'atout
-  // (le second jeu de cartes fournit le deuxième Roi + Dame).
+  // Comptes restants par couleur : deux au plus, le jeu étant double.
   const roomOf = (p: PlayerIndex): MeldRoom => {
     const room = {} as MeldRoom;
     for (const s of SUITS) {
-      const max = s === state.trump ? 2 : 1;
       const done = state.melds[p].filter((m) => m.suit === s).length;
-      room[s] = Math.max(0, max - done);
+      room[s] = Math.max(0, 2 - done);
     }
     return room;
   };
