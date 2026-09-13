@@ -5,6 +5,7 @@ import {
   announce,
   anticipate,
   drawNext,
+  hasMainBlanche,
   newRound,
   playCard,
   resolveTrick,
@@ -49,6 +50,12 @@ const actionSchema = z.discriminatedUnion("type", [
     type: z.literal("forfeit"),
     reason: z.enum(["quit", "timeout", "disconnect"]),
   }),
+  /**
+   * Demande de redistribution pour main blanche. Le serveur vérifie qu'au
+   * moins l'un des deux joueurs a une main blanche (sans K, Q ni J), sinon
+   * il refuse. Distribue une nouvelle donne en gardant le même donneur.
+   */
+  z.object({ type: z.literal("request_redeal") }),
 ]);
 
 /** L'action à jouer, telle que construite par le client (sans l'identifiant de partie). */
@@ -338,6 +345,29 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       if (state) throw new Error("Le champ a déjà commencé.");
       if (!betAccepted()) throw new Error("La mise n'est pas encore validée.");
       const next = newRound(1, [0, 0]);
+      await writeState(next, "playing");
+      return { state: next, settings };
+    }
+
+    // Redistribution pour main blanche : n'importe quel joueur peut demander,
+    // à condition qu'au moins l'un des deux ait une main blanche. Le serveur
+    // garde le même donneur (c'est une redistribution, pas un nouveau tour).
+    if (data.type === "request_redeal") {
+      if (!state) throw new Error("Aucune partie en cours.");
+      if (state.phase !== "playing") throw new Error("Le pli n'est pas en cours.");
+      if (state.trick.length !== 0) throw new Error("Le pli a déjà commencé.");
+      // Protection : on refuse la redistribution si personne n'a de main
+      // blanche, pour éviter qu'un client malveillant ne déclenche des
+      // redistributions à l'infini.
+      const blanche0 = hasMainBlanche(state, 0);
+      const blanche1 = hasMainBlanche(state, 1);
+      if (!blanche0 && !blanche1) {
+        throw new Error("Aucune main blanche : redistribution impossible.");
+      }
+      const next = newRound(state.dealer, state.roundsWon);
+      next.log.unshift(
+        "Main blanche : la donne est redistribuée.",
+      );
       await writeState(next, "playing");
       return { state: next, settings };
     }
