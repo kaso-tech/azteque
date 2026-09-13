@@ -612,6 +612,7 @@ function PillKind({ kind }: { kind: ShopKind }) {
     sticker: { label: "Sticker", cls: "border-warning/40 bg-warning/10 text-warning" },
     messages: { label: "Messages", cls: "border-success/40 bg-success/10 text-success" },
     background: { label: "Tapis", cls: "border-gold/40 bg-gold/10 text-gold" },
+    sound: { label: "Son", cls: "border-primary/40 bg-primary/10 text-primary" },
   };
   const c = config[kind];
   return (
