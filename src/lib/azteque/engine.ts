@@ -724,7 +724,7 @@ const TUNE = {
  * strictement inchangé. Chaque valeur est mesurée en A/B contre Grand Maître
  * au banc d'essai (`bun scripts/ai-bench.ts legende grand_maitre 1200`).
  */
-const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = { legendeTrumpForce: 0.7 };
+const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = {};
 
 /**
  * Niveau en cours de décision. La pile de décision de l'IA est entièrement
