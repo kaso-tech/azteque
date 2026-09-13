@@ -92,10 +92,10 @@ export const Route = createFileRoute("/match/$id")({
   component: OnlineTable,
 });
 
-const TRICK_DELAY = 1000;
+const TRICK_DELAY = 550;
 /** Temps de pose avant qu'une carte ne quitte le talon, et durée de son vol. */
-const ATTENTE_PIOCHE = 700;
-const VOL_PIOCHE = 580;
+const ATTENTE_PIOCHE = 300;
+const VOL_PIOCHE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
 const center = (el: HTMLElement | null | undefined) => {
@@ -897,7 +897,7 @@ function OnlineTable() {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000,
+      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 2000,
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
@@ -1218,6 +1218,10 @@ function OnlineTable() {
             faceDown={(c) => !state.exposed[opp].includes(c.id)}
             interactive={false}
             refillable={state.stock.length > 0}
+            // Le vol depuis le talon EST l'entrée de la carte : rejouer une
+            // animation d'apparition à l'arrivée la ferait attendre avant de
+            // s'insérer dans la main.
+            animateArrivals={false}
           />
         </div>
         <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} paused={waitingOnLink} />
@@ -1364,6 +1368,9 @@ function OnlineTable() {
             exposedIds={state.exposed[me]}
             refillable={state.stock.length > 0}
             fan
+            // Même raison qu'en face : la carte piochée s'insère dès que le
+            // vol se pose, sans rejouer d'animation d'apparition.
+            animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
               animating ||
