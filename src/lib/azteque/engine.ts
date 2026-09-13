@@ -406,7 +406,9 @@ export function drawNext(state: GameState): GameState {
   // Compléter un compte simple au premier tirage suivant l'annonce
   const pend = s.pendingUpgrade[p];
   if (pend && drawn.suit === pend && drawn.rank === "J") {
-    const m = s.melds[p].find((x) => x.suit === pend && x.type === "simple");
+    // Deux comptes peuvent coexister dans la même couleur : c'est le dernier
+    // annoncé qui attend son valet.
+    const m = [...s.melds[p]].reverse().find((x) => x.suit === pend && x.type === "simple");
     if (m) {
       m.type = "triple";
       m.points = meldPoints("triple", m.first);
