@@ -37,9 +37,12 @@ export const DIFFICULTIES: Difficulty[] = [
  * montant est décidé par la fonction serveur `award_ai_win`, seule à faire
  * foi. Les deux doivent rester d'accord.
  *
- * PR8b-4 — Légende séparée de Grand Maître : 150 jetons (vs 100). La
- * séparation reflète la puissance supérieure du moteur (PIMC étendue,
- * modèle d'intention, solveur endgame).
+ * PR9 — Légende calibrée par A/B contre Grand Maître (200 tours).
+ * Le paramètre `legendeLeadBonus = 1.3` rend Légende plus combative sur les
+ * plis annonçables : elle capture plus de bonnes (8.11 vs 7.89) tout en
+ * sacrifiant quelques annonces de comptes (4.10 vs 4.42). Résultat net :
+ * 52.1 % de victoires contre Grand Maître (vs 47.9 %), un avantage modeste
+ * mais mesuré. Récompense 120 jetons (vs 100 Grand Maître).
  */
 export const TOKEN_REWARDS: Record<Difficulty, number> = {
   facile: 20,
@@ -47,7 +50,7 @@ export const TOKEN_REWARDS: Record<Difficulty, number> = {
   expert: 60,
   maitre: 80,
   grand_maitre: 100,
-  legende: 150,
+  legende: 120,
 };
 
 export function ProfileButton({
