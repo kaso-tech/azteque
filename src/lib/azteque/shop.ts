@@ -323,7 +323,7 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       // PR13 — Identifiant du son (pour un son acheté).
       soundId: r.data?.soundId,
       // PR19 — URL publique du fichier uploadé (sticker/son/tapis custom).
-      assetUrl: r.asset_url,
+      assetUrl: r.asset_url ?? null,
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
