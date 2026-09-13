@@ -1237,7 +1237,7 @@ function endgameEval(s: SimState): number {
 function endgameSolver(state: GameState): Card | null {
   // Conditions d'application : pioche vide ET main adverse connue.
   if (state.stock.length > 0) return null;
-  const opp = readOpponent(state, level === "legende");
+  const opp = readOpponent(state);
   if (!opp.known) return null;
 
   // Construction de l'état allégé.
@@ -1513,7 +1513,7 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
   const legal = legalCards(state, 1);
   const notes = new Map<Card, number>();
   const trump = state.trump;
-  const opp = readOpponent(state);
+  const opp = readOpponent(state, level === "legende");
   // PR8a — Grand Maître hérite du comportement Légende (alias de transition).
   // PR8b isolera le vrai Légende sur ce point si nécessaire.
   // L'échelle des niveaux se joue ici : le péril du 10 d'atout, la réserve
