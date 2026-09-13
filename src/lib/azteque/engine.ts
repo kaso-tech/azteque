@@ -694,7 +694,45 @@ const TUNE = {
    * Maître : cible Légende > 50 % de victoires sur 200+ tours.
    */
   legendeLeadBonus: 1.3,
+  /** Seuil de talon à partir duquel Légende passe en recherche PIMC. */
+  legendePimcStock: 2,
+  /** Nombre de mondes échantillonnés par Légende (talon non vide). */
+  legendePimcSamples2: 8,
+  /** Budget de nœuds par décision pour Légende. */
+  legendePimcBudget: 120000,
 };
+
+/* ---------- Réglages propres à la Légende ----------
+ *
+ * Les constantes de `TUNE` ont été calibrées contre l'IA figée
+ * (scripts/legacy-ai.ts), c'est-à-dire contre un adversaire faible. Face à un
+ * adversaire fort — Grand Maître, ou un humain aguerri — l'optimum n'est pas
+ * le même : les tactiques qui exploitent une faiblesse (thésauriser ses As,
+ * par exemple) perdent leur intérêt, tandis que la solidité en gagne.
+ *
+ * Cette table ne s'applique qu'au niveau Légende : Grand Maître reste
+ * strictement inchangé. Chaque valeur est mesurée en A/B contre Grand Maître
+ * au banc d'essai (`bun scripts/ai-bench.ts legende grand_maitre 1200`).
+ */
+const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = {};
+
+/**
+ * Niveau en cours de décision. La pile de décision de l'IA est entièrement
+ * synchrone : il n'y a jamais deux décisions en vol en même temps, et ce
+ * drapeau évite de faire passer le niveau à travers la vingtaine de fonctions
+ * d'évaluation qui n'en ont besoin que pour lire une constante.
+ */
+let niveauCourant: Difficulty = "expert";
+
+/** Lit une constante d'évaluation, surchargée par la table Légende. */
+function T<K extends keyof typeof TUNE>(k: K): number {
+  if (niveauCourant === "legende") {
+    const v = LEGENDE[k];
+    if (v !== undefined) return v;
+  }
+  return TUNE[k];
+}
+
 
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
 
@@ -987,19 +1025,19 @@ function meldPointsFor(state: GameState, p: PlayerIndex, hand: Card[]): number {
 function myLeadGain(state: GameState, level: Difficulty = "expert"): number {
   if (state.stock.length === 0) {
     // Phase finale : seul le dernier pli rapporte encore (« la main »).
-    const base = state.hands[1].length <= 1 ? 1 : TUNE.tempoBase;
-    return level === "legende" ? base * TUNE.legendeLeadBonus : base;
+    const base = state.hands[1].length <= 1 ? 1 : T("tempoBase");
+    return level === "legende" ? base * T("legendeLeadBonus") : base;
   }
   const base =
-    TUNE.tempoBase + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
-  return level === "legende" ? base * TUNE.legendeLeadBonus : base;
+    T("tempoBase") + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+  return level === "legende" ? base * T("legendeLeadBonus") : base;
 }
 
 /** Symétrique : ce que l'adversaire gagne s'il remporte ce pli. */
 function oppLeadGain(state: GameState, m: OppModel, level: Difficulty = "expert"): number {
   if (state.stock.length === 0) {
-    const base = state.hands[0].length <= 1 ? 1 : TUNE.tempoBase;
-    return level === "legende" ? base * TUNE.legendeLeadBonus : base;
+    const base = state.hands[0].length <= 1 ? 1 : T("tempoBase");
+    return level === "legende" ? base * T("legendeLeadBonus") : base;
   }
   let threat: number;
   if (m.known) {
@@ -1018,8 +1056,8 @@ function oppLeadGain(state: GameState, m: OppModel, level: Difficulty = "expert"
       threat += pair * (meldPoints("simple", full) + p("J"));
     }
   }
-  const base = TUNE.tempoBase + meldWindow(state) * threat;
-  return level === "legende" ? base * TUNE.legendeLeadBonus : base;
+  const base = T("tempoBase") + meldWindow(state) * threat;
+  return level === "legende" ? base * T("legendeLeadBonus") : base;
 }
 
 /**
@@ -1093,7 +1131,7 @@ function deadWeight(state: GameState, c: Card): number {
   if (c.rank !== "7" && c.rank !== "8" && c.rank !== "9") return 0;
   if (state.trump && c.suit === state.trump) return 0; // un atout n'est jamais du déchet
   const weak = 1 - rankValue(c.rank) / rankValue("J");
-  return TUNE.discardJunk * weak * (1 - (stock - 3) / 10);
+  return T("discardJunk") * weak * (1 - (stock - 3) / 10);
 }
 
 /**
@@ -1379,7 +1417,7 @@ function trumpKeepValue(state: GameState, c: Card): number {
 function ambushValue(state: GameState, c: Card, m: OppModel): number {
   if (c.rank !== "A" || state.stock.length === 0) return 0;
   const p = oppHas(m, (x) => x.rank === "10" && x.suit === c.suit);
-  return p > 0 ? TUNE.aceAmbush * p : 0;
+  return p > 0 ? T("aceAmbush") * p : 0;
 }
 
 function keepValue(state: GameState, c: Card, m?: OppModel): number {
@@ -1389,10 +1427,10 @@ function keepValue(state: GameState, c: Card, m?: OppModel): number {
     // l'encaisser sur un pli gagné. Un As d'atout, lui, est imprenable.
     if (c.rank === "A") {
       const safe = state.trump === null || c.suit === state.trump;
-      v += safe ? TUNE.safeAceInHand : TUNE.aceInHand;
+      v += safe ? T("safeAceInHand") : T("aceInHand");
       if (m) v += ambushValue(state, c, m);
     } else {
-      v += TUNE.tenInHand;
+      v += T("tenInHand");
     }
   }
   return v;
@@ -1455,14 +1493,14 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
    * occasion de le mettre à l'abri, et elle ne se représentera pas forcément.
    */
   const encaisserLeDix = (c: Card) =>
-    peril > 0 && trump && c.rank === "10" && c.suit === trump ? TUNE.trump10Cash * peril : 0;
+    peril > 0 && trump && c.rank === "10" && c.suit === trump ? T("trump10Cash") * peril : 0;
   const myBonnes = state.gains[1].filter(isBonne).length;
   const oppBonnes = state.gains[0].filter(isBonne).length;
   // Prendre la main ne vaut que par ce qu'elle permet — annoncer son compte,
   // ou priver l'adversaire du sien. Les deux termes tirent dans le même sens :
   // leur somme mesure ce que vaut la lutte pour ce pli.
   // PR9 — Le paramètre `level` est propagé pour que Légende applique
-  // `TUNE.legendeLeadBonus` (la rend plus combative sur les plis).
+  // `T("legendeLeadBonus")` (la rend plus combative sur les plis).
   const myLead = myLeadGain(state, level);
   // PR9 — Le modèle d'intention oppWillPlay est conservé dans le code pour
   // usage futur, mais désactivé pour Légende en attendant une calibration.
@@ -1490,7 +1528,7 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
       c.suit !== trump
     )
       return 0;
-    const plancher = TUNE.grandMaitreTrumpFloor;
+    const plancher = T("grandMaitreTrumpFloor");
     if (plancher <= 0) return 0;
     const urgence = Math.min(1, state.stock.length / 12);
     if (urgence >= plancher) return 0;
@@ -1577,8 +1615,8 @@ function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
       const feedsAtout10 = !!trump && c.rank === "10" && c.suit === trump && myBonnes > 0;
       // Sinon, l'adversaire ne dépense que si le pli en vaut la peine : il prend
       // volontiers une bonne, beaucoup moins volontiers du déchet.
-      const wantHigher = feedsAtout10 ? 1 : bonne ? TUNE.wantBonneSameSuit : TUNE.wantPlainSameSuit;
-      const wantTrump = bonne ? TUNE.wantBonneTrump : TUNE.wantPlainTrump;
+      const wantHigher = feedsAtout10 ? 1 : bonne ? T("wantBonneSameSuit") : T("wantPlainSameSuit");
+      const wantTrump = bonne ? T("wantBonneTrump") : T("wantPlainTrump");
       risk = pHigher * wantHigher + (1 - pHigher) * pTrump * wantTrump;
       pts = mine;
     }
@@ -1657,7 +1695,7 @@ function handMeldPotential(
   }
   // Il reste à gagner un pli au bon moment pour l'annoncer : on n'en compte
   // qu'une fraction, sans quoi l'IA surprotégerait ces cartes.
-  return total * TUNE.meldPotential;
+  return total * T("meldPotential");
 }
 
 /** Mêmes contraintes que `legalCards`, sur l'état allégé. */
@@ -1987,6 +2025,7 @@ export function aiAnnounceAt(
   state: GameState,
   level: Difficulty,
 ): { suits: Suit[]; trump: Suit | null } | null {
+  niveauCourant = level;
   const opts = availableMelds(state, 1);
   if (!opts.length) return null;
   const suits = opts.map((o) => o.suit);
@@ -2039,7 +2078,173 @@ export function aiChooseCard(state: GameState): Card {
   return [...pool].sort((a, b) => val(a) - val(b))[0]!;
 }
 
+/* ---------- Légende : anticipation d'un pli contre un adversaire modélisé ----------
+ *
+ * La recherche PIMC (minimax sur mondes tirés au sort) ne vaut qu'en fin de
+ * partie : elle prête à l'adversaire la connaissance de notre main, ce qui la
+ * rend paranoïaque dès que le talon est épais — mesuré, et c'est ce qui faisait
+ * régresser les tentatives précédentes d'élargir sa fenêtre.
+ *
+ * L'anticipation ci-dessous corrige exactement ce défaut : l'adversaire n'y est
+ * pas omniscient, il joue la MÊME heuristique tactique que le Grand Maître,
+ * depuis sa propre vue (main cachée comprise). On simule donc un pli complet —
+ * notre carte, sa réponse, la levée, l'annonce du vainqueur et les pioches —
+ * sur quelques mains adverses plausibles, puis on évalue la position obtenue.
+ *
+ * C'est ce que fait un joueur fort : « si je pose ça, il répond ça, et je me
+ * retrouve dans cette position-là ». Le Grand Maître, lui, s'arrête au pli en
+ * cours.
+ */
+
+/** Vue inversée de la table : permet de faire jouer l'heuristique côté 0. */
+function mirrorState(s: GameState): GameState {
+  const flip = (p: PlayerIndex | null): PlayerIndex | null =>
+    p === null ? null : ((1 - p) as PlayerIndex);
+  return {
+    ...s,
+    hands: [s.hands[1], s.hands[0]],
+    gains: [s.gains[1], s.gains[0]],
+    melds: [s.melds[1], s.melds[0]],
+    exposed: [s.exposed[1], s.exposed[0]],
+    pendingUpgrade: [s.pendingUpgrade[1], s.pendingUpgrade[0]],
+    roundsWon: [s.roundsWon[1], s.roundsWon[0]],
+    trick: s.trick.map((t) => ({ ...t, player: flip(t.player)! })),
+    leader: flip(s.leader)!,
+    turn: flip(s.turn)!,
+    dealer: flip(s.dealer)!,
+    canAnnounce: flip(s.canAnnounce),
+    drawPending: s.drawPending.map((p) => flip(p)!),
+    lastTrickWinner: flip(s.lastTrickWinner),
+  };
+}
+
+/** Points de compte déjà encaissés par un joueur. */
+function meldScore(state: GameState, p: PlayerIndex): number {
+  return state.melds[p].reduce((n, m) => n + m.points, 0);
+}
+
+/**
+ * Valeur d'une position après le pli simulé, du point de vue de l'IA.
+ * Même grammaire que le décompte réel : bonnes ramassées et comptes annoncés
+ * font les points, le reste n'est que promesse et se pondère.
+ */
+function leafValue(state: GameState): number {
+  const bonnes = (p: PlayerIndex) => state.gains[p].filter(isBonne).length;
+  const enMain = (p: PlayerIndex) => state.hands[p].filter(isBonne).length;
+  let v =
+    bonnes(1) - bonnes(0) + (meldScore(state, 1) - meldScore(state, 0));
+  // Une bonne encore en main n'est qu'à moitié acquise.
+  v += 0.45 * (enMain(1) - enMain(0));
+  // Comptes encore réalisables de part et d'autre, escomptés par le temps qui
+  // reste pour les annoncer.
+  v +=
+    0.5 *
+    meldWindow(state) *
+    (meldPointsFor(state, 1, state.hands[1]) - meldPointsFor(state, 0, state.hands[0]));
+  if (state.trump) {
+    const atouts = (p: PlayerIndex) =>
+      state.hands[p].filter((c) => c.suit === state.trump).length;
+    v += 0.12 * (atouts(1) - atouts(0));
+  }
+  // La devanture, qui vaut surtout par ce qu'elle permet d'annoncer.
+  v += state.turn === 1 ? 0.15 : -0.15;
+  return v;
+}
+
+/** Réponse de l'adversaire, jouée depuis SA vue par l'heuristique tactique. */
+function repliqueAdverse(s: GameState): Card | null {
+  const vue = mirrorState(s);
+  const memo = niveauCourant;
+  niveauCourant = "grand_maitre";
+  try {
+    const c = aiTacticalCard(vue, "grand_maitre");
+    return s.hands[0].some((x) => x.id === c.id) ? c : null;
+  } finally {
+    niveauCourant = memo;
+  }
+}
+
+/** Annonce du vainqueur puis pioches : la suite obligée d'un pli. */
+function apresLeveee(s0: GameState): GameState {
+  let s = s0;
+  if (s.canAnnounce !== null && s.phase === "playing") {
+    const p = s.canAnnounce;
+    const memo = niveauCourant;
+    niveauCourant = "grand_maitre";
+    const a = aiAnnounceAt(p === 1 ? s : mirrorState(s), "grand_maitre");
+    niveauCourant = memo;
+    if (a) s = announce(s, p, a.suits, a.trump);
+    if (s.canAnnounce === p) s = { ...s, canAnnounce: null };
+  }
+  let garde = 0;
+  while (s.drawPending.length > 0 && s.stock.length > 0 && garde++ < 4) s = drawNext(s);
+  return s.drawPending.length > 0 ? { ...s, drawPending: [] } : s;
+}
+
+/** Déroule un pli complet à partir de la carte candidate. */
+function deroulePli(monde: GameState, c: Card): number | null {
+  let s = playCard(monde, 1, c.id);
+  if (s === monde) return null; // coup illégal dans ce monde : ignoré
+  if (s.trick.length === 1) {
+    const rep = repliqueAdverse(s);
+    if (rep) {
+      const n = playCard(s, 0, rep.id);
+      if (n !== s) s = n;
+    }
+  }
+  if (s.trick.length >= 2) s = resolveTrick(s, { atout10: true });
+  return leafValue(apresLeveee(s));
+}
+
+/** Nombre de mains adverses simulées par décision. */
+const MONDES_LEGENDE = 4;
+
+/**
+ * Choix de carte par anticipation d'un pli. Renvoie null quand la position ne
+ * s'y prête pas (comptage incohérent, un seul coup légal) : l'appelant retombe
+ * alors sur l'heuristique tactique.
+ */
+function legendeAnticipe(state: GameState): Card | null {
+  if (state.phase !== "playing" || state.drawPending.length > 0) return null;
+  const legal = legalCards(state, 1);
+  const cands = dedupe(legal);
+  if (cands.length <= 1) return cands[0] ?? null;
+
+  const unseen = unseenCards(state);
+  const exposedIds = new Set(state.exposed[0]);
+  const vues = state.hands[0].filter((c) => exposedIds.has(c.id));
+  const cachees = state.hands[0].length - vues.length;
+  if (unseen.length !== cachees + state.stock.length) return null;
+
+  const totaux = new Map<Card, number>();
+  for (let w = 0; w < MONDES_LEGENDE; w += 1) {
+    const pool = shuffle(unseen);
+    const monde: GameState = {
+      ...state,
+      hands: [[...vues, ...pool.slice(0, cachees)], state.hands[1]],
+      stock: pool.slice(cachees),
+    };
+    for (const c of cands) {
+      const v = deroulePli(monde, c);
+      if (v === null) continue;
+      totaux.set(c, (totaux.get(c) ?? 0) + v);
+    }
+  }
+
+  let best: Card | null = null;
+  let bestV = -Infinity;
+  for (const [c, v] of totaux) {
+    if (v > bestV) {
+      bestV = v;
+      best = c;
+    }
+  }
+  return best;
+}
+
+
 export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
+  niveauCourant = level;
   const legal = legalCards(state, 1);
   if (legal.length === 1) return legal[0]!;
 
@@ -2074,11 +2279,13 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // récompense 150 jetons au lieu de 100).
   //
   // Grand Maître strictement intact.
-  const from =
-    level === "legende" || level === "grand_maitre" ? 2 : 0;
+  const legende = level === "legende";
+  const from = legende ? TUNE.legendePimcStock : level === "grand_maitre" ? 2 : 0;
   if (state.stock.length <= from) {
-    const samples = state.stock.length === 0 ? 1 : 8;
-    const exact = pimcChoose(state, samples, 12);
+    const samples =
+      state.stock.length === 0 ? 1 : legende ? TUNE.legendePimcSamples2 : 8;
+    const budget = legende ? TUNE.legendePimcBudget : SEARCH_NODE_BUDGET;
+    const exact = pimcChoose(state, samples, 12, budget);
     if (exact) return exact;
   }
   return aiTacticalCard(state, level);
