@@ -1480,6 +1480,26 @@ function trump10Peril(state: GameState, m: OppModel): number {
 function aiTacticalCard(state: GameState, level: Difficulty = "expert"): Card {
   const legal = legalCards(state, 1);
   if (legal.length === 1) return legal[0]!;
+  const notes = tacticalScores(state, level);
+  let best: Card | null = null;
+  let bestScore = -Infinity;
+  for (const [c, s] of notes) {
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return best ?? legal[0]!;
+}
+
+/**
+ * Note chaque coup légal. C'est le cœur de l'heuristique : `aiTacticalCard`
+ * n'en retient que le maximum, mais la Légende s'en sert aussi comme base à
+ * laquelle elle ajoute le résultat de son anticipation.
+ */
+function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Card, number> {
+  const legal = legalCards(state, 1);
+  const notes = new Map<Card, number>();
   const trump = state.trump;
   const opp = readOpponent(state);
   // PR8a — Grand Maître hérite du comportement Légende (alias de transition).
