@@ -1563,8 +1563,6 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
     // Capturer le 10 d'atout adverse rafle tout son tas : gain énorme.
     const stealable = trump && led.rank === "10" && led.suit === trump ? oppBonnes : 0;
 
-    let best: Card | null = null;
-    let bestScore = -Infinity;
     for (const c of legal) {
       const wins = beats(c, led, trump);
       const mine = isBonne(c) ? 1 : 0;
@@ -1591,17 +1589,12 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
           0.2 * atoutDeReserve(c) +
           deadWeight(state, c);
       }
-      if (score > bestScore) {
-        bestScore = score;
-        best = c;
-      }
+      notes.set(c, score);
     }
-    return best!;
+    return notes;
   }
 
   /* --- Entame : encaisser les bonnes imprenables, sinon écarter du déchet --- */
-  let best: Card | null = null;
-  let bestScore = -Infinity;
   for (const c of legal) {
     const bonne = isBonne(c);
     const mine = bonne ? 1 : 0;
