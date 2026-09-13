@@ -147,13 +147,14 @@ export function availableMelds(state: GameState, p: PlayerIndex, anytime = false
   if (!anytime && state.canAnnounce !== p) return [];
   const hand = state.hands[p];
   const used = new Set(state.exposed[p]);
-  const done = new Set(state.melds[p].map((m) => m.suit));
+  const done = state.melds[p];
   const out: MeldOption[] = [];
   for (const s of SUITS) {
-    // Une deuxième annonce dans la même couleur n'est permise que pour
-    // l'atout : le second jeu de cartes peut fournir un second Roi + Dame
-    // (+ Valet) de la couleur d'atout, qui se compte comme le premier.
-    if (done.has(s) && s !== state.trump) continue;
+    // Le jeu est double : chaque couleur peut fournir DEUX Roi + Dame (+ Valet)
+    // distincts, donc deux comptes dans la même couleur, atout ou non. Tout
+    // compte réuni se déclare dès qu'on a la devanture ; seule la limite
+    // physique du paquet (deux exemplaires) s'applique.
+    if (done.filter((m) => m.suit === s).length >= 2) continue;
     const k = hand.find((c) => c.suit === s && c.rank === "K" && !used.has(c.id));
     const q = hand.find((c) => c.suit === s && c.rank === "Q" && !used.has(c.id));
     if (!k || !q) continue;
