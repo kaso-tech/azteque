@@ -14,7 +14,7 @@ import { BACKGROUND_PRESETS, backgroundImage } from "@/lib/azteque/backgrounds";
  * `buy_item` relit le prix qu'elle tient.
  */
 
-export type ShopKind = "avatar" | "sticker" | "messages" | "background";
+export type ShopKind = "avatar" | "sticker" | "messages" | "background" | "sound";
 
 export interface ShopItem {
   id: string;
@@ -30,6 +30,8 @@ export interface ShopItem {
   phrases?: string[] | undefined;
   /** L'image, pour un tapis : une valeur CSS `background-image`. */
   css?: string | undefined;
+  /** L'identifiant du son dans sfx (pour un son). */
+  soundId?: string | undefined;
   sort: number;
 }
 
@@ -233,6 +235,49 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     sort: 180,
     css: BACKGROUND_PRESETS["bg_or"],
   },
+  // PR13 — Sons achetable (500 jetons par défaut). La console admin peut
+  // modifier le prix (y compris à 0 pour rendre gratuit) et désactiver
+  // chaque son. L'identifiant `soundId` est partagé avec sfx.SoundId.
+  {
+    id: "snd_rire",
+    kind: "sound",
+    name: "Rire",
+    hint: "Un rire franc, à envoyer après un beau coup",
+    price: 500,
+    active: true,
+    sort: 200,
+    soundId: "laugh",
+  },
+  {
+    id: "snd_pleurer",
+    kind: "sound",
+    name: "Pleurer",
+    hint: "Un sanglot pour les mauvais sorts",
+    price: 500,
+    active: true,
+    sort: 210,
+    soundId: "cry",
+  },
+  {
+    id: "snd_moquerie",
+    kind: "sound",
+    name: "Moquerie",
+    hint: "Le rire moqueur, sur un tour perdu",
+    price: 500,
+    active: true,
+    sort: 220,
+    soundId: "taunt",
+  },
+  {
+    id: "snd_felicitations",
+    kind: "sound",
+    name: "Félicitations",
+    hint: "L'acclamation, sur un tour gagné",
+    price: 500,
+    active: true,
+    sort: 230,
+    soundId: "cheer",
+  },
 ];
 
 let catalogue: ShopItem[] = FALLBACK_ITEMS;
@@ -246,7 +291,7 @@ interface Ligne {
   hint: string | null;
   price: number;
   active?: boolean;
-  data?: { art?: string; phrases?: string[]; css?: string } | null;
+  data?: { art?: string; phrases?: string[]; css?: string; soundId?: string } | null;
   sort?: number;
 }
 
@@ -254,7 +299,7 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
   return rows
     .map((r) => ({
       id: r.id,
-      kind: (["avatar", "sticker", "messages", "background"].includes(r.kind)
+      kind: (["avatar", "sticker", "messages", "background", "sound"].includes(r.kind)
         ? r.kind
         : "sticker") as ShopKind,
       name: r.name ?? r.id,
@@ -266,6 +311,8 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       // Un tapis installé avant que la console ne sache l'écrire n'a pas encore
       // son image en base : le préréglage du code prend alors le relais.
       css: r.data?.css ?? BACKGROUND_PRESETS[r.id],
+      // PR13 — Identifiant du son (pour un son acheté).
+      soundId: r.data?.soundId,
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
