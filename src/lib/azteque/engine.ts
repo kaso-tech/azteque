@@ -1011,8 +1011,7 @@ function meldPointsFor(state: GameState, p: PlayerIndex, hand: Card[]): number {
   let total = 0;
   let bestFirst = 0;
   for (const s of SUITS) {
-    const max = s === state.trump ? 2 : 1;
-    if (done.filter((m) => m.suit === s).length >= max) continue;
+    if (done.filter((m) => m.suit === s).length >= 2) continue;
     const has = (r: Rank) => hand.some((c) => c.suit === s && c.rank === r && !used.has(c.id));
     if (!has("K") || !has("Q")) continue;
     const type = has("J") ? "triple" : "simple";
