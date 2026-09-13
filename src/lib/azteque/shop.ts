@@ -392,3 +392,11 @@ export function ownedStickers(
 ): ShopItem[] {
   return items.filter((i) => i.kind === "sticker" && owned.has(i.id));
 }
+
+/** PR14 — Les sons achetés, dans l'ordre du catalogue. */
+export function ownedSounds(
+  owned: ReadonlySet<string>,
+  items: ShopItem[] = catalogue,
+): ShopItem[] {
+  return items.filter((i) => i.kind === "sound" && owned.has(i.id));
+}
