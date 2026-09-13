@@ -66,6 +66,21 @@ export function SignInCard({ error }: { error?: string | null }) {
         Continuer avec Google
       </Button>
       {(failed ?? error) && <p className="text-sm text-destructive">{failed ?? error}</p>}
+      {/* PR — Liens juridiques sous le bouton de connexion. Le RGPD
+          (art. 13) impose d'informer l'utilisateur AVANT le traitement des
+          données : le footer global LegalFooter rappelle les liens, et ce
+          mini-rappel les met visuellement juste sous l'action principale. */}
+      <p className="text-[0.7rem] text-muted-foreground">
+        En vous connectant, vous acceptez nos{" "}
+        <Link to="/cgu" className="underline-offset-2 hover:underline">
+          conditions d'utilisation
+        </Link>{" "}
+        et notre{" "}
+        <Link to="/confidentialite" className="underline-offset-2 hover:underline">
+          politique de confidentialité
+        </Link>
+        .
+      </p>
     </div>
   );
 }
