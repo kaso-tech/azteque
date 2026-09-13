@@ -1059,8 +1059,7 @@ function oppLeadGain(state: GameState, m: OppModel, level: Difficulty = "expert"
     // même couleur encore libre.
     threat = 0;
     for (const s of SUITS) {
-      const max = s === state.trump ? 2 : 1;
-      if (state.melds[0].filter((x) => x.suit === s).length >= max) continue;
+      if (state.melds[0].filter((x) => x.suit === s).length >= 2) continue;
       const p = (r: Rank) => oppHas(m, (c) => c.suit === s && c.rank === r);
       const pair = p("K") * p("Q");
       if (pair <= 0) continue;
