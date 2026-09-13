@@ -1596,6 +1596,36 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
     return notes;
   }
 
+  /**
+   * Chasse aux atouts (Légende).
+   *
+   * Tactique classique des jeux à atout, absente jusqu'ici : quand on est plus
+   * long à l'atout que l'adversaire, mener atout lui arrache les siens un par
+   * un. Une fois sec, il ne peut plus couper — et les bonnes qu'on garde dans
+   * les autres couleurs, jusque-là exposées à la coupe, deviennent imprenables
+   * pour la phase finale, où fournir est obligatoire.
+   *
+   * Deux conditions la rendent valide : la pioche doit être assez basse pour
+   * que les atouts arrachés ne soient pas remplacés, et on doit avoir des
+   * bonnes hors atout à protéger — sinon on brûle ses atouts pour rien.
+   */
+  const chasseAuxAtouts = (c: Card) => {
+    if (level !== "legende" || !trump || c.suit !== trump) return 0;
+    const poids = T("legendeChasse");
+    if (poids <= 0 || state.stock.length > T("legendeChasseStock")) return 0;
+    const miens = state.hands[1].filter((x) => x.suit === trump).length;
+    const siens = opp.known
+      ? opp.known.filter((x) => x.suit === trump).length
+      : (opp.hidden * opp.unseen.filter((x) => x.suit === trump).length) /
+        Math.max(1, opp.unseen.length);
+    const avance = miens - siens;
+    if (avance <= 0) return 0;
+    const bonnesHors = state.hands[1].filter((x) => isBonne(x) && x.suit !== trump).length;
+    if (bonnesHors === 0) return 0;
+    const force = rankValue(c.rank) / (RANKS.length - 1);
+    return poids * force * Math.min(2, avance) * Math.min(2, bonnesHors);
+  };
+
   /* --- Entame : encaisser les bonnes imprenables, sinon écarter du déchet --- */
   for (const c of legal) {
     const bonne = isBonne(c);
