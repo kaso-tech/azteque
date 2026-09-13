@@ -700,6 +700,8 @@ const TUNE = {
   legendePimcSamples2: 8,
   /** Budget de nœuds par décision pour Légende. */
   legendePimcBudget: 120000,
+  /** Poids de l'anticipation d'un pli dans la note finale (Légende). */
+  legendeAnticipation: 0.5,
 };
 
 /* ---------- Réglages propres à la Légende ----------
