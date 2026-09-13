@@ -1351,11 +1351,10 @@ function meldValue(state: GameState, c: Card): number {
   // Une carte déjà posée dans un compte est acquise : la garder ne rapporte plus.
   const exposed = new Set(state.exposed[1]);
   if (exposed.has(c.id)) return 0;
-  // Le compte de cette couleur est-il encore ouvert ? (une seule annonce par
-  // couleur, sauf à l'atout où le second jeu autorise un deuxième compte)
+  // Le compte de cette couleur est-il encore ouvert ? (le jeu est double :
+  // deux comptes possibles par couleur, atout ou non)
   const already = state.melds[1].filter((m) => m.suit === c.suit).length;
-  const maxMelds = c.suit === state.trump ? 2 : 1;
-  if (already >= maxMelds) return 0;
+  if (already >= 2) return 0;
 
   const hand = state.hands[1];
   const free = (r: Rank) =>
