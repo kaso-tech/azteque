@@ -498,7 +498,7 @@ describe("availableMelds / announce", () => {
     expect(next.melds[0][1]).toMatchObject({ suit: "H", type: "triple", points: 5, first: true });
   });
 
-  it("un deuxième compte dans une couleur hors atout reste impossible", () => {
+  it("un deuxième compte dans une couleur hors atout est permis (jeu double)", () => {
     const usedK = card("K", "S", "usedK2");
     const usedQ = card("Q", "S", "usedQ2");
     const newK = card("K", "S");
@@ -509,6 +509,24 @@ describe("availableMelds / announce", () => {
       trump: "H", // l'atout est une autre couleur que celle testée
       melds: [[{ suit: "S", type: "simple", points: 2, first: false }], []],
       exposed: [[usedK.id, usedQ.id], []],
+    });
+    expect(availableMelds(state, 0)).toEqual([
+      { suit: "S", type: "simple", cards: [newK, newQ] },
+    ]);
+  });
+
+  it("un troisième compte dans la même couleur reste impossible", () => {
+    const hand = [card("K", "S"), card("Q", "S"), card("7", "D"), card("8", "D"), card("9", "D")];
+    const state = makeState({
+      ...preconditions(0, hand),
+      trump: "H",
+      melds: [
+        [
+          { suit: "S", type: "simple", points: 2, first: false },
+          { suit: "S", type: "simple", points: 2, first: false },
+        ],
+        [],
+      ],
     });
     expect(availableMelds(state, 0)).toEqual([]);
   });
