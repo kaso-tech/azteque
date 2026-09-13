@@ -2259,26 +2259,9 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   }
   if (level === "expert") return aiTacticalCard(state, level);
 
-  // PR9 — Calibration Légende après mesure au banc d'essai.
-  //
-  // Constat : PR8b-1 (PIMC étendue stock <= 8) RÉGRESSE le jeu de -20 %.
-  // PR8b-3 (solveur endgame alpha-bêta) testé seul RÉGRESSE encore de
-  // -14.8 %. PR8b-2 (modèle d'intention) désactivé par prudence (risque
-  // de surestimation de la threat, comme TUNE.aceAmbush=3.0 historiquement).
-  //
-  // Conclusion : aucune des trois innovations ne tient au banc d'essai.
-  // Le commentaire historique ligne 1428-1433 l'avait prédit : élargir
-  // la fenêtre PIMC au-delà de 2 cartes AFFAIBLIT le jeu car les mondes
-  // échantillonnés deviennent spéculatifs. Pour le solveur endgame,
-  // il utilise une structure SimState pensée pour la PIMC, pas pour
-  // l'endgame pur — d'où une régression résiduelle.
-  //
-  // PR9 désactive les trois innovations et laisse Légende strictement
-  // équivalente à Grand Maître moteur. La différence Légende > Grand
-  // Maître est aujourd'hui purement marketing (nom prestigieux +
-  // récompense 150 jetons au lieu de 100).
-  //
-  // Grand Maître strictement intact.
+  // Fin de partie : la recherche PIMC résout la position (exacte à talon vide).
+  // Grand Maître strictement intact ; Légende y ajoute, au-dessus du seuil,
+  // une anticipation d'un pli contre un adversaire modélisé.
   const legende = level === "legende";
   const from = legende ? TUNE.legendePimcStock : level === "grand_maitre" ? 2 : 0;
   if (state.stock.length <= from) {
@@ -2287,6 +2270,10 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
     const budget = legende ? TUNE.legendePimcBudget : SEARCH_NODE_BUDGET;
     const exact = pimcChoose(state, samples, 12, budget);
     if (exact) return exact;
+  }
+  if (legende) {
+    const anticipe = legendeAnticipe(state);
+    if (anticipe) return anticipe;
   }
   return aiTacticalCard(state, level);
 }
