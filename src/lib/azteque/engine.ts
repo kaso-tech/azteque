@@ -2320,7 +2320,10 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // Grand Maître strictement intact ; Légende y ajoute, au-dessus du seuil,
   // une anticipation d'un pli contre un adversaire modélisé.
   const legende = level === "legende";
-  const from = legende ? TUNE.legendePimcStock : 0;
+  // Seule la Légende résout la fin de partie par la recherche ; Grand Maître
+  // s'en remet à son heuristique, comme un très bon joueur qui ne calcule pas
+  // tous les enchaînements.
+  const from = legende ? TUNE.legendePimcStock : -1;
   if (state.stock.length <= from) {
     const samples =
       state.stock.length === 0 ? 1 : legende ? TUNE.legendePimcSamples2 : 8;
