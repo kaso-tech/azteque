@@ -701,7 +701,11 @@ const TUNE = {
   /** Budget de nœuds par décision pour Légende. */
   legendePimcBudget: 120000,
   /** Poids de l'anticipation d'un pli dans la note finale (Légende). */
-  legendeAnticipation: 0.5,
+  legendeAnticipation: 0.15,
+  /** Prime à mener atout pour arracher ceux de l'adversaire (Légende). */
+  legendeChasse: 0.4,
+  /** Talon maximal au-dessous duquel la chasse aux atouts a un sens. */
+  legendeChasseStock: 8,
 };
 
 /* ---------- Réglages propres à la Légende ----------
@@ -716,7 +720,7 @@ const TUNE = {
  * strictement inchangé. Chaque valeur est mesurée en A/B contre Grand Maître
  * au banc d'essai (`bun scripts/ai-bench.ts legende grand_maitre 1200`).
  */
-const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = {};
+const LEGENDE: Partial<Record<keyof typeof TUNE, number>> = { legendeChasse: 0.8 };
 
 /**
  * Niveau en cours de décision. La pile de décision de l'IA est entièrement
@@ -1671,6 +1675,7 @@ function tacticalScores(state: GameState, level: Difficulty = "expert"): Map<Car
       risk * (pts + oppLead + trump10Exposure(state, c)) -
       keepValue(state, c, opp) -
       atoutDeReserve(c) +
+      chasseAuxAtouts(c) +
       deadWeight(state, c);
     notes.set(c, score);
   }
