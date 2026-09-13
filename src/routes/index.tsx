@@ -681,6 +681,12 @@ function Azteque() {
       return;
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
     if (dealing) return;
+    // PR9+ — Main blanche : si le joueur (côté 0) a une main blanche en début
+    // de tour et que l'IA est sur le point de jouer, on attend que le joueur
+    // tranche (redistribution ou garder). Sinon l'IA joue avant que le joueur
+    // n'ait pu réagir, et le panneau "Demander une redistribution" devient
+    // inopérant. On bloque jusqu'à ce que `redealDone` soit positionné.
+    if (freshRound && hasMainBlanche(state, 0) && !redealDone) return;
     const t = setTimeout(() => {
       // La carte est choisie ICI, hors du calcul de mise à jour : elle doit
       // être connue pour partir en vol EN MÊME TEMPS qu'elle est jouée. Elle
