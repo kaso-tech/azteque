@@ -251,7 +251,35 @@ export function isSticker(id: string | null | undefined): boolean {
   return !!id && id in DESSINS;
 }
 
-export function Sticker({ id, className }: { id: string; className?: string }) {
+export function Sticker({
+  id,
+  className,
+  assetUrl,
+}: {
+  id: string;
+  className?: string;
+  /**
+   * PR19 — URL publique d'un fichier custom uploadé. Si présente, on
+   * affiche l'image (PNG/SVG/JPG) à la place du SVG dessiné. Le client
+   * ne télécharge l'image qu'au montage grâce au lazy-loading navigateur.
+   */
+  assetUrl?: string | null;
+}) {
+  // Asset custom d'abord : si l'admin a posé un fichier, c'est lui qui
+  // s'affiche, peu importe l'ID du SVG inline. Le SVG reste le fallback
+  // historique (PR14 avait ajouté 4 stickers-sons, gardés pour ré-utilisation
+  // ou remplacement par un PNG plus tard).
+  if (assetUrl) {
+    return (
+      <img
+        src={assetUrl}
+        alt="Sticker"
+        loading="lazy"
+        className={className}
+        style={{ objectFit: "contain" }}
+      />
+    );
+  }
   const Dessin = DESSINS[id];
   if (!Dessin) return null;
   return (

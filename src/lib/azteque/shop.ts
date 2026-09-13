@@ -32,6 +32,13 @@ export interface ShopItem {
   css?: string | undefined;
   /** L'identifiant du son dans sfx (pour un son). */
   soundId?: string | undefined;
+  /**
+   * PR19 — URL publique d'un fichier uploadé par l'admin via Supabase
+   * Storage. Pour un sticker, remplace le SVG inline. Pour un son,
+   * remplace la synthèse sfx. Pour un tapis, remplace le CSS dégradé.
+   * Si absent, le code utilise le fallback (SVG, sfx, BACKGROUND_PRESETS).
+   */
+  assetUrl?: string | null;
   sort: number;
 }
 
@@ -292,6 +299,8 @@ interface Ligne {
   price: number;
   active?: boolean;
   data?: { art?: string; phrases?: string[]; css?: string; soundId?: string } | null;
+  /** PR19 — URL publique du fichier uploadé (Supabase Storage). */
+  asset_url?: string | null;
   sort?: number;
 }
 
@@ -313,6 +322,8 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       css: r.data?.css ?? BACKGROUND_PRESETS[r.id],
       // PR13 — Identifiant du son (pour un son acheté).
       soundId: r.data?.soundId,
+      // PR19 — URL publique du fichier uploadé (sticker/son/tapis custom).
+      assetUrl: r.asset_url,
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
@@ -334,7 +345,7 @@ export async function loadCatalogue(force = false): Promise<ShopItem[]> {
         supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
       )
         .from("shop_items")
-        .select("id, kind, name, hint, price, active, data, sort");
+        .select("id, kind, name, hint, price, active, data, asset_url, sort");
       if (error || !data || (data as unknown[]).length === 0) return catalogue;
       catalogue = depuisLaBase(data as unknown as Ligne[]);
       abonnes.forEach((f) => f(catalogue));
@@ -382,6 +393,11 @@ export function equippedBackground(
   if (!kind) return null;
   const item = items.find((i) => i.id === kind);
   if (item && item.kind !== "background") return null;
+  // PR19 — Si l'admin a uploadé un fichier custom, on l'utilise tel quel
+  // (pas de sanitisation URL : les fichiers passent par Supabase Storage,
+  // on fait confiance à leur URL publique). Sinon, on retombe sur le CSS
+  // historique (dégradé dessiné) ou sur le préréglage du code.
+  if (item?.assetUrl) return `url("${item.assetUrl}")`;
   return backgroundImage(item?.css, kind);
 }
 
