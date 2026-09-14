@@ -609,7 +609,7 @@ export async function setBackgroundKind(kind: string | null): Promise<void> {
   const id = await currentUserId();
   if (!id) throw new Error("Connectez-vous d'abord.");
   const { error } = await anyTable("profiles")
-    .update({ background_kind: kind } as never)
+    .update({ background_kind: kind })
     .eq("id", id);
   if (error) throw error;
 }

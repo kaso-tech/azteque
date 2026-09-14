@@ -298,7 +298,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
         // Une boucle concatène sans spread : aucun risque de pile.
         const bytes = new Uint8Array(await brouillon.assetFile.arrayBuffer());
         let bin = "";
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
         const base64 = btoa(bin);
         const r = await uploadShopAsset({
           data: { id, mime: brouillon.assetFile.type, base64 },
