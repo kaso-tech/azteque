@@ -650,7 +650,7 @@ export type Database = {
           _kind: string
           _name: string
           _price: number
-          _sort?: number
+          _sort: number
         }
         Returns: undefined
       }
