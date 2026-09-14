@@ -10,6 +10,7 @@ export function TrickPosition({
   vols,
   cardRef,
   me = 0,
+  showLabel = true,
 }: {
   trick: GameState["trick"];
   player: PlayerIndex;
@@ -30,6 +31,8 @@ export function TrickPosition({
    */
   cardRef?: RefObject<HTMLElement | null>;
   me?: PlayerIndex;
+  /** Affiche l'identité et l'indication de la première carte du pli. */
+  showLabel?: boolean;
 }) {
   const played = trick.find((entry) => entry.player === player);
   if (!played) return <div className="h-28 w-[4.5rem]" aria-hidden="true" />;
@@ -43,14 +46,16 @@ export function TrickPosition({
   const cachee = hidden || enVol;
 
   return (
-    <div className="flex w-[4.5rem] flex-col items-center gap-1">
+    <div className="flex h-28 w-[4.5rem] flex-col items-center gap-1">
       <span ref={cardRef} className={cn("block w-full", cachee && "invisible")}>
         <PlayingCard card={played.card} size="lg" className={parLesAirs ? "" : "animate-trick"} />
       </span>
-      <span className={cn("text-[0.65rem] text-muted-foreground", cachee && "opacity-0")}>
-        {player === me ? "Vous" : "Adversaire"}
-        {led ? " (mène)" : ""}
-      </span>
+      {showLabel && (
+        <span className={cn("text-[0.65rem] text-muted-foreground", cachee && "opacity-0")}>
+          {player === me ? "Vous" : "Adversaire"}
+          {led ? " (mène)" : ""}
+        </span>
+      )}
     </div>
   );
 }
@@ -191,16 +196,23 @@ export function HandRow({
   cards,
   exposedIds,
   isDisabled,
+  isMuted,
   onPlay,
+  onBlockedPlay,
   interactive = true,
   faceDown,
   refillable = false,
   fan = false,
+  animateArrivals = true,
 }: {
   cards: Card[];
   exposedIds: string[];
   isDisabled?: (c: Card) => boolean;
+  /** Atténuation purement visuelle, indépendante du blocage des clics. */
+  isMuted?: (c: Card) => boolean;
   onPlay?: (c: Card, el: HTMLElement) => void;
+  /** Clic sur une carte bloquée : permet d'afficher un retour visuel. */
+  onBlockedPlay?: () => void;
   interactive?: boolean;
   faceDown?: (c: Card) => boolean;
   /**
@@ -217,6 +229,8 @@ export function HandRow({
    * permet des cartes bien plus larges à encombrement égal.
    */
   fan?: boolean;
+  /** Anime les cartes ajoutées après la donne. */
+  animateArrivals?: boolean;
 }) {
   const [slots, setSlots] = useState<(string | null)[]>([]);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -238,10 +252,22 @@ export function HandRow({
     });
   }, [cards]);
 
+  const displaySlots = useMemo(() => {
+    const ids = cards.map((card) => card.id);
+    const next = [...slots];
+    for (const id of ids) {
+      if (next.includes(id)) continue;
+      const empty = next.indexOf(null);
+      if (empty >= 0) next[empty] = id;
+      else next.push(id);
+    }
+    return next;
+  }, [cards, slots]);
+
   const ordered = useMemo(() => {
     const byId = new Map(cards.map((c) => [c.id, c] as const));
-    return slots.map((id) => (id ? (byId.get(id) ?? null) : null));
-  }, [cards, slots]);
+    return displaySlots.map((id) => (id ? (byId.get(id) ?? null) : null));
+  }, [cards, displaySlots]);
 
   const handlePointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
     dragId.current = id;
@@ -322,7 +348,18 @@ export function HandRow({
     >
       {ordered.map((c, i) =>
         c === null ? (
-          <div key={`empty-${i}`} className={caseClass} style={place(i)} aria-hidden="true">
+          // L'emplacement libre garde la place de la carte à venir, mais il ne
+          // doit rien intercepter : posé au-dessus de sa voisine en éventail,
+          // il rendait sourde toute la partie de carte qu'il recouvrait.
+          <div
+            key={`empty-${i}`}
+            className={cn(caseClass, "pointer-events-none")}
+            style={place(i)}
+            aria-hidden="true"
+            // Repère du vol de pioche : la carte vise CETTE case (voir
+            // `centreDuSlotLibre`), pas le milieu de la rangée.
+            data-empty-slot="true"
+          >
             <div
               className={cn(
                 "aspect-[5/7] w-full rounded-[3px]",
@@ -340,10 +377,14 @@ export function HandRow({
             <PlayingCard
               card={c}
               size="hand"
-              className={arriving.has(c.id) ? "animate-slot-fill" : "animate-deal"}
+              {...(animateArrivals
+                ? { className: arriving.has(c.id) ? "animate-slot-fill" : "animate-deal" }
+                : {})}
               faceDown={faceDown ? faceDown(c) : false}
               exposed={exposedIds.includes(c.id)}
               disabled={isDisabled ? isDisabled(c) : false}
+              muted={isMuted ? isMuted(c) : false}
+              {...(onBlockedPlay ? { onDisabledClick: onBlockedPlay } : {})}
               {...(interactive && onPlay
                 ? {
                     onClick: (el: HTMLElement) => {

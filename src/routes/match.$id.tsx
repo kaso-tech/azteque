@@ -4,6 +4,8 @@ import {
   SUIT_NAME,
   SUIT_SYMBOL,
   availableMelds,
+  canAnticipate,
+  hasMainBlanche,
   isBonne,
   stealsBonne,
   legalCards,
@@ -31,11 +33,14 @@ import {
   FlyingCard,
   SweepCard,
   useCardFlight,
+  useVolArrivee,
+  centreDuSlotLibre,
 } from "@/components/azteque/animations";
 import { sfx, setSoundContext } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
 import { Recap } from "@/components/azteque/panels";
+import { HeaderSettingsButton } from "@/components/azteque/header-settings-button";
 import {
   ensureOnlineIdentity,
   getMatch,
@@ -60,12 +65,10 @@ import {
   requestFriend,
   type FriendshipStatus,
   type HeadToHead,
-  type Profile,
   type PublicProfile,
 } from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
-import { PlayerAvatar } from "@/components/azteque/avatar";
-import { AnticipationButton } from "@/components/azteque/anticipation";
+import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
 
@@ -92,10 +95,10 @@ export const Route = createFileRoute("/match/$id")({
   component: OnlineTable,
 });
 
-const TRICK_DELAY = 1000;
+const TRICK_DELAY = 550;
 /** Temps de pose avant qu'une carte ne quitte le talon, et durée de son vol. */
-const ATTENTE_PIOCHE = 700;
-const VOL_PIOCHE = 580;
+const ATTENTE_PIOCHE = 300;
+const VOL_PIOCHE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
 const center = (el: HTMLElement | null | undefined) => {
@@ -140,6 +143,12 @@ function OnlineTable() {
   const [showMyGains, setShowMyGains] = useState(false);
   const [showMyBonnes, setShowMyBonnes] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  // Repère « main blanche tranchée » par le joueur local. Se remet à zéro
+  // automatiquement quand une nouvelle donne arrive (state.stock === 48).
+  const [redealDecided, setRedealDecided] = useState(false);
+  // Repère de donne — change à chaque (re)distribution, pour reset
+  // redealDecided et déclencher le panneau main blanche le cas échéant.
+  const donneKey = state ? `${state.stock.length}-${state.roundScore?.[0]?.total ?? 0}-${state.roundScore?.[1]?.total ?? 0}` : "none";
 
   // --- Animations de déplacement des cartes -----------------------------
   // Le serveur reste seul maître du résultat (voir match-actions.ts) : ces
@@ -181,15 +190,30 @@ function OnlineTable() {
   const [drawFlights, setDrawFlights] = useState<
     {
       id: number;
+      /** La pioche que ce vol représente : il ne s'efface qu'une fois CELLE-CI servie. */
+      cle: string;
       player: PlayerIndex;
       from: { x: number; y: number };
       to: { x: number; y: number };
       delay: number;
     }[]
   >([]);
+  /** Vol de pioche dont la durée minimale est écoulée : il peut céder la place. */
+  const [volPiocheAbouti, setVolPiocheAbouti] = useState("");
   const [sweepFlights, setSweepFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
+  /**
+   * Le pli déjà ramassé à l'écran.
+   *
+   * Le serveur peut mettre un instant à vider le pli — chez l'invité, sa propre
+   * demande de résolution n'est qu'un recours à quatre secondes. Sans ce
+   * repère, les deux cartes que l'on vient de voir partir vers le tas
+   * réapparaissaient sur le tapis le temps que la réponse arrive, puis
+   * disparaissaient d'un coup.
+   */
+  const [pliRamasse, setPliRamasse] = useState("");
+
   // Pendant la résolution d'un pli (ramassage puis éventuel transfert « atout
   // 10 »), le serveur a déjà avancé l'état bien avant que l'animation locale
   // n'ait fini de jouer (l'aller-retour réseau est plus rapide que le vol des
@@ -209,6 +233,10 @@ function OnlineTable() {
   // serveur normalement.
   const displayTrick = frozenTable?.trick ?? state?.trick ?? [];
   const displayGains = frozenTable?.gains ?? state?.gains ?? ([[], []] as [Card[], Card[]]);
+  const cleAffichee = displayTrick.map((e) => e.card.id).join("|");
+  // Le pli reste invisible depuis son envol vers le tas jusqu'à ce que le
+  // serveur l'ait bel et bien vidé.
+  const pliMasque = collect.length > 0 || (pliRamasse !== "" && pliRamasse === cleAffichee);
 
   // La carte qu'on voit partir vers le tapis — la sienne au clic, celle de
   // l'adversaire dès qu'elle apparaît dans le pli. Elle s'appuie sur le pli
@@ -220,12 +248,7 @@ function OnlineTable() {
   // Où la carte en vol doit se poser : la place de CELUI qui l'a jouée. Le
   // relais avec la carte qui s'y découvre est un échange net, sans fondu — il
   // ne passe inaperçu que si les deux occupent exactement le même point.
-  const volArrivee = (() => {
-    if (!flight) return null;
-    const joueur = displayTrick.find((e) => e.card.id === flight.card.id)?.player;
-    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
-    return place ?? center(tableRef.current) ?? flight.from;
-  })();
+  const volArrivee = useVolArrivee(flight, displayTrick, trickCardRefs, tableRef);
 
   /**
    * Minuteries d'une animation DÉJÀ COMMENCÉE.
@@ -341,6 +364,18 @@ function OnlineTable() {
     const t = setTimeout(() => setEnvoiLent(true), 700);
     return () => clearTimeout(t);
   }, [sending]);
+
+  // Reset du panneau main blanche à chaque nouvelle donne.
+  // On utilise donneKey comme signature : stock length + scores totaux.
+  // À chaque changement de donne, le panneau réapparaît si la nouvelle main
+  // est blanche, sinon il disparaît tout seul (canRedeal devient false).
+  const donneKeyRef = useRef(donneKey);
+  useEffect(() => {
+    if (donneKeyRef.current !== donneKey) {
+      donneKeyRef.current = donneKey;
+      setRedealDecided(false);
+    }
+  }, [donneKey]);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   // Coups montrés d'avance dont le serveur n'a pas encore accusé réception.
   // Tant qu'il en reste, la table ne tire aucune conséquence de ce qu'elle
@@ -465,6 +500,10 @@ function OnlineTable() {
   // Mise remportée : les jetons volent vers le nom du joueur, qui tient lieu
   // de compte dans l'en-tête d'une table en ligne.
   const monNomRef = useRef<HTMLParagraphElement | null>(null);
+  // PR12 — Refs vers les avatars du header pour le positionnement des bulles
+  // de chat. La bulle de l'auteur flotte sous son propre avatar.
+  const myAvatarRef = useRef<HTMLDivElement | null>(null);
+  const oppAvatarRef = useRef<HTMLDivElement | null>(null);
   const [coinFlight, setCoinFlight] = useState<{
     from: { x: number; y: number };
     to: { x: number; y: number };
@@ -572,12 +611,11 @@ function OnlineTable() {
       .catch(() => {});
   }, []);
 
-  // Le profil du joueur LOCAL, gardé en entier : la table montre son visage et
-  // sa cote au même titre que ceux de l'adversaire, et le tapis acheté en
-  // boutique est le sien — chacun voit la table avec le sien.
-  const [myProfile, setMyProfile] = useState<Profile | null>(null);
-  const myRank = myProfile?.rating ?? null;
-  const myTapis = myProfile?.background_kind ?? null;
+  const [myRank, setMyRank] = useState<number | null>(null);
+  // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
+  // chacun voyant la table avec le sien.
+  const [myTapis, setMyTapis] = useState<string | null>(null);
+  const [myProfile, setMyProfile] = useState<AvatarSource | null>(null);
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
@@ -585,7 +623,12 @@ function OnlineTable() {
     let alive = true;
     const read = () => {
       getMyProfile()
-        .then((p) => alive && setMyProfile(p))
+        .then((p) => {
+          if (!alive) return;
+          setMyProfile(p ?? null);
+          setMyRank(p?.rating ?? null);
+          setMyTapis(p?.background_kind ?? null);
+        })
         .catch(() => {});
       if (oppUserId) {
         getPublicProfile(oppUserId)
@@ -714,6 +757,7 @@ function OnlineTable() {
 
         setAnimating(true);
         setFrozenTable({ trick: preTrick.trick, gains: preTrick.gains });
+        setPliRamasse(cle);
 
         const lastDelay = 140;
         setCollect([
@@ -783,6 +827,13 @@ function OnlineTable() {
     );
   }, [state, apercusEnAttente, pileRefs, trickSlotRefs]);
 
+  // Le pli ramassé cesse d'être masqué dès que le serveur l'a réellement vidé
+  // (ou qu'un autre pli commence) : le repère n'a plus lieu d'être.
+  const cleServeur = (state?.trick ?? []).map((e) => e.card.id).join("|");
+  useEffect(() => {
+    if (pliRamasse !== "" && cleServeur !== pliRamasse) setPliRamasse("");
+  }, [cleServeur, pliRamasse]);
+
   // La pioche en attente, s'il y en a une : qui doit piocher, et un repère qui
   // désigne CETTE pioche-là — le talon baisse d'une carte à chaque fois, ce
   // qui suffit à les distinguer.
@@ -809,28 +860,56 @@ function OnlineTable() {
     }
     if (piocheAnimee.current === piocheCle) return;
     piocheAnimee.current = piocheCle;
+    const cle = piocheCle;
     animTimers.current.push(
       setTimeout(() => {
         const from = center(stockRef.current);
-        const to = center(handRefs[piochePlayer].current);
+        // Cap sur l'emplacement libre que la carte vient combler, pas sur le
+        // milieu de la main.
+        const to = centreDuSlotLibre(handRefs[piochePlayer].current);
         if (!from || !to) return;
-        setDrawFlights([{ id: Date.now(), player: piochePlayer, from, to, delay: 0 }]);
+        setDrawFlights([{ id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 }]);
         animTimers.current.push(
           setTimeout(() => {
-            setDrawFlights([]);
+            // Le vol a fait son chemin : il peut désormais s'effacer, mais
+            // seulement quand la carte apparaît vraiment dans la main.
+            setVolPiocheAbouti(cle);
             // Le bruit de la pioche accompagne le geste qu'on voit, pas la
             // réponse du serveur : chez l'invité, elle est déjà passée.
             sfx.draw();
           }, VOL_PIOCHE),
         );
+        // Filet de sécurité : si la pioche n'aboutit jamais (envoi perdu), le
+        // vol ne doit pas rester suspendu à l'écran.
+        animTimers.current.push(
+          setTimeout(() => {
+            setDrawFlights((v) => (v[0]?.cle === cle ? [] : v));
+          }, VOL_PIOCHE + 6000),
+        );
       }, ATTENTE_PIOCHE),
     );
   }, [piochePlayer, piocheCle, handRefs, stockRef]);
 
+  /**
+   * Le relais entre le vol et la main.
+   *
+   * Le vol s'effaçait sur une simple minuterie, alors que la carte n'entrait
+   * dans la main qu'après l'aller-retour réseau : entre les deux, un temps
+   * mort où la carte avait disparu de partout. Il ne s'efface donc plus qu'une
+   * fois sa durée écoulée ET la pioche réellement servie par le serveur.
+   */
+  useEffect(() => {
+    const vol = drawFlights[0];
+    if (!vol) return;
+    if (volPiocheAbouti !== vol.cle) return;
+    if (piocheCle === vol.cle) return;
+    setDrawFlights([]);
+  }, [drawFlights, volPiocheAbouti, piocheCle]);
+
   // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
-  // tranche, l'invité n'intervient qu'à défaut. Elle part une fois la carte
-  // arrivée à destination, pour que la main se garnisse au moment où le vol
-  // s'y pose.
+  // tranche, l'invité n'intervient qu'à défaut. Elle part dès que la carte
+  // décolle, pour que la main soit garnie au moment où le vol s'y pose : la
+  // réponse du serveur voyage pendant le vol au lieu de le suivre.
   const piocheDemandee = useRef("");
   useEffect(() => {
     if (piochePlayer === null || piocheCle === null) {
@@ -843,7 +922,7 @@ function OnlineTable() {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      (isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 4000) + VOL_PIOCHE,
+      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 2000,
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
@@ -995,6 +1074,22 @@ function OnlineTable() {
   }, [waitingOnLink, linkHealthy, oppOnline, state, declareForfeit]);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
+  // Panneau main blanche : visible en début de tour, si le joueur local a
+  // une main blanche (aucun K, Q, J), et qu'il n'a pas encore tranché.
+  // À la différence du jeu solo, l'adversaire n'a pas son propre panneau :
+  // il peut demander une redistribution via cette même UI à son tour.
+  const canRedeal =
+    state !== null &&
+    state.phase === "playing" &&
+    state.trick.length === 0 &&
+    state.gains[0].length === 0 &&
+    state.gains[1].length === 0 &&
+    !redealDecided &&
+    hasMainBlanche(state, me);
+  const requestRedeal = useCallback(() => {
+    void runAction({ type: "request_redeal" });
+    setRedealDecided(true);
+  }, [runAction]);
   const legalIds = useMemo(() => {
     if (!state) return new Set<string>();
     const ok =
@@ -1017,6 +1112,11 @@ function OnlineTable() {
 
   const playMyCard = (card: Card, el: HTMLElement) => {
     if (!state || meldDecisionPending) return;
+    // PR10+ — Main blanche : si le joueur a une main blanche en début de tour
+    // et qu'il n'a pas tranché, on bloque la pose de carte. Sinon il joue
+    // sans avoir vu le panneau (qui s'affiche de façon synchrone côté
+    // adversaire).
+    if (canRedeal) return;
     const from = center(el);
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
@@ -1041,12 +1141,16 @@ function OnlineTable() {
     void runAction({ type: "skip_announce" });
   };
 
-  const readyNextRound = () => {
-    void runAction({ type: "ready_next_round" });
+  // Anticiper la fin du tour : le serveur verse alors les bonnes de notre main
+  // et celles restées dans la pioche au tas de l'adversaire.
+  const [confirmAnticipate, setConfirmAnticipate] = useState(false);
+  const anticipateNow = () => {
+    setConfirmAnticipate(false);
+    void runAction({ type: "anticipate" });
   };
 
-  const anticipateRound = () => {
-    void runAction({ type: "anticipate" });
+  const readyNextRound = () => {
+    void runAction({ type: "ready_next_round" });
   };
 
   if (error) {
@@ -1115,7 +1219,9 @@ function OnlineTable() {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          <div ref={myAvatarRef}>
+            <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          </div>
           <div className="min-w-0 text-left">
             <p ref={monNomRef} className="truncate text-xs font-semibold text-foreground">
               {myName}
@@ -1124,6 +1230,9 @@ function OnlineTable() {
               <RankBadge rating={myRank} compact className="mt-0.5 text-[0.65rem]" />
             )}
           </div>
+          {/* PR15 — Bouton paramètres : ouvre le panneau avec toggles
+              pour les sons et stickers achetés. */}
+          <HeaderSettingsButton owned={owned} />
         </div>
         <div className="min-w-16 text-center">
           <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>
@@ -1147,9 +1256,39 @@ function OnlineTable() {
               <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
             )}
           </div>
-          <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
+          <div ref={oppAvatarRef}>
+            <PlayerAvatar className="h-8 w-8" profile={oppProfile} />
+          </div>
         </div>
       </header>
+
+      {/* Panneau main blanche : le joueur local (et seulement lui) peut
+          demander une redistribution tant qu'il n'a pas tranché. Le serveur
+          vérifie qu'au moins un joueur a une main blanche avant d'agir. */}
+      {canRedeal && (
+        <div className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]">
+          <p className="text-xs text-accent">
+            Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={requestRedeal}
+              disabled={sending > 0}
+              className="rounded-full bg-[image:var(--gradient-gold)] px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              Demander une redistribution
+            </button>
+            <button
+              type="button"
+              onClick={() => setRedealDecided(true)}
+              className="text-xs text-muted-foreground underline"
+            >
+              Garder ma main
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main adverse */}
       <section>
@@ -1160,6 +1299,10 @@ function OnlineTable() {
             faceDown={(c) => !state.exposed[opp].includes(c.id)}
             interactive={false}
             refillable={state.stock.length > 0}
+            // Le vol depuis le talon EST l'entrée de la carte : rejouer une
+            // animation d'apparition à l'arrivée la ferait attendre avant de
+            // s'insérer dans la main.
+            animateArrivals={false}
           />
         </div>
         <TurnBar total={TURN_LIMIT} active={oppMustAct} resetKey={turnKey} paused={waitingOnLink} />
@@ -1183,18 +1326,20 @@ function OnlineTable() {
         </div>
 
         {/* Aligné sur les mêmes conditions que la barre de temps, pour que
-            l'annonce du tour et le compte à rebours apparaissent ensemble. */}
-        {state.trick.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {state.phase !== "playing"
+            l'annonce du tour et le compte à rebours apparaissent ensemble.
+            La ligne est TOUJOURS rendue : la faire disparaître dès la première
+            carte posée remonterait la pioche et le pli de toute sa hauteur. */}
+        <p className="text-sm text-muted-foreground">
+          {state.trick.length > 0
+            ? "\u00a0"
+            : state.phase !== "playing"
               ? "Tour terminé."
               : myMustAct
                 ? "À vous de jouer."
                 : oppMustAct
                   ? `${oppName} réfléchit…`
                   : "\u00a0"}
-          </p>
-        )}
+        </p>
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[opp]}>
@@ -1202,7 +1347,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={opp}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[opp]}
             />
@@ -1226,7 +1371,7 @@ function OnlineTable() {
               trick={displayTrick}
               player={me}
               me={me}
-              hidden={collect.length > 0}
+              hidden={pliMasque}
               vols={etat}
               cardRef={trickCardRefs[me]}
             />
@@ -1304,6 +1449,9 @@ function OnlineTable() {
             exposedIds={state.exposed[me]}
             refillable={state.stock.length > 0}
             fan
+            // Même raison qu'en face : la carte piochée s'insère dès que le
+            // vol se pose, sans rejouer d'animation d'apparition.
+            animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
               animating ||
@@ -1311,6 +1459,15 @@ function OnlineTable() {
               state.phase !== "playing" ||
               state.trick.length >= 2 ||
               state.drawPending.length > 0 ||
+              !legalIds.has(c.id)
+            }
+            isMuted={(c) =>
+              state.stock.length === 0 &&
+              state.phase === "playing" &&
+              state.turn === me &&
+              state.drawPending.length === 0 &&
+              state.trick.length < 2 &&
+              !meldDecisionPending &&
               !legalIds.has(c.id)
             }
             onPlay={(card, el) => playMyCard(card, el)}
@@ -1324,7 +1481,20 @@ function OnlineTable() {
           >
             Bonnes · {myBonnes}
           </button>
-          <AnticipationButton state={state} me={me} onConfirm={anticipateRound} />
+          <button
+            type="button"
+            // Anticiper sert surtout en fin de main, quand la suite est
+            // perdue d'avance : le bouton reste actif toute la manche, à ceci
+            // près qu'on n'arrête pas le tour au milieu d'un pli. C'est le
+            // moteur qui en juge (`canAnticipate`), ici comme sur le serveur,
+            // et l'interface ne fait que refléter sa réponse — la distribution
+            // et les animations en cours la suspendent en plus.
+            disabled={!!dealing || !!animating || !canAnticipate(state, me)}
+            onClick={() => setConfirmAnticipate(true)}
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold disabled:opacity-40"
+          >
+            Anticiper la fin
+          </button>
           {state.phase !== "gameEnd" && (
             <button
               type="button"
@@ -1480,6 +1650,34 @@ function OnlineTable() {
         </div>
       )}
 
+      {confirmAnticipate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
+              pioche sont versées à votre adversaire, puis les points sont comptés.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmAnticipate(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Continuer le tour
+              </button>
+              <button
+                type="button"
+                onClick={anticipateNow}
+                className="rounded-full bg-[image:var(--gradient-gold)] px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Anticiper
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmQuit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
           <div className="panel w-full max-w-sm p-6 text-center">
@@ -1557,7 +1755,14 @@ function OnlineTable() {
         <SweepCard key={flight.id} {...flight} />
       ))}
 
-      <MatchChat matchId={id} seat={verifiedSeat} myName={myName} owned={owned} />
+      <MatchChat
+        matchId={id}
+        seat={verifiedSeat}
+        myName={myName}
+        owned={owned}
+        myAvatarRef={myAvatarRef}
+        oppAvatarRef={oppAvatarRef}
+      />
 
       {dealing && (
         <DealCeremony

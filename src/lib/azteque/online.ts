@@ -156,6 +156,12 @@ export interface ChatMessage {
   reaction?: "taunt" | "cheer" | null;
   /** Identifiant d'un sticker de la boutique, à la place du texte. */
   sticker?: string | null;
+  /** PR14 — Identifiant du son à jouer (de la boutique snd_*).
+   *  Combiné avec un `sticker` non vide : un clic = sticker visuel + son. */
+  soundId?: string | null;
+  /** PR19 — URL publique d'un son uploadé par l'admin. Si présente,
+   *  l'écouteur joue le fichier au lieu de la synthèse sfx. */
+  soundUrl?: string | null;
 }
 
 /** Salon de discussion temps réel (broadcast, sans stockage). */

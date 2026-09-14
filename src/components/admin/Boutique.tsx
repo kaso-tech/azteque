@@ -6,7 +6,8 @@ import { Sticker } from "@/components/azteque/stickers";
 import { describeError } from "@/lib/azteque/account";
 import { loadCatalogue, useCatalogue, type ShopItem, type ShopKind } from "@/lib/azteque/shop";
 import { BACKGROUND_PRESETS, sanitizeBackground } from "@/lib/azteque/backgrounds";
-import { adminUpsertItem, adminDeleteItem } from "@/lib/azteque/admin";
+import { adminUpsertItem, adminDeleteItem, adminSetItemAsset } from "@/lib/azteque/admin";
+import { uploadShopAsset } from "@/lib/azteque/admin-shop-upload";
 import { adminShopSalesSummary, type ShopSalesRow } from "@/lib/azteque/admin-shop-log";
 
 /** Les dessins que le jeu sait rendre : un article nouveau leur emprunte. */
@@ -21,6 +22,7 @@ const KIND_LABEL: Record<ShopKind, string> = {
   sticker: "Sticker",
   messages: "Lot de messages",
   background: "Tapis de jeu",
+  sound: "Son",
 };
 
 type FiltreKind = "tous" | ShopKind;
@@ -37,8 +39,17 @@ interface Brouillon {
   art: string;
   phrases: string;
   css: string;
+  /** PR13 — Identifiant du son (pour un son), partagé avec sfx.SoundId. */
+  soundId: string;
   sort: string;
   nouveau: boolean;
+  /** PR19 — URL publique d'un fichier uploadé (sticker/son/tapis). */
+  assetUrl: string;
+  /** PR19 — Fichier choisi par l'admin dans le sélecteur, pas encore
+   *  uploadé vers Supabase Storage. À `null` si pas de nouveau fichier. */
+  assetFile: File | null;
+  /** PR19 — Le fichier uploadé est-il en cours d'envoi ? */
+  assetBusy: boolean;
 }
 
 function brouillonDe(i: ShopItem): Brouillon {
@@ -52,8 +63,12 @@ function brouillonDe(i: ShopItem): Brouillon {
     art: i.art ?? "",
     phrases: (i.phrases ?? []).join("\n"),
     css: i.css ?? "",
+    soundId: i.soundId ?? "",
     sort: String(i.sort),
     nouveau: false,
+    assetUrl: i.assetUrl ?? "",
+    assetFile: null,
+    assetBusy: false,
   };
 }
 
@@ -68,8 +83,12 @@ function brouillonNeuf(kind: ShopKind, sort: number): Brouillon {
     art: kind === "avatar" ? DESSINS_AVATAR[0]! : kind === "sticker" ? DESSINS_STICKER[0]! : "",
     phrases: "",
     css: kind === "background" ? (BACKGROUND_PRESETS[FONDS_LIVRES[0]!] ?? "") : "",
+    soundId: kind === "sound" ? "laugh" : "",
     sort: String(sort),
     nouveau: true,
+    assetUrl: "",
+    assetFile: null,
+    assetBusy: false,
   };
 }
 
@@ -82,6 +101,85 @@ function ApercuFond({ css, className }: { css: string; className: string }) {
       className={cn("block rounded-md border border-border bg-cover bg-center", className)}
       style={{ backgroundImage: `${image ?? ""}, var(--gradient-table)` }}
     />
+  );
+}
+
+/**
+ * PR19 — Champ d'upload d'un fichier asset boutique (sticker/son/tapis).
+ * Le fichier n'est pas envoyé ici : on le stocke dans `brouillon.assetFile`
+ * et il sera uploadé vers Supabase Storage au moment où l'admin clique
+ * « Enregistrer ». On évite ainsi un aller-retour inutile si l'admin
+ * change d'avis sans cliquer Enregistrer.
+ */
+function ChampUploadAsset({
+  label,
+  accept,
+  currentUrl,
+  file,
+  onFile,
+  onClearUrl,
+}: {
+  label: string;
+  accept: string;
+  currentUrl: string;
+  file: File | null;
+  onFile: (f: File | null) => void;
+  /**
+   * PR19 — Appelé quand l'admin clique « Retirer » sur l'asset déjà
+   * uploadé. Le parent doit vider `assetUrl` pour qu'à l'enregistrement,
+   * `adminSetItemAsset(id, null)` soit appelé (sinon l'ancienne URL
+   * reste en base).
+   */
+  onClearUrl?: () => void;
+}) {
+  const isAudio = accept.startsWith("audio/");
+  return (
+    <div className="mt-2 space-y-1">
+      <p className="text-[0.68rem] text-muted-foreground">{label}</p>
+      {currentUrl && !file && (
+        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary/30 px-2 py-1">
+          {isAudio ? (
+            <audio controls src={currentUrl} className="h-7 w-full" preload="metadata">
+              <a href={currentUrl}>Écouter</a>
+            </audio>
+          ) : (
+            <img
+              src={currentUrl}
+              alt="Aperçu"
+              className="h-10 w-10 rounded-md border border-border object-contain"
+            />
+          )}
+          {onClearUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                onFile(null);
+                onClearUrl();
+              }}
+              className="ml-auto text-[0.65rem] text-destructive underline"
+              title="Retirer ce fichier"
+            >
+              Retirer
+            </button>
+          )}
+        </div>
+      )}
+      <input
+        type="file"
+        accept={accept}
+        onChange={(e) => {
+          const f = e.target.files?.[0] ?? null;
+          onFile(f);
+        }}
+        className="block w-full text-[0.68rem] text-muted-foreground file:mr-2 file:rounded-md file:border file:border-gold/40 file:bg-card file:px-2 file:py-1 file:text-[0.68rem] file:font-semibold file:text-gold hover:file:bg-gold/10"
+      />
+      {file && (
+        <p className="text-[0.65rem] text-muted-foreground">
+          Sélectionné : <span className="font-mono">{file.name}</span> ({Math.round(file.size / 1024)} Ko)
+          — sera uploadé à l'enregistrement.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -171,30 +269,77 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
     // Une image refusée ici l'aurait été chez les joueurs : mieux vaut le dire
     // à celui qui l'écrit que de l'enregistrer pour rien.
     const css = brouillon.kind === "background" ? sanitizeBackground(brouillon.css) : null;
-    if (brouillon.kind === "background" && !css) {
+    if (brouillon.kind === "background" && !css && !brouillon.assetFile) {
       onErreur(
         "Image invalide : un empilement de dégradés CSS, ou url() en https, data: ou chemin du site.",
       );
       return;
     }
+    // PR13 — Un son doit avoir un soundId, sinon la table ne sait pas
+    // quel son jouer à l'achat.
+    if (brouillon.kind === "sound" && !brouillon.soundId.trim()) {
+      onErreur("Un son doit avoir un identifiant de son.");
+      return;
+    }
     setBusy(true);
     onErreur(null);
-    adminUpsertItem({
-      id: brouillon.id.trim(),
-      kind: brouillon.kind,
-      price: Number(brouillon.price) || 0,
-      active: brouillon.active,
-      name: brouillon.name.trim(),
-      hint: brouillon.hint.trim(),
-      data:
-        brouillon.kind === "messages"
-          ? { phrases }
-          : brouillon.kind === "background"
-            ? { css }
-            : { art: brouillon.art },
-      sort: Number(brouillon.sort) || 0,
-    })
-      .then(() => {
+    const id = brouillon.id.trim();
+    // PR19 — On uploade le fichier (s'il y en a un nouveau) avant d'enregistrer
+    // l'article : la fonction serverFn renvoie l'URL publique à stocker.
+    // Si l'admin n'a pas choisi de fichier mais a vidé assetUrl via
+    // « Retirer », on renvoie `null` pour clear la colonne en base.
+    const upload = async (): Promise<string | null | undefined> => {
+      if (brouillon.assetFile) {
+        // PR19-fix — Encodage base64 par boucle, pas par spread : un
+        // spread `...new Uint8Array(buffer)` crève la pile V8 au-delà
+        // d'environ 125 Ko (la limite d'arguments d'un appel). Pour un
+        // MP3 de 500 Ko (~500 000 octets), on obtenait :
+        //   RangeError: Maximum call stack size exceeded
+        // Une boucle concatène sans spread : aucun risque de pile.
+        const bytes = new Uint8Array(await brouillon.assetFile.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+        const base64 = btoa(bin);
+        const r = await uploadShopAsset({
+          data: { id, mime: brouillon.assetFile.type, base64 },
+        });
+        return r.url;
+      }
+      // Pas de nouveau fichier : si l'admin a cliqué « Retirer »,
+      // brouillon.assetUrl est vide → on retourne null pour clear.
+      // Sinon, on retourne `undefined` pour ne pas toucher à la colonne
+      // (un nouvel article qui n'a jamais eu d'asset ne doit pas écrire
+      // `null` et fausser l'état).
+      if (!brouillon.assetUrl.trim()) return null;
+      return undefined;
+    };
+    upload()
+      .then(async (assetUrl) => {
+        await adminUpsertItem({
+          id,
+          kind: brouillon.kind,
+          price: Number(brouillon.price) || 0,
+          active: brouillon.active,
+          name: brouillon.name.trim(),
+          hint: brouillon.hint.trim(),
+          data:
+            brouillon.kind === "messages"
+              ? { phrases }
+              : brouillon.kind === "background"
+                ? { css }
+                : brouillon.kind === "sound"
+                  ? { soundId: brouillon.soundId.trim() }
+                  : { art: brouillon.art },
+          sort: Number(brouillon.sort) || 0,
+        });
+        // PR19 — L'asset_url est posé dans une RPC dédiée (pas dans
+        // admin_upsert_item) pour ne pas casser le contrat existant.
+        // - assetUrl string  → on écrit cette URL (upload)
+        // - assetUrl null     → on clear (l'admin a retiré)
+        // - assetUrl undefined → on ne touche pas (article sans asset)
+        if (assetUrl !== undefined) {
+          await adminSetItemAsset(id, assetUrl);
+        }
         rafraichir();
         setBrouillon(null);
       })
@@ -236,6 +381,10 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
       <span className="text-2xl">💬</span>
     ) : b.kind === "background" ? (
       <ApercuFond css={b.css} className="h-12 w-20" />
+    ) : b.kind === "sound" ? (
+      // PR16 — Aperçu d'un son : on utilise le sticker-son (snd_*)
+      // correspondant si le soundId est connu, sinon une icône générique.
+      <Sticker id={`snd_${b.soundId === "laugh" ? "rire" : b.soundId === "cry" ? "pleurer" : b.soundId === "taunt" ? "moquerie" : b.soundId === "cheer" ? "felicitations" : "rire"}`} className="h-11 w-11" />
     ) : b.kind === "avatar" ? (
       <PlayerAvatar className="h-12 w-12" profile={{ avatar_kind: b.art }} />
     ) : (
@@ -272,6 +421,7 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
           <option value="sticker">Stickers</option>
           <option value="messages">Messages</option>
           <option value="background">Tapis de jeu</option>
+          <option value="sound">Sons</option>
         </FiltrePill>
         <FiltrePill
           label="Statut"
@@ -377,8 +527,34 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                     </button>
                   ))}
                 </div>
+                {/* PR19 — Upload d'une image custom (remplace le CSS). */}
+                <ChampUploadAsset
+                  label="Image custom (PNG/JPG/WebP, max 5 Mo)"
+                  accept="image/png,image/jpeg,image/webp"
+                  currentUrl={brouillon.assetUrl}
+                  file={brouillon.assetFile}
+                  onFile={(f) => setBrouillon({ ...brouillon, assetFile: f })}
+                  onClearUrl={() => setBrouillon({ ...brouillon, assetUrl: "" })}
+                />
               </div>
             </div>
+          ) : brouillon.kind === "sound" ? (
+            // PR13 — Sélecteur de soundId (un son par article). On liste
+            // uniquement les sons qui ont du sens comme réaction libre
+            // (rire, pleurer, moquerie, félicitations).
+            <label className="mt-2 block text-[0.68rem] text-muted-foreground">
+              Identifiant du son (à choisir parmi les sons disponibles)
+              <select
+                value={brouillon.soundId}
+                onChange={(e) => setBrouillon({ ...brouillon, soundId: e.target.value })}
+                className="mt-0.5 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="laugh">laugh — Rire franc</option>
+                <option value="cry">cry — Sanglot</option>
+                <option value="taunt">taunt — Moquerie</option>
+                <option value="cheer">cheer — Félicitations</option>
+              </select>
+            </label>
           ) : (
             <div className="mt-2">
               <p className="text-[0.68rem] text-muted-foreground">Dessin</p>
@@ -401,6 +577,31 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                   </button>
                 ))}
               </div>
+              {/* PR19 — Upload d'un sticker custom (PNG/SVG transparent). */}
+              <ChampUploadAsset
+                label="Sticker custom (PNG/SVG, max 5 Mo)"
+                accept="image/png,image/svg+xml"
+                currentUrl={brouillon.assetUrl}
+                file={brouillon.assetFile}
+                onFile={(f) => setBrouillon({ ...brouillon, assetFile: f })}
+                onClearUrl={() => setBrouillon({ ...brouillon, assetUrl: "" })}
+              />
+            </div>
+          )}
+
+          {/* PR19 — Champ upload pour les sons : on l'affiche juste après le
+              sélecteur de soundId (ci-dessus) pour permettre à l'admin de
+              remplacer la synthèse par un fichier audio custom. */}
+          {brouillon.kind === "sound" && (
+            <div className="mt-2">
+              <ChampUploadAsset
+                label="Fichier audio (MP3/OGG/WAV, max 5 Mo) — remplace la synthèse"
+                accept="audio/mpeg,audio/ogg,audio/wav"
+                currentUrl={brouillon.assetUrl}
+                file={brouillon.assetFile}
+                onFile={(f) => setBrouillon({ ...brouillon, assetFile: f })}
+                onClearUrl={() => setBrouillon({ ...brouillon, assetUrl: "" })}
+              />
             </div>
           )}
 
@@ -476,6 +677,14 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                               <Sticker id={i.art ?? i.id} className="h-8 w-8" />
                             ) : i.kind === "background" ? (
                               <ApercuFond css={i.css ?? ""} className="h-8 w-14" />
+                            ) : i.kind === "sound" ? (
+                              // PR16 — Aperçu d'un son dans le tableau : on
+                              // utilise le sticker-son correspondant au
+                              // soundId, ou un placeholder si non connu.
+                              <Sticker
+                                id={`snd_${i.soundId === "laugh" ? "rire" : i.soundId === "cry" ? "pleurer" : i.soundId === "taunt" ? "moquerie" : i.soundId === "cheer" ? "felicitations" : "rire"}`}
+                                className="h-8 w-8"
+                              />
                             ) : (
                               <span className="text-xl">💬</span>
                             )}
@@ -486,7 +695,9 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
                               {i.id} · {i.hint}
                               {i.kind === "messages"
                                 ? ` · ${(i.phrases ?? []).length} phrases`
-                                : ""}
+                                : i.kind === "sound" && i.soundId
+                                  ? ` · son : ${i.soundId}`
+                                  : ""}
                             </div>
                           </div>
                         </div>
@@ -582,6 +793,7 @@ function PillKind({ kind }: { kind: ShopKind }) {
     sticker: { label: "Sticker", cls: "border-warning/40 bg-warning/10 text-warning" },
     messages: { label: "Messages", cls: "border-success/40 bg-success/10 text-success" },
     background: { label: "Tapis", cls: "border-gold/40 bg-gold/10 text-gold" },
+    sound: { label: "Son", cls: "border-primary/40 bg-primary/10 text-primary" },
   };
   const c = config[kind];
   return (

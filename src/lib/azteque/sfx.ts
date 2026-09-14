@@ -303,6 +303,8 @@ export const SOUND_IDS = [
   "chuckle",
   "taunt",
   "cheer",
+  "laugh",
+  "cry",
   "trumpLaugh",
   "sweepLaugh",
   "landslideLaugh",
@@ -327,6 +329,8 @@ export const SOUND_LABELS: Record<SoundId, string> = {
   chuckle: "Rire — compte annoncé",
   taunt: "Rire moqueur — tour perdu",
   cheer: "Acclamations — tour gagné",
+  laugh: "Rire franc — réaction libre",
+  cry: "Sanglot — mauvais sort",
   trumpLaugh: "Rire — atout annoncé",
   sweepLaugh: "Rire — tas raflé (Atout 10)",
   landslideLaugh: "Rire — tour dominé (13 bonnes ou plus)",
@@ -371,6 +375,8 @@ export const SOUND_EXTRAS: Record<SoundId, (keyof SoundTuning)[]> = {
   snicker: ["syllables", "step", "vowel"],
   chuckle: ["syllables", "step", "vowel"],
   taunt: ["syllables", "step", "vowel"],
+  laugh: ["syllables", "step", "vowel"],
+  cry: ["syllables", "step", "vowel"],
   cheer: ["voices", "claps"],
   trumpLaugh: ["syllables", "step", "vowel"],
   sweepLaugh: ["syllables", "step", "vowel"],
@@ -507,6 +513,8 @@ const DEFAUTS_PAR_SON: Record<SoundId, Partial<SoundTuning>> = {
   snicker: { syllables: 3, step: 0.9, vowel: 1 },
   chuckle: { syllables: 4, step: 1.02, vowel: 1 },
   taunt: { syllables: 5, step: 0.9, vowel: 0 },
+  laugh: { syllables: 4, step: 1.0, vowel: 1 },
+  cry: { syllables: 3, step: 0.85, vowel: 2 },
   cheer: { voices: 14, claps: 80 },
   trumpLaugh: { syllables: 2, step: 1.08, vowel: 0 },
   sweepLaugh: { syllables: 4, step: 0.92, vowel: 0 },
@@ -705,6 +713,30 @@ export const sfx = {
     if (echantillon("taunt")) return;
     const { g, p, s, syllabes, pas, voyelle } = reglage("taunt");
     rire(0, { syllabes, f0: 210 * p, pas, tempo: 0.21 * s, voyelle, gain: 0.28 * g });
+  },
+  /** PR13 — Rire franc : intermédiaire entre moquerie et acclamation,
+   *  syllabes courtes, hauteur moyenne, sans descendre. C'est la valeur
+   *  libre du rire : l'utilisateur l'envoie quand il veut, sans contexte. */
+  laugh() {
+    if (echantillon("laugh")) return;
+    const { g, p, s, syllabes, pas, voyelle } = reglage("laugh");
+    rire(0, { syllabes, f0: 280 * p, pas, tempo: 0.16 * s, voyelle, gain: 0.24 * g });
+  },
+  /** PR13 — Sanglot : trois hoquets descendants, plus une expiration
+   *  bruyante en bruit blanc filtré. Pas de rire sous-jacent — un
+   *  sanglot, pas une complainte chantée. */
+  cry() {
+    if (echantillon("cry")) return;
+    const { g, p, s } = reglage("cry");
+    // Trois syllabes descendantes très brèves : « heu heu heu »
+    for (let i = 0; i < 3; i += 1) {
+      const t0 = i * 0.18 * s;
+      const f0 = 380 * p - i * 50 * p;
+      tone(t0, f0, 0.07 * s, 0.05 * g, "sawtooth", 220 * p);
+      tone(t0 + 0.04 * s, f0 * 0.9, 0.05 * s, 0.03 * g, "sine");
+    }
+    // Expiration finale
+    noise(0.55 * s, 0.25 * s, 0.04 * g, 1800 * p, 600 * p, "bandpass");
   },
   /**
    * Acclamations : une foule, et non une note de victoire.

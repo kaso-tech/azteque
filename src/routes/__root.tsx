@@ -149,11 +149,55 @@ function RootShell({ children }: { children: ReactNode }) {
           }}
         />
       </head>
-      <body>
+      <body className="flex min-h-screen flex-col">
         {children}
+        {/* Pied de page global : liens juridiques. Caché pendant le jeu
+            pour ne pas masquer la table ; visible partout ailleurs. */}
+        <LegalFooter />
         <Scripts />
       </body>
     </html>
+  );
+}
+
+import { useRouterState } from "@tanstack/react-router";
+
+/**
+ * Mini-footer avec les liens juridiques (CGU, confidentialité, contact).
+ * Apparaît sur toutes les pages SAUF pendant une partie (index / match.$id)
+ * où il masquerait la table. Le footer reste fixe en bas, discret.
+ */
+function LegalFooter() {
+  const { location } = useRouterState();
+  const path = location.pathname;
+  // Pas de footer pendant le jeu solo ou en ligne : il volerait la place
+  // utile en bas de l'écran et distrairait pendant les plis.
+  if (path === "/" || path.startsWith("/match/")) return null;
+  return (
+    <footer className="mt-auto border-t border-border/60 bg-card/40 py-3 text-center text-[0.7rem] text-muted-foreground">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4">
+        <Link
+          to="/cgu"
+          className="text-gold underline-offset-2 hover:underline"
+        >
+          Conditions d'utilisation
+        </Link>
+        <span className="text-border">·</span>
+        <Link
+          to="/confidentialite"
+          className="text-gold underline-offset-2 hover:underline"
+        >
+          Politique de confidentialité
+        </Link>
+        <span className="text-border">·</span>
+        <a
+          href="mailto:contact@azteque.app"
+          className="text-gold underline-offset-2 hover:underline"
+        >
+          Contact
+        </a>
+      </div>
+    </footer>
   );
 }
 
@@ -171,6 +215,12 @@ function RootComponent() {
   // bloquer quoi que ce soit — à défaut, les valeurs du code font foi.
   useEffect(() => {
     void import("@/lib/azteque/admin").then((m) => m.loadSoundSettings());
+  }, []);
+
+  // Toutes les images de cartes sont mises en cache dès l'ouverture : sans
+  // cela, une carte s'affiche blanche le temps de télécharger son dessin.
+  useEffect(() => {
+    void import("@/lib/azteque/card-preload").then((m) => m.preloadCardAssets());
   }, []);
 
   // Un lien de parrainage porte le code dans l'adresse. Il faut le mettre de

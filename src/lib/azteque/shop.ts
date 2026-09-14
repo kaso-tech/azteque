@@ -14,7 +14,7 @@ import { BACKGROUND_PRESETS, backgroundImage } from "@/lib/azteque/backgrounds";
  * `buy_item` relit le prix qu'elle tient.
  */
 
-export type ShopKind = "avatar" | "sticker" | "messages" | "background";
+export type ShopKind = "avatar" | "sticker" | "messages" | "background" | "sound";
 
 export interface ShopItem {
   id: string;
@@ -30,6 +30,15 @@ export interface ShopItem {
   phrases?: string[] | undefined;
   /** L'image, pour un tapis : une valeur CSS `background-image`. */
   css?: string | undefined;
+  /** L'identifiant du son dans sfx (pour un son). */
+  soundId?: string | undefined;
+  /**
+   * PR19 — URL publique d'un fichier uploadé par l'admin via Supabase
+   * Storage. Pour un sticker, remplace le SVG inline. Pour un son,
+   * remplace la synthèse sfx. Pour un tapis, remplace le CSS dégradé.
+   * Si absent, le code utilise le fallback (SVG, sfx, BACKGROUND_PRESETS).
+   */
+  assetUrl?: string | null;
   sort: number;
 }
 
@@ -233,6 +242,49 @@ export const FALLBACK_ITEMS: ShopItem[] = [
     sort: 180,
     css: BACKGROUND_PRESETS["bg_or"],
   },
+  // PR13 — Sons achetable (500 jetons par défaut). La console admin peut
+  // modifier le prix (y compris à 0 pour rendre gratuit) et désactiver
+  // chaque son. L'identifiant `soundId` est partagé avec sfx.SoundId.
+  {
+    id: "snd_rire",
+    kind: "sound",
+    name: "Rire",
+    hint: "Un rire franc, à envoyer après un beau coup",
+    price: 500,
+    active: true,
+    sort: 200,
+    soundId: "laugh",
+  },
+  {
+    id: "snd_pleurer",
+    kind: "sound",
+    name: "Pleurer",
+    hint: "Un sanglot pour les mauvais sorts",
+    price: 500,
+    active: true,
+    sort: 210,
+    soundId: "cry",
+  },
+  {
+    id: "snd_moquerie",
+    kind: "sound",
+    name: "Moquerie",
+    hint: "Le rire moqueur, sur un tour perdu",
+    price: 500,
+    active: true,
+    sort: 220,
+    soundId: "taunt",
+  },
+  {
+    id: "snd_felicitations",
+    kind: "sound",
+    name: "Félicitations",
+    hint: "L'acclamation, sur un tour gagné",
+    price: 500,
+    active: true,
+    sort: 230,
+    soundId: "cheer",
+  },
 ];
 
 let catalogue: ShopItem[] = FALLBACK_ITEMS;
@@ -246,7 +298,9 @@ interface Ligne {
   hint: string | null;
   price: number;
   active?: boolean;
-  data?: { art?: string; phrases?: string[]; css?: string } | null;
+  data?: { art?: string; phrases?: string[]; css?: string; soundId?: string } | null;
+  /** PR19 — URL publique du fichier uploadé (Supabase Storage). */
+  asset_url?: string | null;
   sort?: number;
 }
 
@@ -254,7 +308,7 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
   return rows
     .map((r) => ({
       id: r.id,
-      kind: (["avatar", "sticker", "messages", "background"].includes(r.kind)
+      kind: (["avatar", "sticker", "messages", "background", "sound"].includes(r.kind)
         ? r.kind
         : "sticker") as ShopKind,
       name: r.name ?? r.id,
@@ -266,6 +320,10 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       // Un tapis installé avant que la console ne sache l'écrire n'a pas encore
       // son image en base : le préréglage du code prend alors le relais.
       css: r.data?.css ?? BACKGROUND_PRESETS[r.id],
+      // PR13 — Identifiant du son (pour un son acheté).
+      soundId: r.data?.soundId,
+      // PR19 — URL publique du fichier uploadé (sticker/son/tapis custom).
+      assetUrl: r.asset_url ?? null,
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));
@@ -287,7 +345,7 @@ export async function loadCatalogue(force = false): Promise<ShopItem[]> {
         supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
       )
         .from("shop_items")
-        .select("id, kind, name, hint, price, active, data, sort");
+        .select("id, kind, name, hint, price, active, data, asset_url, sort");
       if (error || !data || (data as unknown[]).length === 0) return catalogue;
       catalogue = depuisLaBase(data as unknown as Ligne[]);
       abonnes.forEach((f) => f(catalogue));
@@ -335,6 +393,11 @@ export function equippedBackground(
   if (!kind) return null;
   const item = items.find((i) => i.id === kind);
   if (item && item.kind !== "background") return null;
+  // PR19 — Si l'admin a uploadé un fichier custom, on l'utilise tel quel
+  // (pas de sanitisation URL : les fichiers passent par Supabase Storage,
+  // on fait confiance à leur URL publique). Sinon, on retombe sur le CSS
+  // historique (dégradé dessiné) ou sur le préréglage du code.
+  if (item?.assetUrl) return `url("${item.assetUrl}")`;
   return backgroundImage(item?.css, kind);
 }
 
@@ -344,4 +407,12 @@ export function ownedStickers(
   items: ShopItem[] = catalogue,
 ): ShopItem[] {
   return items.filter((i) => i.kind === "sticker" && owned.has(i.id));
+}
+
+/** PR14 — Les sons achetés, dans l'ordre du catalogue. */
+export function ownedSounds(
+  owned: ReadonlySet<string>,
+  items: ShopItem[] = catalogue,
+): ShopItem[] {
+  return items.filter((i) => i.kind === "sound" && owned.has(i.id));
 }

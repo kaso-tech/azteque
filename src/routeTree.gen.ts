@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as BoutiqueRouteImport } from './routes/boutique'
+import { Route as CguRouteImport } from './routes/cgu'
+import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as OnlineRouteImport } from './routes/online'
 import { Route as MatchIdRouteImport } from './routes/match.$id'
 
@@ -30,6 +32,16 @@ const BoutiqueRoute = BoutiqueRouteImport.update({
   path: '/boutique',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CguRoute = CguRouteImport.update({
+  id: '/cgu',
+  path: '/cgu',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
+  id: '/confidentialite',
+  path: '/confidentialite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnlineRoute = OnlineRouteImport.update({
   id: '/online',
   path: '/online',
@@ -45,6 +57,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/boutique': typeof BoutiqueRoute
+  '/cgu': typeof CguRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/online': typeof OnlineRoute
   '/match/$id': typeof MatchIdRoute
 }
@@ -52,6 +66,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/boutique': typeof BoutiqueRoute
+  '/cgu': typeof CguRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/online': typeof OnlineRoute
   '/match/$id': typeof MatchIdRoute
 }
@@ -60,21 +76,47 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/boutique': typeof BoutiqueRoute
+  '/cgu': typeof CguRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/online': typeof OnlineRoute
   '/match/$id': typeof MatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/boutique' | '/online' | '/match/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/boutique'
+    | '/cgu'
+    | '/confidentialite'
+    | '/online'
+    | '/match/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/boutique' | '/online' | '/match/$id'
-  id: '__root__' | '/' | '/admin' | '/boutique' | '/online' | '/match/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/boutique'
+    | '/cgu'
+    | '/confidentialite'
+    | '/online'
+    | '/match/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/boutique'
+    | '/cgu'
+    | '/confidentialite'
+    | '/online'
+    | '/match/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BoutiqueRoute: typeof BoutiqueRoute
+  CguRoute: typeof CguRoute
+  ConfidentialiteRoute: typeof ConfidentialiteRoute
   OnlineRoute: typeof OnlineRoute
   MatchIdRoute: typeof MatchIdRoute
 }
@@ -102,6 +144,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BoutiqueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cgu': {
+      id: '/cgu'
+      path: '/cgu'
+      fullPath: '/cgu'
+      preLoaderRoute: typeof CguRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confidentialite': {
+      id: '/confidentialite'
+      path: '/confidentialite'
+      fullPath: '/confidentialite'
+      preLoaderRoute: typeof ConfidentialiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/online': {
       id: '/online'
       path: '/online'
@@ -123,6 +179,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BoutiqueRoute: BoutiqueRoute,
+  CguRoute: CguRoute,
+  ConfidentialiteRoute: ConfidentialiteRoute,
   OnlineRoute: OnlineRoute,
   MatchIdRoute: MatchIdRoute,
 }

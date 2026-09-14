@@ -21,6 +21,31 @@ import {
   setBackgroundKind,
   type Profile,
 } from "@/lib/azteque/account";
+import { sfx } from "@/lib/azteque/sfx";
+
+/**
+ * Joue un son au clic, à partir de son soundId (lu dans data.soundId).
+ * Pour l'instant les sons sont synthétisés côté client ; plus tard la
+ * console admin pourra poser une URL d'upload (PR19).
+ */
+function playSound(soundId: string) {
+  switch (soundId) {
+    case "laugh":
+      sfx.laugh();
+      break;
+    case "cry":
+      sfx.cry();
+      break;
+    case "taunt":
+      sfx.taunt();
+      break;
+    case "cheer":
+      sfx.cheer();
+      break;
+    default:
+      break;
+  }
+}
 
 export const Route = createFileRoute("/boutique")({
   head: () => ({
@@ -254,7 +279,52 @@ function Boutique() {
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {visibles("sticker").map((s) =>
-            carte(s, <Sticker id={s.art ?? s.id} className="h-16 w-16" />),
+            carte(
+              s,
+              <Sticker
+                id={s.art ?? s.id}
+                assetUrl={s.assetUrl ?? null}
+                className="h-16 w-16"
+              />,
+            ),
+          )}
+        </div>
+      </section>
+
+      <section className="panel px-4 py-4">
+        <h2 className="font-display text-lg text-gold">Sons</h2>
+        <p className="text-xs text-muted-foreground">
+          À envoyer dans la discussion pendant la partie, pour les deux
+          joueurs en même temps. Cliquez sur « Écouter » pour vous faire
+          une idée.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {visibles("sound").map((s) =>
+            carte(
+              s,
+              <Sticker
+                id={s.id}
+                assetUrl={s.assetUrl ?? null}
+                className="h-16 w-16"
+              />,
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  if (s.assetUrl) {
+                    // PR19 — Son custom uploadé : on joue le fichier.
+                    const audio = new Audio(s.assetUrl);
+                    audio.volume = 0.8;
+                    void audio.play();
+                  } else if (s.soundId) {
+                    playSound(s.soundId);
+                  }
+                }}
+                className="rounded-full border border-gold/40 px-3 py-1 text-[0.7rem] font-semibold text-gold hover:bg-gold/10"
+              >
+                ▶ Écouter
+              </button>,
+            ),
           )}
         </div>
       </section>

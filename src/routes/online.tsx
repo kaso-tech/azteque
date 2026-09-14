@@ -233,6 +233,11 @@ function OnlineLobby() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-5 px-6 py-12 text-center">
       <h1 className="gold-text text-4xl">Jouer en ligne</h1>
       {children}
+      {/* PR18 — Accès rapide à la boutique depuis le salon. La boutique
+          elle-même est aussi accessible via le lien dans le profil joueur. */}
+      <Link to="/boutique" className="text-xs text-gold underline">
+        Visiter la boutique
+      </Link>
       <Link to="/" className="text-xs text-gold underline">
         Retour au menu
       </Link>

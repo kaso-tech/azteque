@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
 import { Sticker, isSticker } from "@/components/azteque/stickers";
-import { ownedPhrases, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
+import { ownedPhrases, ownedSounds, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
 
 const QUICK_PHRASES = [
   "Bien joué !",
@@ -27,6 +27,9 @@ interface Props {
   myName: string;
   /** Articles achetés en boutique : stickers et lots de messages. */
   owned?: ReadonlySet<string>;
+  /** PR12 — Refs vers les avatars du header, pour ancrer les bulles. */
+  myAvatarRef?: RefObject<HTMLDivElement | null>;
+  oppAvatarRef?: RefObject<HTMLDivElement | null>;
 }
 
 interface Bubble extends ChatMessage {
@@ -38,12 +41,13 @@ interface Bubble extends ChatMessage {
 const bulle =
   "max-w-[85%] animate-[banner-in_180ms_ease-out] rounded-full border bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold";
 
-export function MatchChat({ matchId, seat, myName, owned }: Props) {
+export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatarRef }: Props) {
   const vide = useMemo(() => new Set<string>(), []);
   const acquis = owned ?? vide;
   const catalogue = useCatalogue();
   const mesStickers = useMemo(() => ownedStickers(acquis, catalogue), [acquis, catalogue]);
   const mesPhrases = useMemo(() => ownedPhrases(acquis, catalogue), [acquis, catalogue]);
+  const mesSons = useMemo(() => ownedSounds(acquis, catalogue), [acquis, catalogue]);
   const [open, setOpen] = useState(false);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
@@ -52,6 +56,21 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
   useEffect(() => {
     const chat = openChat(matchId, (msg) => {
       setBubbles((b) => [...b.slice(-5), { ...msg, mine: false, at: Date.now() }]);
+      // PR19 — Si l'adversaire a envoyé un fichier audio custom, on le joue.
+      if (msg.soundUrl) {
+        const audio = new Audio(msg.soundUrl);
+        audio.volume = 0.8;
+        void audio.play();
+      } else if (msg.soundId) {
+        // PR14 — Lecture du son à la réception d'un sticker-son.
+        switch (msg.soundId) {
+          case "laugh": sfx.laugh(); break;
+          case "cry": sfx.cry(); break;
+          case "taunt": sfx.taunt(); break;
+          case "cheer": sfx.cheer(); break;
+          default: break;
+        }
+      }
       if (msg.reaction === "taunt") sfx.taunt();
       if (msg.reaction === "cheer") sfx.cheer();
     });
@@ -61,6 +80,39 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
       chatRef.current = null;
     };
   }, [matchId]);
+
+  // PR12 — Calcul de la position sous chaque avatar. La bulle est ancrée au
+  // centre horizontal de l'avatar et à `bottom: rect.top` (juste sous le
+  // header). Le décalage vertical `extra` permet d'empiler les bulles
+  // successives sans chevauchement.
+  const [positions, setPositions] = useState<
+    Record<string, { left: number; top: number }>
+  >({});
+  useEffect(() => {
+    if (bubbles.length === 0) return;
+    const recalc = () => {
+      const next: Record<string, { left: number; top: number }> = {};
+      for (let i = 0; i < bubbles.length; i += 1) {
+        const b = bubbles[i]!;
+        const ref = b.mine ? myAvatarRef?.current : oppAvatarRef?.current;
+        if (!ref) continue;
+        const r = ref.getBoundingClientRect();
+        next[b.id] = {
+          left: r.left + r.width / 2,
+          top: r.bottom + 6 + i * 32,
+        };
+      }
+      setPositions(next);
+    };
+    recalc();
+    // Recalcule aussi en cas de resize / scroll de la page.
+    window.addEventListener("resize", recalc);
+    window.addEventListener("scroll", recalc, true);
+    return () => {
+      window.removeEventListener("resize", recalc);
+      window.removeEventListener("scroll", recalc, true);
+    };
+  }, [bubbles, myAvatarRef, oppAvatarRef]);
 
   // Les bulles s'effacent après quelques secondes
   useEffect(() => {
@@ -75,9 +127,11 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
     text: string,
     reaction: "taunt" | "cheer" | null = null,
     sticker: string | null = null,
+    soundId: string | null = null,
+    soundUrl: string | null = null,
   ) => {
     const clean = text.trim().slice(0, 120);
-    if (!clean && !sticker) return;
+    if (!clean && !sticker && !soundId && !soundUrl) return;
     const msg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       seat,
@@ -85,51 +139,100 @@ export function MatchChat({ matchId, seat, myName, owned }: Props) {
       text: clean,
       reaction,
       sticker,
+      soundId,
+      soundUrl,
     };
     chatRef.current?.send(msg);
     setBubbles((b) => [...b.slice(-5), { ...msg, mine: true, at: Date.now() }]);
+    // Lecture du son côté émetteur (l'adversaire lira aussi via l'event
+    // broadcast). On utilise une table de dispatch pour rester compatible
+    // avec n'importe quel SoundId ajouté à l'avenir.
+    if (soundUrl) {
+      const audio = new Audio(soundUrl);
+      audio.volume = 0.8;
+      void audio.play();
+    } else if (soundId) {
+      jouerSon(soundId);
+    }
     if (reaction === "taunt") sfx.taunt();
     if (reaction === "cheer") sfx.cheer();
     setDraft("");
     setOpen(false);
   };
 
+  // PR14 — Lecture d'un son par identifiant. Évite un long switch sur
+  // chaque SoundId. Tout son non reconnu est silencieusement ignoré.
+  const jouerSon = (soundId: string) => {
+    switch (soundId) {
+      case "laugh": sfx.laugh(); break;
+      case "cry": sfx.cry(); break;
+      case "taunt": sfx.taunt(); break;
+      case "cheer": sfx.cheer(); break;
+      default: break;
+    }
+  };
+
   return (
     <>
-      {/* Bulles flottantes */}
-      <div className="pointer-events-none fixed inset-x-0 top-24 z-40 flex flex-col items-center gap-1 px-3">
-        {bubbles.map((b) => (
-          <span
-            key={b.id}
-            className={
-              b.mine
-                ? cn(bulle, "border-gold/50 text-gold")
-                : cn(bulle, "border-border text-foreground")
-            }
-          >
-            {b.sticker && isSticker(b.sticker) ? (
-              <span className="flex items-center gap-1.5">
-                {b.name}
+      {/* PR12 — Bulles ancrées sous chaque avatar, sans le nom de l'auteur
+          (le contexte « qui parle » est donné par l'avatar juste au-dessus). */}
+      <div className="pointer-events-none fixed inset-0 z-40">
+        {bubbles.map((b) => {
+          const pos = positions[b.id];
+          if (!pos) return null;
+          return (
+            <span
+              key={b.id}
+              className={cn(
+                bulle,
+                "absolute -translate-x-1/2",
+                b.mine
+                  ? "border-gold/50 text-gold"
+                  : "border-border text-foreground",
+              )}
+              style={{ left: pos.left, top: pos.top }}
+            >
+              {b.sticker && isSticker(b.sticker) ? (
                 <Sticker id={b.sticker} className="h-7 w-7" />
-              </span>
-            ) : (
-              <>
-                {b.name} : {b.text}
-              </>
-            )}
-          </span>
-        ))}
+              ) : (
+                b.text
+              )}
+            </span>
+          );
+        })}
       </div>
 
-      {/* Bouton d'ouverture */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Ouvrir la discussion"
-        className="fixed bottom-4 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-gold/50 bg-felt-deep/95 text-lg text-gold shadow-lg"
-      >
-        💬
-      </button>
+      {/* PR14 — Barre de boutons stickers-sons, à droite du bouton Message.
+          Chaque bouton représente un son acheté ; au clic, le sticker visuel
+          est diffusé à l'adversaire et le son se joue localement. Les sons
+          non-achetés n'apparaissent pas (filtre par owned). */}
+      <div className="fixed bottom-4 right-4 z-40 flex items-end gap-2">
+        {mesSons.length > 0 && (
+          <div className="flex gap-1.5">
+            {mesSons.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                title={s.name}
+                onClick={() =>
+                  send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)
+                }
+                className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
+              >
+                <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-6 w-6" />
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Ouvrir la discussion"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/50 bg-felt-deep/95 text-lg text-gold shadow-lg"
+        >
+          💬
+        </button>
+      </div>
 
       {open && (
         <div className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md rounded-t-2xl border border-gold/35 bg-felt-deep/98 p-3 shadow-2xl">

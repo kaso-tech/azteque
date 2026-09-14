@@ -92,25 +92,31 @@ describe("anticipate", () => {
     expect(n.gains[1].filter(isBonne).length).toBe(4);
     // Le tas déjà encaissé n'est pas touché : seul ce qui est encore caché part.
     expect(n.gains[0].filter(isBonne).length).toBe(1);
-    // Rien ne reste à prendre là où c'était caché.
+    // Le tour étant clos, mains et talon sont vidés : plus rien ne traîne
+    // qu'un décompte pourrait compter deux fois.
     expect(n.hands[0].some(isBonne)).toBe(false);
     expect(n.stock.some(isBonne)).toBe(false);
-    // Les cartes sans valeur restent où elles étaient.
-    expect(n.hands[0].map((c) => c.rank)).toEqual(["K"]);
-    expect(n.stock.map((c) => c.rank)).toEqual(["9"]);
+    // Total conservé : les quatre bonnes cédées et celle déjà encaissée sont
+    // exactement les cinq du départ, aucune n'a été créée ni perdue.
+    expect(n.gains[0].filter(isBonne).length + n.gains[1].filter(isBonne).length).toBe(5);
   });
 
-  it("laisse intactes les bonnes de l'adversaire", () => {
+  it("ne crédite pas à l'anticipateur les bonnes de l'adversaire", () => {
     const s = makeState({
       turn: 1,
+      // L'adversaire garde un As en main : il n'a rien encaissé, et cet As ne
+      // doit profiter à personne — seules les bonnes DU tas comptent.
       hands: [[card("A", "D")], [card("10", "C")]],
       stock: [card("A", "S")],
     });
 
     const n = anticipate(s, 1);
 
-    expect(n.hands[0].map((c) => c.rank)).toEqual(["A"]);
+    // Le 10 de sa main et l'As du talon partent chez l'adversaire.
     expect(n.gains[0].filter(isBonne).length).toBe(2);
+    // L'anticipateur, lui, n'encaisse rien.
+    expect(n.gains[1].filter(isBonne).length).toBe(0);
+    expect(n.roundScore![0].bonnes).toBe(2);
   });
 
   it("clôt le tour et le compte", () => {
@@ -148,6 +154,26 @@ describe("anticipate", () => {
     // Égalité : le tour est rejoué.
     expect(n.roundWinner).toBeNull();
     expect(n.pont).toBe(true);
+  });
+
+  it("ne permet pas d'escamoter la carte déjà engagée par l'adversaire", () => {
+    // Le trou que ferme `canAnticipate` : l'adversaire mène son 10 d'atout,
+    // le joueur ne peut pas le battre, et il arrêtait le tour pour faire
+    // disparaître cette carte du jeu — elle ne revenait alors à personne,
+    // alors qu'elle était engagée.
+    const dixAtout = card("10", "S");
+    const s = makeState({
+      trump: "S",
+      turn: 1,
+      trick: [{ player: 0, card: dixAtout }],
+      hands: [[card("7", "H")], [card("8", "H"), card("A", "C")]],
+    });
+
+    expect(canAnticipate(s, 1)).toBe(false);
+    expect(anticipate(s, 1)).toBe(s);
+    // La carte est toujours au milieu, le tour continue.
+    expect(s.trick).toHaveLength(1);
+    expect(s.phase).toBe("playing");
   });
 
   it("refuse d'agir quand l'anticipation n'est pas ouverte", () => {

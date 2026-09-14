@@ -9,6 +9,7 @@ import {
   aiWantsRedeal,
   announce,
   anticipate,
+  canAnticipate,
   availableMelds,
   drawNext,
   hasMainBlanche,
@@ -33,7 +34,6 @@ import {
   TrickPosition,
   TurnBar,
 } from "@/components/azteque/table";
-import { AnticipationButton } from "@/components/azteque/anticipation";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { InstallPrompt } from "@/components/azteque/install-prompt";
 import { cn } from "@/lib/utils";
@@ -60,11 +60,14 @@ import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import {
   CoinBurst,
   CollectCard,
+  DUREE_PIOCHE,
   DrawCard,
   angleOf,
   FlyingCard,
   SweepCard,
   useCardFlight,
+  useVolArrivee,
+  centreDuSlotLibre,
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
@@ -193,12 +196,7 @@ function Azteque() {
   // Où elle doit se poser : la place de CELUI qui l'a jouée. Le relais avec la
   // carte qui s'y découvre est un échange net, sans fondu — il ne passe
   // inaperçu que si les deux occupent exactement le même point.
-  const volArrivee = (() => {
-    if (!flight) return null;
-    const joueur = state.trick.find((e) => e.card.id === flight.card.id)?.player;
-    const place = joueur === undefined ? null : center(trickCardRefs[joueur].current);
-    return place ?? center(tableRef.current) ?? flight.from;
-  })();
+  const volArrivee = useVolArrivee(flight, state.trick, trickCardRefs, tableRef);
   const aiRedealChecked = useRef(-1);
   const askedForName = useRef(false);
   // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
@@ -657,17 +655,20 @@ function Azteque() {
 
     const t = setTimeout(() => {
       const from = center(stockRef.current);
-      const to = center(player === 0 ? playerHandRef.current : opponentHandRef.current);
+      // Elle vise l'emplacement libre qu'elle vient combler, pas le milieu de
+      // la main : sinon elle atterrit au centre puis saute jusqu'à sa place.
+      const to = centreDuSlotLibre(player === 0 ? playerHandRef.current : opponentHandRef.current);
       if (from && to) {
         setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
         jouerPour(player, () => sfx.draw());
       }
-      // La carte rejoint la main seulement quand l'animation est terminée
+      // La carte rejoint la main exactement à l'arrivée du vol. La main rend
+      // immédiatement son nouveau slot, sans seconde animation d'apparition.
       timers.push(
         setTimeout(() => {
-          setDrawFlights([]);
           setState((s) => drawNext(s));
-        }, 580),
+          setDrawFlights([]);
+        }, DUREE_PIOCHE),
       );
     }, 420);
     timers.push(t);
@@ -681,6 +682,12 @@ function Azteque() {
       return;
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
     if (dealing) return;
+    // PR9+ — Main blanche : si le joueur (côté 0) a une main blanche en début
+    // de tour et que l'IA est sur le point de jouer, on attend que le joueur
+    // tranche (redistribution ou garder). Sinon l'IA joue avant que le joueur
+    // n'ait pu réagir, et le panneau "Demander une redistribution" devient
+    // inopérant. On bloque jusqu'à ce que `redealDone` soit positionné.
+    if (freshRound && hasMainBlanche(state, 0) && !redealDone) return;
     const t = setTimeout(() => {
       // La carte est choisie ICI, hors du calcul de mise à jour : elle doit
       // être connue pour partir en vol EN MÊME TEMPS qu'elle est jouée. Elle
@@ -763,11 +770,19 @@ function Azteque() {
     setStarted(false);
   }, []);
 
-  // Clôture anticipée du tour : le moteur vérifie lui-même que le moment s'y
-  // prête et renvoie l'état inchangé sinon, ce qui laisse `setState` inerte.
-  const anticipateRound = useCallback(() => {
+  // Anticiper la fin du tour : c'est justement en fin de main, quand on sait
+  // la suite perdue, qu'on en a besoin. Le bouton reste donc actif pendant
+  // toute la manche, à ceci près qu'on ne peut pas arrêter le tour au milieu
+  // d'un pli — c'est le moteur qui en décide (`canAnticipate`), et l'interface
+  // se contente de refléter sa réponse plutôt que d'en tenir une deuxième
+  // version, forcément divergente.
+  const [confirmAnticipate, setConfirmAnticipate] = useState(false);
+  const peutAnticiper = started && !dealing && canAnticipate(state, 0);
+
+  const anticipateNow = () => {
+    setConfirmAnticipate(false);
     setState((s) => anticipate(s, 0));
-  }, []);
+  };
 
   // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
   // accepter une invitation pendant qu'on joue devra d'abord passer par
@@ -799,10 +814,13 @@ function Azteque() {
     deal(Math.random() < 0.5 ? 0 : 1, [0, 0]);
   }, [deal]);
 
-  // Changer de niveau en cours de partie reviendrait à finir en Légende un
-  // champ commencé en Facile — et à empocher la récompense du niveau le plus
-  // élevé sans l'avoir affrontée. Tout changement repart donc d'une partie
-  // neuve, quel que soit l'écran par lequel il passe.
+  // Changer de niveau d'IA en cours de partie reviendrait à finir une partie
+  // Facile contre le niveau Légende — et à empocher la récompense du niveau
+  // le plus élevé sans l'avoir affrontée. Tout changement repart donc d'une
+  // partie neuve, quel que soit l'écran par lequel il passe.
+  //
+  // À ne pas confondre avec le grade Elo « Légende » (tier 9 dans
+  // src/lib/azteque/rank.ts), qui est un palier de cote et n'a aucun lien.
   //
   // Mais pas avant que le joueur soit revenu à la table : la donne lancée
   // pendant que le panneau de l'adversaire est encore ouvert se jouait
@@ -829,9 +847,25 @@ function Azteque() {
     });
   };
 
+  // Retour visuel quand on clique pendant un blocage : la main tremble un
+  // instant et un message rappelle que la pioche doit d'abord arriver. On ne
+  // touche plus à l'opacité des cartes.
+  const [piocheFlash, setPiocheFlash] = useState(false);
+  const piocheFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signalBlocage = () => {
+    if (state.drawPending.length === 0) return;
+    setPiocheFlash(true);
+    if (piocheFlashTimer.current) clearTimeout(piocheFlashTimer.current);
+    piocheFlashTimer.current = setTimeout(() => setPiocheFlash(false), 700);
+  };
+
   const playMyCard = (card: Card, el: HTMLElement) => {
     // Impossible de jouer tant que la proposition de compte n'est pas tranchée.
     if (meldDecisionPending) return;
+    // Ni tant qu'une pioche est en cours : la carte volante doit d'abord
+    // rejoindre la main. Ce garde-fou remplace le grisage des cartes, qui
+    // rendait toute la main translucide le temps du vol.
+    if (state.drawPending.length > 0) return;
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
     // pour que le vol prenne le relais sans à-coup.
@@ -986,6 +1020,7 @@ function Azteque() {
               faceDown={(c) => !state.exposed[1].includes(c.id)}
               interactive={false}
               refillable={state.stock.length > 0}
+              animateArrivals={false}
             />
           </div>
           <TurnBar total={TURN_LIMIT} active={oppTurnActive} resetKey={turnKey} />
@@ -1009,17 +1044,19 @@ function Azteque() {
         {/* Aligné sur les mêmes conditions que la barre de temps, pour que
             l'annonce du tour et le compte à rebours apparaissent ensemble.
             L'espace insécable réserve la ligne pendant la pioche. */}
-        {state.trick.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {state.phase !== "playing"
+        {/* Toujours rendue, même une fois la première carte posée : la retirer
+            remonterait la pioche et le pli de toute la hauteur de la ligne. */}
+        <p className="text-sm text-muted-foreground">
+          {state.trick.length > 0
+            ? "\u00a0"
+            : state.phase !== "playing"
               ? "Tour terminé."
               : myTurnActive && !meldDecisionPending
                 ? "À vous de mener."
                 : oppTurnActive
                   ? "L'adversaire réfléchit…"
                   : "\u00a0"}
-          </p>
-        )}
+        </p>
 
         <div className="grid grid-cols-[4.5rem_3.75rem_4.5rem] items-center gap-2 sm:gap-4">
           <div ref={trickSlotRefs[1]}>
@@ -1029,6 +1066,7 @@ function Azteque() {
               hidden={collect.length > 0}
               vols={etat}
               cardRef={trickCardRefs[1]}
+              showLabel={false}
             />
           </div>
 
@@ -1060,6 +1098,7 @@ function Azteque() {
               hidden={collect.length > 0}
               vols={etat}
               cardRef={trickCardRefs[0]}
+              showLabel={false}
             />
           </div>
         </div>
@@ -1134,21 +1173,45 @@ function Azteque() {
         {/* Pendant la donne, la main garde sa place — ses cases servent de
             cibles aux cartes qui arrivent — mais reste invisible : on ne
             distribue pas des cartes déjà posées. */}
-        <div ref={playerHandRef} style={{ opacity: dealing ? 0 : 1 }}>
+        {/* Message de blocage : hauteur réservée pour ne pas faire bouger
+            la main quand il apparaît. */}
+        <div className="flex h-5 items-center justify-center" aria-live="polite">
+          {piocheFlash && (
+            <span className="animate-banner rounded-full border border-gold/40 bg-felt-deep/70 px-3 py-0.5 text-[0.68rem] font-semibold text-gold">
+              Pioche en cours…
+            </span>
+          )}
+        </div>
+        <div
+          ref={playerHandRef}
+          className={piocheFlash ? "animate-blocked-shake" : undefined}
+          style={{ opacity: dealing ? 0 : 1 }}
+        >
           <HandRow
             cards={state.hands[0]}
             exposedIds={state.exposed[0]}
             refillable={state.stock.length > 0}
             fan
+            animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
+              state.drawPending.length > 0 ||
               state.turn !== 0 ||
               state.phase !== "playing" ||
               state.trick.length >= 2 ||
-              state.drawPending.length > 0 ||
+              !legalIds.has(c.id)
+            }
+            isMuted={(c) =>
+              state.stock.length === 0 &&
+              state.phase === "playing" &&
+              state.turn === 0 &&
+              state.drawPending.length === 0 &&
+              state.trick.length < 2 &&
+              !meldDecisionPending &&
               !legalIds.has(c.id)
             }
             onPlay={playMyCard}
+            onBlockedPlay={signalBlocage}
           />
         </div>
 
@@ -1168,7 +1231,14 @@ function Azteque() {
           >
             Comptes · {myComptes}
           </button>
-          <AnticipationButton state={state} me={0} onConfirm={anticipateRound} />
+          <button
+            type="button"
+            disabled={!peutAnticiper}
+            onClick={() => setConfirmAnticipate(true)}
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-40"
+          >
+            Anticiper la fin
+          </button>
           <button
             type="button"
             onClick={() => setConfirmQuit(true)}
@@ -1284,6 +1354,34 @@ function Azteque() {
             </div>
           </div>
         )}
+
+      {confirmAnticipate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="panel w-full max-w-sm p-6 text-center">
+            <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
+              pioche sont versées à l'adversaire, puis les points sont comptés.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmAnticipate(false)}
+                className="rounded-full border border-border px-5 py-2 text-sm text-muted-foreground"
+              >
+                Continuer le tour
+              </button>
+              <button
+                type="button"
+                onClick={anticipateNow}
+                className="rounded-full bg-[image:var(--gradient-gold)] px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Anticiper
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmQuit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">

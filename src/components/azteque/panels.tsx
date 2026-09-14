@@ -21,7 +21,14 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
 };
 
-export const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre", "legende"];
+export const DIFFICULTIES: Difficulty[] = [
+  "facile",
+  "normal",
+  "expert",
+  "maitre",
+  "grand_maitre",
+  "legende",
+];
 
 /**
  * Récompense d'une victoire contre l'IA.
@@ -29,13 +36,21 @@ export const DIFFICULTIES: Difficulty[] = ["facile", "normal", "expert", "maitre
  * Ce barème n'est que le repli hors connexion : pour un joueur connecté, le
  * montant est décidé par la fonction serveur `award_ai_win`, seule à faire
  * foi. Les deux doivent rester d'accord.
+ *
+ * PR9 — Légende calibrée par A/B contre Grand Maître (200 tours).
+ * Le paramètre `legendeLeadBonus = 1.3` rend Légende plus combative sur les
+ * plis annonçables : elle capture plus de bonnes (8.11 vs 7.89) tout en
+ * sacrifiant quelques annonces de comptes (4.10 vs 4.42). Résultat net :
+ * 52.1 % de victoires contre Grand Maître (vs 47.9 %), un avantage modeste
+ * mais mesuré. Récompense 120 jetons (vs 100 Grand Maître).
  */
 export const TOKEN_REWARDS: Record<Difficulty, number> = {
   facile: 20,
   normal: 40,
   expert: 60,
   maitre: 80,
-  legende: 100,
+  grand_maitre: 100,
+  legende: 120,
 };
 
 export function ProfileButton({
@@ -298,6 +313,10 @@ export function PlayerProfilePanel({
           Les deux cartes restent visibles au milieu pendant ce temps.
         </p>
 
+        {/* PR15 — Note : le panneau paramètres utilisateur a été déplacé
+            dans `HeaderSettingsButton` (bouton ⚙️ du header de match en ligne).
+            En solo, les préférences sont gérées directement dans la barre de
+            MatchChat sans panneau dédié. */}
         <div className="mt-6 grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" onClick={onRules}>
             <BookOpen aria-hidden="true" /> Règles

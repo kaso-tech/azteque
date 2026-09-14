@@ -498,7 +498,7 @@ describe("availableMelds / announce", () => {
     expect(next.melds[0][1]).toMatchObject({ suit: "H", type: "triple", points: 5, first: true });
   });
 
-  it("un deuxième compte dans une couleur hors atout reste impossible", () => {
+  it("un deuxième compte dans une couleur hors atout est permis (jeu double)", () => {
     const usedK = card("K", "S", "usedK2");
     const usedQ = card("Q", "S", "usedQ2");
     const newK = card("K", "S");
@@ -509,6 +509,24 @@ describe("availableMelds / announce", () => {
       trump: "H", // l'atout est une autre couleur que celle testée
       melds: [[{ suit: "S", type: "simple", points: 2, first: false }], []],
       exposed: [[usedK.id, usedQ.id], []],
+    });
+    expect(availableMelds(state, 0)).toEqual([
+      { suit: "S", type: "simple", cards: [newK, newQ] },
+    ]);
+  });
+
+  it("un troisième compte dans la même couleur reste impossible", () => {
+    const hand = [card("K", "S"), card("Q", "S"), card("7", "D"), card("8", "D"), card("9", "D")];
+    const state = makeState({
+      ...preconditions(0, hand),
+      trump: "H",
+      melds: [
+        [
+          { suit: "S", type: "simple", points: 2, first: false },
+          { suit: "S", type: "simple", points: 2, first: false },
+        ],
+        [],
+      ],
     });
     expect(availableMelds(state, 0)).toEqual([]);
   });
@@ -598,7 +616,7 @@ describe("aiChooseCardAt (non-régression)", () => {
       hands: [[card("7", "H")], [card("A", "S"), card("8", "D")]],
       trick: [],
     });
-    const choice = aiChooseCardAt(state, "legende");
+    const choice = aiChooseCardAt(state, "grand_maitre");
     expect({ rank: choice.rank, suit: choice.suit }).toMatchSnapshot();
   });
 });
@@ -708,7 +726,7 @@ describe("tactiques de l'IA", () => {
     expect(aiChooseCardAt(state, "expert").id).toBe(aceDiamonds.id);
   });
 
-  it("garde ses atouts à l'approche de la phase finale, là où le Maître les brade", () => {
+  it("garde ses atouts à l'approche de la phase finale, là où l'Expert les brade", () => {
     // `trumpKeepValue` fait décroître la valeur d'un atout avec le talon et la
     // ramène à zéro pioche vide, au motif qu'un atout gardé ne rapporte rien
     // au décompte. C'est vrai du décompte et faux du jeu : pioche vide, le
@@ -741,9 +759,9 @@ describe("tactiques de l'IA", () => {
       turn: 1,
       gains,
     });
-    // Le Maître coupe pour la main ; la Légende garde son atout.
-    expect(aiChooseCardAt(state, "legende").id).toBe(dechet.id);
-    expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
+    // L'Expert coupe pour la main ; à partir du Maître, l'atout est gardé.
+    expect(aiChooseCardAt(state, "maitre").id).toBe(dechet.id);
+    expect(aiChooseCardAt(state, "expert").id).toBe(petitAtout.id);
   });
 
   it("encaisse son 10 d'atout tant qu'il gagne, quand un As d'atout court encore", () => {
@@ -785,8 +803,8 @@ describe("tactiques de l'IA", () => {
       gains: [gains[0], [...gains[1], card("A", "H"), card("10", "H"), card("A", "D")]],
     });
     expect(aiChooseCardAt(state, "legende").id).toBe(dixAtout.id);
-    // Le Maître n'a pas cette attention : elle est propre à la Légende.
-    expect(aiChooseCardAt(state, "maitre").id).toBe(petitAtout.id);
+    // Le Grand Maître n'a pas cette attention : elle est propre à la Légende.
+    expect(aiChooseCardAt(state, "grand_maitre").id).toBe(petitAtout.id);
   });
 
   it("en fin de partie, sacrifie un pli pour remporter le dernier (la main)", () => {
@@ -807,6 +825,7 @@ describe("tactiques de l'IA", () => {
       ],
       gains,
     });
+    // La résolution exacte est réservée à la Légende.
     expect(aiChooseCardAt(state, "legende").id).toBe(low.id);
   });
   it("en phase finale, surpasse avec le 10 et garde l'As de la même couleur", () => {

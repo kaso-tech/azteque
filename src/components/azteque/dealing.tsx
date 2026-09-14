@@ -41,7 +41,7 @@ interface Tempo {
 }
 
 const TEMPOS: Record<DealPace, Tempo> = {
-  solo: { shuffle: 820, step: 55, flight: 430, hold: 140 },
+  solo: { shuffle: 1200, step: 90, flight: 540, hold: 200 },
   duo: { shuffle: 1500, step: 115, flight: 620, hold: 260 },
 };
 

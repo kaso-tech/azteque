@@ -218,6 +218,7 @@ export type Database = {
         Row: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
@@ -241,6 +242,7 @@ export type Database = {
         Insert: {
           avatar_kind?: string
           avatar_url?: string | null
+          background_kind?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
           country?: string | null
@@ -264,6 +266,7 @@ export type Database = {
         Update: {
           avatar_kind?: string
           avatar_url?: string | null
+          background_kind?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
           country?: string | null
@@ -346,24 +349,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "referrals_invited_id_fkey"
-            columns: ["invited_id"]
-            isOneToOne: true
-            referencedRelation: "public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "referrals_sponsor_id_fkey"
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_sponsor_id_fkey"
-            columns: ["sponsor_id"]
-            isOneToOne: false
-            referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -371,6 +360,7 @@ export type Database = {
       shop_items: {
         Row: {
           active: boolean
+          asset_url: string | null
           data: Json
           hint: string | null
           id: string
@@ -381,6 +371,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          asset_url?: string | null
           data?: Json
           hint?: string | null
           id: string
@@ -391,6 +382,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          asset_url?: string | null
           data?: Json
           hint?: string | null
           id?: string
@@ -418,38 +410,11 @@ export type Database = {
           updated_at: string | null
           username: string | null
         }
-        Insert: {
-          avatar_kind?: string | null
-          avatar_url?: string | null
-          country?: string | null
-          created_at?: string | null
-          id?: string | null
-          last_seen_at?: string | null
-          peak_rating?: number | null
-          rated_games?: number | null
-          rating?: number | null
-          rounds_played?: number | null
-          updated_at?: string | null
-          username?: string | null
-        }
-        Update: {
-          avatar_kind?: string | null
-          avatar_url?: string | null
-          country?: string | null
-          created_at?: string | null
-          id?: string | null
-          last_seen_at?: string | null
-          peak_rating?: number | null
-          rated_games?: number | null
-          rating?: number | null
-          rounds_played?: number | null
-          updated_at?: string | null
-          username?: string | null
-        }
         Relationships: []
       }
     }
     Functions: {
+      _settle_match_impl: { Args: { _match_id: string }; Returns: undefined }
       accept_game_invite: {
         Args: { _invite_id: string }
         Returns: {
@@ -661,6 +626,10 @@ export type Database = {
         Args: { _active: boolean; _item_id: string; _price: number }
         Returns: undefined
       }
+      admin_set_item_asset: {
+        Args: { _asset_url: string; _id: string }
+        Returns: undefined
+      }
       admin_set_setting: {
         Args: { _key: string; _value: Json }
         Returns: undefined
@@ -701,6 +670,7 @@ export type Database = {
         Returns: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
@@ -774,9 +744,30 @@ export type Database = {
           username: string
         }[]
       }
+      public_profiles_rows: {
+        Args: never
+        Returns: {
+          avatar_kind: string
+          avatar_url: string
+          country: string
+          created_at: string
+          id: string
+          last_seen_at: string
+          peak_rating: number
+          rated_games: number
+          rating: number
+          rounds_played: number
+          updated_at: string
+          username: string
+        }[]
+      }
       rating_floor: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       settle_match: { Args: { _match_id: string }; Returns: undefined }
+      settle_match_as_server: {
+        Args: { _match_id: string }
+        Returns: undefined
+      }
       submit_player_report: {
         Args: { _details?: string; _reason: string; _target: string }
         Returns: number
@@ -786,6 +777,7 @@ export type Database = {
         Returns: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
