@@ -72,17 +72,11 @@ export function SignInCard({ error }: { error?: string | null }) {
           mini-rappel les met visuellement juste sous l'action principale. */}
       <p className="text-[0.7rem] text-muted-foreground">
         En vous connectant, vous acceptez nos{" "}
-        <Link
-          to="/cgu"
-          className="text-gold underline-offset-2 hover:underline"
-        >
+        <Link to="/cgu" className="text-gold underline-offset-2 hover:underline">
           conditions d'utilisation
         </Link>{" "}
         et notre{" "}
-        <Link
-          to="/confidentialite"
-          className="text-gold underline-offset-2 hover:underline"
-        >
+        <Link to="/confidentialite" className="text-gold underline-offset-2 hover:underline">
           politique de confidentialité
         </Link>
         .

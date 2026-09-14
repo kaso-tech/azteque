@@ -1,18 +1,18 @@
 # Régénérer l'application Android depuis PWABuilder sans casser la signature
 
-Aztèque est publié sur Android sous la forme d'une **TWA** (*Trusted Web
-Activity*) : une coquille Android qui ouvre le site en plein écran, sans barre
+Aztèque est publié sur Android sous la forme d'une **TWA** (_Trusted Web
+Activity_) : une coquille Android qui ouvre le site en plein écran, sans barre
 d'adresse. Le plein écran n'est accordé que si Android vérifie que la coquille
 et le site appartiennent bien au même éditeur. Cette vérification s'appelle
 **Digital Asset Links**, et elle repose sur deux valeurs qui doivent
 correspondre exactement :
 
-| Où                                    | Quoi                                     | Valeur actuelle      |
-| ------------------------------------- | ---------------------------------------- | -------------------- |
-| `public/.well-known/assetlinks.json`  | `package_name`                           | `live.azteque.twa`   |
-| `public/.well-known/assetlinks.json`  | `sha256_cert_fingerprints`               | `90:97:…:E4:51`      |
-| Le paquet Android                     | son identifiant                          | doit valoir le 1er   |
-| Le certificat qui signe le paquet     | son empreinte SHA-256                    | doit valoir le 2nd   |
+| Où                                   | Quoi                       | Valeur actuelle    |
+| ------------------------------------ | -------------------------- | ------------------ |
+| `public/.well-known/assetlinks.json` | `package_name`             | `live.azteque.twa` |
+| `public/.well-known/assetlinks.json` | `sha256_cert_fingerprints` | `90:97:…:E4:51`    |
+| Le paquet Android                    | son identifiant            | doit valoir le 1er |
+| Le certificat qui signe le paquet    | son empreinte SHA-256      | doit valoir le 2nd |
 
 Si l'une des deux diverge, l'application s'ouvre malgré tout — mais avec la
 barre d'adresse du navigateur en haut de l'écran. C'est le symptôme classique

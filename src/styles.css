@@ -124,22 +124,24 @@
     radial-gradient(ellipse 46% 34% at 50% 40%, oklch(0.79 0.205 141 / 0.55), transparent 72%),
     radial-gradient(ellipse 74% 56% at 50% 43%, oklch(0.695 0.228 141.5), transparent 80%),
     /* feutre et vignettage */
-    radial-gradient(ellipse 128% 112% at 50% 48%, oklch(0.545 0.185 143), oklch(0.288 0.102 144) 96%);
+    radial-gradient(
+        ellipse 128% 112% at 50% 48%,
+        oklch(0.545 0.185 143),
+        oklch(0.288 0.102 144) 96%
+      );
   --gradient-table: var(--gradient-table-grain), var(--gradient-table-base);
   /* Biseau à trois tons — clair en haut, l'or de marque au milieu, sombre en
      bas — plutôt qu'un dégradé diagonal à deux teintes : posé sur un bouton,
      il se lit comme une pièce frappée plutôt qu'un aplat coloré. */
   --gradient-gold: linear-gradient(180deg, oklch(0.94 0.1 90), var(--gold) 50%, oklch(0.6 0.14 65));
   --shadow-table:
-    inset 0 1px 0 oklch(1 0 0 / 0.13),
-    inset 0 -2px 0 oklch(0 0 0 / 0.22),
+    inset 0 1px 0 oklch(1 0 0 / 0.13), inset 0 -2px 0 oklch(0 0 0 / 0.22),
     0 18px 38px -16px oklch(0 0 0 / 0.72);
   /* Deux ombres superposées — une proche et nette, une large et diffuse —
      pour qu'une carte ait l'air posée sur le tapis plutôt que collée dessus. */
   --shadow-card: 0 2px 3px oklch(0 0 0 / 0.35), 0 10px 20px -8px oklch(0 0 0 / 0.6);
   --shadow-medallion:
-    inset 0 2px 3px oklch(1 0 0 / 0.3),
-    inset 0 -3px 4px oklch(0 0 0 / 0.5),
+    inset 0 2px 3px oklch(1 0 0 / 0.3), inset 0 -3px 4px oklch(0 0 0 / 0.5),
     0 4px 10px -3px oklch(0 0 0 / 0.6);
   --chart-1: oklch(0.78 0.14 82);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -248,7 +250,11 @@
 @utility panel {
   background:
     linear-gradient(145deg, oklch(1 0 0 / 0.11), transparent 28%),
-    linear-gradient(180deg, color-mix(in oklab, var(--card) 96%, var(--felt)), color-mix(in oklab, var(--card) 78%, var(--felt-deep)));
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 96%, var(--felt)),
+      color-mix(in oklab, var(--card) 78%, var(--felt-deep))
+    );
   border: 1px solid color-mix(in oklab, var(--gold) 42%, var(--border));
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-table);
@@ -258,7 +264,11 @@
 @utility grass-surface {
   background:
     linear-gradient(155deg, oklch(1 0 0 / 0.1), transparent 38%),
-    linear-gradient(180deg, var(--secondary), color-mix(in oklab, var(--secondary) 68%, var(--felt-deep)));
+    linear-gradient(
+      180deg,
+      var(--secondary),
+      color-mix(in oklab, var(--secondary) 68%, var(--felt-deep))
+    );
   border: 1px solid color-mix(in oklab, var(--gold) 26%, var(--border));
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.12),
@@ -306,28 +316,23 @@
     inset 0 -26px 52px -20px oklch(0 0 0 / 0.6);
 }
 
-
 /* Page d'accueil : tapis de casino en perspective, moins vif et plus stylé.
    Grain de feutre, projecteur central étouffé et bords profonds pour faire
    ressortir le titre et les boutons sans éblouir. */
 @utility home-surface {
   background:
     /* grain de feutre subtil */
-    repeating-linear-gradient(
-      45deg,
-      oklch(1 0 0 / 0.018) 0 1px,
-      transparent 1px 3px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      oklch(0 0 0 / 0.024) 0 1px,
-      transparent 1px 3px
-    ),
+    repeating-linear-gradient(45deg, oklch(1 0 0 / 0.018) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, oklch(0 0 0 / 0.024) 0 1px, transparent 1px 3px),
     /* projecteur central étouffé */
-    radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
+      radial-gradient(ellipse 52% 38% at 50% 42%, oklch(0.62 0.18 142 / 0.42), transparent 72%),
     radial-gradient(ellipse 84% 64% at 50% 46%, oklch(0.565 0.195 143 / 0.55), transparent 80%),
     /* feutre et vignettage profond */
-    radial-gradient(ellipse 132% 118% at 50% 50%, oklch(0.505 0.165 144), oklch(0.245 0.085 145) 96%);
+      radial-gradient(
+        ellipse 132% 118% at 50% 50%,
+        oklch(0.505 0.165 144),
+        oklch(0.245 0.085 145) 96%
+      );
 }
 
 /* Un vernis en haut de chaque carte : elle a l'air d'être un vrai bristol
@@ -345,7 +350,10 @@
    liseré sombre — sans lui, un simple trait doré se fond dans un vert
    aussi vif et perd tout son relief. */
 @utility gold-ring {
-  box-shadow: var(--shadow-medallion), 0 0 0 2px var(--felt-deep), 0 0 0 5px var(--gold);
+  box-shadow:
+    var(--shadow-medallion),
+    0 0 0 2px var(--felt-deep),
+    0 0 0 5px var(--gold);
 }
 
 /* Les pastilles et badges dorés (Bonnes, Comptes, annonces, coins de

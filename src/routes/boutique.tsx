@@ -281,11 +281,7 @@ function Boutique() {
           {visibles("sticker").map((s) =>
             carte(
               s,
-              <Sticker
-                id={s.art ?? s.id}
-                assetUrl={s.assetUrl ?? null}
-                className="h-16 w-16"
-              />,
+              <Sticker id={s.art ?? s.id} assetUrl={s.assetUrl ?? null} className="h-16 w-16" />,
             ),
           )}
         </div>
@@ -294,19 +290,14 @@ function Boutique() {
       <section className="panel px-4 py-4">
         <h2 className="font-display text-lg text-gold">Sons</h2>
         <p className="text-xs text-muted-foreground">
-          À envoyer dans la discussion pendant la partie, pour les deux
-          joueurs en même temps. Cliquez sur « Écouter » pour vous faire
-          une idée.
+          À envoyer dans la discussion pendant la partie, pour les deux joueurs en même temps.
+          Cliquez sur « Écouter » pour vous faire une idée.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {visibles("sound").map((s) =>
             carte(
               s,
-              <Sticker
-                id={s.id}
-                assetUrl={s.assetUrl ?? null}
-                className="h-16 w-16"
-              />,
+              <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-16 w-16" />,
               <button
                 type="button"
                 onClick={(ev) => {

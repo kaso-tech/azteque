@@ -306,14 +306,7 @@ function report(r: MatchResult) {
 
 /* ---------- Entrée ---------- */
 
-const LEVELS: Difficulty[] = [
-  "facile",
-  "normal",
-  "expert",
-  "maitre",
-  "grand_maitre",
-  "legende",
-];
+const LEVELS: Difficulty[] = ["facile", "normal", "expert", "maitre", "grand_maitre", "legende"];
 
 function main() {
   const [argA, argB, argN] = process.argv.slice(2);

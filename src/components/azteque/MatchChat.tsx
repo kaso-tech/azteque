@@ -64,11 +64,20 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
       } else if (msg.soundId) {
         // PR14 — Lecture du son à la réception d'un sticker-son.
         switch (msg.soundId) {
-          case "laugh": sfx.laugh(); break;
-          case "cry": sfx.cry(); break;
-          case "taunt": sfx.taunt(); break;
-          case "cheer": sfx.cheer(); break;
-          default: break;
+          case "laugh":
+            sfx.laugh();
+            break;
+          case "cry":
+            sfx.cry();
+            break;
+          case "taunt":
+            sfx.taunt();
+            break;
+          case "cheer":
+            sfx.cheer();
+            break;
+          default:
+            break;
         }
       }
       if (msg.reaction === "taunt") sfx.taunt();
@@ -85,9 +94,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
   // centre horizontal de l'avatar et à `bottom: rect.top` (juste sous le
   // header). Le décalage vertical `extra` permet d'empiler les bulles
   // successives sans chevauchement.
-  const [positions, setPositions] = useState<
-    Record<string, { left: number; top: number }>
-  >({});
+  const [positions, setPositions] = useState<Record<string, { left: number; top: number }>>({});
   useEffect(() => {
     if (bubbles.length === 0) return;
     const recalc = () => {
@@ -164,11 +171,20 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
   // chaque SoundId. Tout son non reconnu est silencieusement ignoré.
   const jouerSon = (soundId: string) => {
     switch (soundId) {
-      case "laugh": sfx.laugh(); break;
-      case "cry": sfx.cry(); break;
-      case "taunt": sfx.taunt(); break;
-      case "cheer": sfx.cheer(); break;
-      default: break;
+      case "laugh":
+        sfx.laugh();
+        break;
+      case "cry":
+        sfx.cry();
+        break;
+      case "taunt":
+        sfx.taunt();
+        break;
+      case "cheer":
+        sfx.cheer();
+        break;
+      default:
+        break;
     }
   };
 
@@ -186,9 +202,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
               className={cn(
                 bulle,
                 "absolute -translate-x-1/2",
-                b.mine
-                  ? "border-gold/50 text-gold"
-                  : "border-border text-foreground",
+                b.mine ? "border-gold/50 text-gold" : "border-border text-foreground",
               )}
               style={{ left: pos.left, top: pos.top }}
             >
@@ -214,9 +228,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
                 key={s.id}
                 type="button"
                 title={s.name}
-                onClick={() =>
-                  send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)
-                }
+                onClick={() => send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)}
                 className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
               >
                 <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-6 w-6" />

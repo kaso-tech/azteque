@@ -176,17 +176,11 @@ function LegalFooter() {
   return (
     <footer className="mt-auto border-t border-border/60 bg-card/40 py-3 text-center text-[0.7rem] text-muted-foreground">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4">
-        <Link
-          to="/cgu"
-          className="text-gold underline-offset-2 hover:underline"
-        >
+        <Link to="/cgu" className="text-gold underline-offset-2 hover:underline">
           Conditions d'utilisation
         </Link>
         <span className="text-border">·</span>
-        <Link
-          to="/confidentialite"
-          className="text-gold underline-offset-2 hover:underline"
-        >
+        <Link to="/confidentialite" className="text-gold underline-offset-2 hover:underline">
           Politique de confidentialité
         </Link>
         <span className="text-border">·</span>

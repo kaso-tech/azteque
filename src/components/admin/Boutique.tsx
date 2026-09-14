@@ -175,8 +175,8 @@ function ChampUploadAsset({
       />
       {file && (
         <p className="text-[0.65rem] text-muted-foreground">
-          Sélectionné : <span className="font-mono">{file.name}</span> ({Math.round(file.size / 1024)} Ko)
-          — sera uploadé à l'enregistrement.
+          Sélectionné : <span className="font-mono">{file.name}</span> (
+          {Math.round(file.size / 1024)} Ko) — sera uploadé à l'enregistrement.
         </p>
       )}
     </div>
@@ -384,7 +384,10 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
     ) : b.kind === "sound" ? (
       // PR16 — Aperçu d'un son : on utilise le sticker-son (snd_*)
       // correspondant si le soundId est connu, sinon une icône générique.
-      <Sticker id={`snd_${b.soundId === "laugh" ? "rire" : b.soundId === "cry" ? "pleurer" : b.soundId === "taunt" ? "moquerie" : b.soundId === "cheer" ? "felicitations" : "rire"}`} className="h-11 w-11" />
+      <Sticker
+        id={`snd_${b.soundId === "laugh" ? "rire" : b.soundId === "cry" ? "pleurer" : b.soundId === "taunt" ? "moquerie" : b.soundId === "cheer" ? "felicitations" : "rire"}`}
+        className="h-11 w-11"
+      />
     ) : b.kind === "avatar" ? (
       <PlayerAvatar className="h-12 w-12" profile={{ avatar_kind: b.art }} />
     ) : (

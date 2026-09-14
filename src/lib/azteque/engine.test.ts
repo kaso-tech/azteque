@@ -510,9 +510,7 @@ describe("availableMelds / announce", () => {
       melds: [[{ suit: "S", type: "simple", points: 2, first: false }], []],
       exposed: [[usedK.id, usedQ.id], []],
     });
-    expect(availableMelds(state, 0)).toEqual([
-      { suit: "S", type: "simple", cards: [newK, newQ] },
-    ]);
+    expect(availableMelds(state, 0)).toEqual([{ suit: "S", type: "simple", cards: [newK, newQ] }]);
   });
 
   it("un troisième compte dans la même couleur reste impossible", () => {

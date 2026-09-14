@@ -148,7 +148,9 @@ function OnlineTable() {
   const [redealDecided, setRedealDecided] = useState(false);
   // Repère de donne — change à chaque (re)distribution, pour reset
   // redealDecided et déclencher le panneau main blanche le cas échéant.
-  const donneKey = state ? `${state.stock.length}-${state.roundScore?.[0]?.total ?? 0}-${state.roundScore?.[1]?.total ?? 0}` : "none";
+  const donneKey = state
+    ? `${state.stock.length}-${state.roundScore?.[0]?.total ?? 0}-${state.roundScore?.[1]?.total ?? 0}`
+    : "none";
 
   // --- Animations de déplacement des cartes -----------------------------
   // Le serveur reste seul maître du résultat (voir match-actions.ts) : ces

@@ -35,10 +35,10 @@ function ConfidentialitePage() {
       <section className="prose prose-invert mt-8 max-w-none space-y-6 text-sm leading-relaxed text-foreground/90">
         <Article title="1. Préambule">
           <p>
-            Aztèque s'engage à protéger la vie privée de ses utilisateurs. La présente
-            politique détaille les données collectées, leur finalité, leur durée de
-            conservation et les droits dont vous disposez, conformément au Règlement
-            général sur la protection des données (RGPD — UE 2016/679).
+            Aztèque s'engage à protéger la vie privée de ses utilisateurs. La présente politique
+            détaille les données collectées, leur finalité, leur durée de conservation et les droits
+            dont vous disposez, conformément au Règlement général sur la protection des données
+            (RGPD — UE 2016/679).
           </p>
         </Article>
 
@@ -88,9 +88,7 @@ function ConfidentialitePage() {
             <li>Signalements émis ou reçus</li>
           </ul>
 
-          <h3 className="mt-3 text-base font-semibold text-foreground">
-            Données techniques
-          </h3>
+          <h3 className="mt-3 text-base font-semibold text-foreground">Données techniques</h3>
           <ul className="list-disc space-y-1 pl-5">
             <li>Adresse IP (visible par notre prestataire Supabase)</li>
             <li>Identifiant de session et jeton d'authentification Supabase</li>
@@ -144,8 +142,8 @@ function ConfidentialitePage() {
           <p>Les données sont hébergées par :</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Supabase Inc.</strong> — hébergeur de la base de données
-              (PostgreSQL) et de l'authentification.{" "}
+              <strong>Supabase Inc.</strong> — hébergeur de la base de données (PostgreSQL) et de
+              l'authentification.{" "}
               <a
                 href="https://supabase.com/legal/privacy"
                 target="_blank"
@@ -169,8 +167,8 @@ function ConfidentialitePage() {
               .
             </li>
             <li>
-              <strong>Lovable Inc.</strong> — courtier OAuth qui orchestre la
-              redirection vers Google puis vers notre application.{" "}
+              <strong>Lovable Inc.</strong> — courtier OAuth qui orchestre la redirection vers
+              Google puis vers notre application.{" "}
               <a
                 href="https://lovable.dev/privacy"
                 target="_blank"
@@ -183,28 +181,25 @@ function ConfidentialitePage() {
             </li>
           </ul>
           <p>
-            Supabase peut stocker les données sur des serveurs situés hors de l'Union
-            européenne (notamment aux États-Unis). Ces transferts sont encadrés par les
-            clauses contractuelles types de la Commission européenne ou par les
-            décisions d'adéquation en vigueur.
+            Supabase peut stocker les données sur des serveurs situés hors de l'Union européenne
+            (notamment aux États-Unis). Ces transferts sont encadrés par les clauses contractuelles
+            types de la Commission européenne ou par les décisions d'adéquation en vigueur.
           </p>
         </Article>
 
         <Article title="6. Durée de conservation">
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Compte actif</strong> : les données sont conservées tant que le
-              compte existe.
+              <strong>Compte actif</strong> : les données sont conservées tant que le compte existe.
             </li>
             <li>
-              <strong>Compte supprimé</strong> : les données personnelles sont effacées
-              sous 30 jours. Certaines données peuvent être conservées plus longtemps
-              pour des raisons légales (registre des achats, obligations comptables).
+              <strong>Compte supprimé</strong> : les données personnelles sont effacées sous 30
+              jours. Certaines données peuvent être conservées plus longtemps pour des raisons
+              légales (registre des achats, obligations comptables).
             </li>
             <li>
-              <strong>Cookies et jetons de session</strong> : expirent à la fin de la
-              session ou après 30 jours d'inactivité, selon le paramétrage de votre
-              navigateur.
+              <strong>Cookies et jetons de session</strong> : expirent à la fin de la session ou
+              après 30 jours d'inactivité, selon le paramétrage de votre navigateur.
             </li>
           </ul>
         </Article>
@@ -213,28 +208,27 @@ function ConfidentialitePage() {
           <p>Vous disposez des droits suivants, que vous pouvez exercer à tout moment :</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Droit d'accès</strong> : obtenir une copie de vos données
-              personnelles.
+              <strong>Droit d'accès</strong> : obtenir une copie de vos données personnelles.
             </li>
             <li>
               <strong>Droit de rectification</strong> : corriger des données inexactes ou
               incomplètes (via votre profil).
             </li>
             <li>
-              <strong>Droit à l'effacement</strong> : demander la suppression de votre
-              compte et de vos données (depuis votre profil, ou par e-mail).
+              <strong>Droit à l'effacement</strong> : demander la suppression de votre compte et de
+              vos données (depuis votre profil, ou par e-mail).
             </li>
             <li>
-              <strong>Droit à la limitation</strong> : suspendre temporairement le
-              traitement de vos données.
+              <strong>Droit à la limitation</strong> : suspendre temporairement le traitement de vos
+              données.
             </li>
             <li>
-              <strong>Droit à la portabilité</strong> : recevoir vos données dans un
-              format structuré et lisible par machine (à demander par e-mail).
+              <strong>Droit à la portabilité</strong> : recevoir vos données dans un format
+              structuré et lisible par machine (à demander par e-mail).
             </li>
             <li>
-              <strong>Droit d'opposition</strong> : vous opposer à un traitement fondé
-              sur l'intérêt légitime (par e-mail).
+              <strong>Droit d'opposition</strong> : vous opposer à un traitement fondé sur l'intérêt
+              légitime (par e-mail).
             </li>
           </ul>
           <p>
@@ -245,60 +239,55 @@ function ConfidentialitePage() {
             >
               contact@azteque.app
             </a>
-            . Une réponse vous sera apportée dans un délai d'un mois. En cas de
-            réclamation, vous pouvez saisir la CNIL (France) ou l'autorité de contrôle
-            de votre lieu de résidence habituel.
+            . Une réponse vous sera apportée dans un délai d'un mois. En cas de réclamation, vous
+            pouvez saisir la CNIL (France) ou l'autorité de contrôle de votre lieu de résidence
+            habituel.
           </p>
         </Article>
 
         <Article title="8. Cookies">
           <p>
-            Aztèque n'utilise pas de cookies de mesure d'audience ni de cookies
-            publicitaires. Les seuls cookies et stockages locaux utilisés sont :
+            Aztèque n'utilise pas de cookies de mesure d'audience ni de cookies publicitaires. Les
+            seuls cookies et stockages locaux utilisés sont :
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>localStorage</strong> : préférences d'interface (tri de la liste
-              d'amis, sons et stickers masqués), invitations de parties, jetons
-              d'authentification de prévisualisation.
+              <strong>localStorage</strong> : préférences d'interface (tri de la liste d'amis, sons
+              et stickers masqués), invitations de parties, jetons d'authentification de
+              prévisualisation.
             </li>
             <li>
-              <strong>Cookies Supabase</strong> : jeton de session Auth (httpOnly,
-              sécurisé).
+              <strong>Cookies Supabase</strong> : jeton de session Auth (httpOnly, sécurisé).
             </li>
           </ul>
         </Article>
 
         <Article title="9. Sécurité">
           <p>
-            Les données sont chiffrées en transit (HTTPS/TLS) et au repos dans la base
-            Supabase. Les mots de passe ne sont jamais stockés : l'authentification est
-            entièrement déléguée à Google OAuth. L'accès à la base de données est
-            strictement limité aux fonctions serveur signées par l'éditeur ; les clients
-            ne peuvent pas exécuter de SQL arbitraire.
+            Les données sont chiffrées en transit (HTTPS/TLS) et au repos dans la base Supabase. Les
+            mots de passe ne sont jamais stockés : l'authentification est entièrement déléguée à
+            Google OAuth. L'accès à la base de données est strictement limité aux fonctions serveur
+            signées par l'éditeur ; les clients ne peuvent pas exécuter de SQL arbitraire.
           </p>
           <p>
-            Malgré ces mesures, aucun service n'est exempt de risques. En cas de
-            violation de données, vous serez informé dans les 72 heures, conformément
-            à l'article 33 du RGPD.
+            Malgré ces mesures, aucun service n'est exempt de risques. En cas de violation de
+            données, vous serez informé dans les 72 heures, conformément à l'article 33 du RGPD.
           </p>
         </Article>
 
         <Article title="10. Mineurs">
           <p>
-            Aztèque n'est pas destiné aux enfants de moins de 16 ans. Si nous apprenons
-            qu'un mineur de moins de 16 ans a créé un compte, nous le supprimerons dans
-            les meilleurs délais. Les parents ou tuteurs peuvent signaler un compte
-            concerné à l'adresse de contact.
+            Aztèque n'est pas destiné aux enfants de moins de 16 ans. Si nous apprenons qu'un mineur
+            de moins de 16 ans a créé un compte, nous le supprimerons dans les meilleurs délais. Les
+            parents ou tuteurs peuvent signaler un compte concerné à l'adresse de contact.
           </p>
         </Article>
 
         <Article title="11. Modifications de la politique">
           <p>
-            La présente politique peut être modifiée à tout moment. La date de dernière
-            mise à jour figure en haut du document. Les modifications substantielles
-            seront notifiées aux utilisateurs par un message dans l'application ou par
-            e-mail.
+            La présente politique peut être modifiée à tout moment. La date de dernière mise à jour
+            figure en haut du document. Les modifications substantielles seront notifiées aux
+            utilisateurs par un message dans l'application ou par e-mail.
           </p>
         </Article>
 
@@ -318,10 +307,7 @@ function ConfidentialitePage() {
 
       <p className="mt-10 text-center text-xs text-muted-foreground">
         Voir aussi :{" "}
-        <Link
-          to="/cgu"
-          className="text-gold underline-offset-2 hover:underline"
-        >
+        <Link to="/cgu" className="text-gold underline-offset-2 hover:underline">
           Conditions d'utilisation
         </Link>
       </p>
@@ -329,13 +315,7 @@ function ConfidentialitePage() {
   );
 }
 
-function Article({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Article({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <article>
       <h2 className="gold-text font-display text-lg font-semibold">{title}</h2>

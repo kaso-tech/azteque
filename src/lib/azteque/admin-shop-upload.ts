@@ -82,9 +82,7 @@ export const uploadShopAsset = createServerFn({
       .from("shop-assets")
       .upload(path, bytes, { contentType: input.mime, upsert: true });
     if (error) throw new Error(`Upload impossible : ${error.message}`);
-    const { data: pub } = supabaseAdmin.storage
-      .from("shop-assets")
-      .getPublicUrl(path);
+    const { data: pub } = supabaseAdmin.storage.from("shop-assets").getPublicUrl(path);
     return { url: pub.publicUrl };
   });
 

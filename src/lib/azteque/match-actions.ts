@@ -365,9 +365,7 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
         throw new Error("Aucune main blanche : redistribution impossible.");
       }
       const next = newRound(state.dealer, state.roundsWon);
-      next.log.unshift(
-        "Main blanche : la donne est redistribuée.",
-      );
+      next.log.unshift("Main blanche : la donne est redistribuée.");
       await writeState(next, "playing");
       return { state: next, settings };
     }

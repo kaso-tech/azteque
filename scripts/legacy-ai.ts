@@ -33,12 +33,7 @@ export function legacyAnnounceAt(
 ): { suits: Suit[]; trump: Suit | null } | null {
   const base = aiAnnounce(state);
   if (!base) return null;
-  if (
-    level !== "maitre" &&
-    level !== "grand_maitre" &&
-    level !== "legende"
-  )
-    return base;
+  if (level !== "maitre" && level !== "grand_maitre" && level !== "legende") return base;
 
   // L'atout est déjà fixé : plus rien à optimiser, on encaisse les points.
   if (state.trump !== null || !base.trump) return base;

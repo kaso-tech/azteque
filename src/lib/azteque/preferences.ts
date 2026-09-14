@@ -63,10 +63,7 @@ function ecrire(prefs: MatchPreferences): void {
  * Sous-ensemble mutable des préférences : tout ce qui peut être togglé
  * depuis le panneau paramètres.
  */
-export type MatchPrefsMutable = Omit<
-  MatchPreferences,
-  "messagesTexte" | "messagesStickers"
->;
+export type MatchPrefsMutable = Omit<MatchPreferences, "messagesTexte" | "messagesStickers">;
 
 export function chargerPreferences(): MatchPreferences {
   return lire();

@@ -59,7 +59,8 @@ export function SettingsPanel({ owned, onClose }: SettingsPanelProps) {
     setPrefs(next);
   };
   const remonter = (id: string) => {
-    const ordre = (prefs.ordreSons.length > 0 ? prefs.ordreSons : mesSons.map((s) => s.soundId ?? s.id));
+    const ordre =
+      prefs.ordreSons.length > 0 ? prefs.ordreSons : mesSons.map((s) => s.soundId ?? s.id);
     const idx = ordre.indexOf(id);
     if (idx > 0) {
       const next = [...ordre];
@@ -75,11 +76,7 @@ export function SettingsPanel({ owned, onClose }: SettingsPanelProps) {
     <div className="panel mt-4 w-full space-y-4 px-4 py-4 sm:px-6">
       <div className="flex items-center justify-between">
         <h2 className="gold-text text-lg">Paramètres de la table</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs text-muted-foreground underline"
-        >
+        <button type="button" onClick={onClose} className="text-xs text-muted-foreground underline">
           Fermer
         </button>
       </div>
@@ -169,9 +166,7 @@ export function SettingsPanel({ owned, onClose }: SettingsPanelProps) {
 
       {/* Réception globale */}
       <section>
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          Réception
-        </p>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Réception</p>
         <div className="mt-2 space-y-1">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -199,12 +194,7 @@ export function SettingsPanel({ owned, onClose }: SettingsPanelProps) {
       </section>
 
       <div className="border-t border-border pt-3">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={resetAll}
-          className="text-xs"
-        >
+        <Button size="sm" variant="outline" onClick={resetAll} className="text-xs">
           Réinitialiser tous les paramètres
         </Button>
       </div>

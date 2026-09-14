@@ -549,13 +549,7 @@ export function hasMainBlanche(state: GameState, p: PlayerIndex): boolean {
 
 /* ---------- Niveaux de difficulté ---------- */
 
-export type Difficulty =
-  | "facile"
-  | "normal"
-  | "expert"
-  | "maitre"
-  | "grand_maitre"
-  | "legende";
+export type Difficulty = "facile" | "normal" | "expert" | "maitre" | "grand_maitre" | "legende";
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   facile: "Facile",
@@ -773,7 +767,6 @@ function T<K extends keyof typeof TUNE>(k: K): number {
   return TUNE[k];
 }
 
-
 /* ---------- Ce que l'IA sait de la main adverse ---------- */
 
 /** Cartes encore cachées dans la main adverse (un compte posé est visible). */
@@ -874,12 +867,7 @@ export interface PlayContext {
  * Exporté pour les tests unitaires ; utilisé en interne par
  * `oppLeadGainIntent`.
  */
-export function oppWillPlay(
-  state: GameState,
-  m: OppModel,
-  card: Card,
-  ctx: PlayContext,
-): number {
+export function oppWillPlay(state: GameState, m: OppModel, card: Card, ctx: PlayContext): number {
   // Cas déterministe : main adverse connue (pioche vide). On peut raisonner
   // exactement sur ce qu'il a, et le règlement dicte ses obligations.
   if (m.known) {
@@ -908,12 +896,7 @@ export function oppWillPlay(
  *   - un compte posé ne peut pas être repris (les K/Q/J exposés sont sacrés)
  *   - en phase finale, les défausses cherchent à protéger ses bonnes
  */
-function willPlayFromKnown(
-  state: GameState,
-  hand: Card[],
-  card: Card,
-  ctx: PlayContext,
-): number {
+function willPlayFromKnown(state: GameState, hand: Card[], card: Card, ctx: PlayContext): number {
   const trump = state.trump;
   const exposed = new Set(state.exposed[0]); // l'adversaire est player 0
   const own = hand.find((c) => c.id === card.id);
@@ -921,13 +904,9 @@ function willPlayFromKnown(
   if (exposed.has(own.id)) return 0; // carte posée dans un compte, intouchable
 
   if (ctx.position === "follow" && ctx.ledSuit !== null) {
-    const same = hand.filter(
-      (c) => c.suit === ctx.ledSuit && !exposed.has(c.id),
-    );
+    const same = hand.filter((c) => c.suit === ctx.ledSuit && !exposed.has(c.id));
     if (same.length > 0) return 1; // a la couleur, doit fournir
-    const trumps = trump
-      ? hand.filter((c) => c.suit === trump && !exposed.has(c.id))
-      : [];
+    const trumps = trump ? hand.filter((c) => c.suit === trump && !exposed.has(c.id)) : [];
     if (own.suit === trump) return 1; // joue atout
     return 1; // défausse libre
   }
@@ -940,26 +919,15 @@ function willPlayFromKnown(
  * Quand l'adversaire mène (pas de contrainte de règlement), on estime s'il
  * jouerait cette carte-ci ou une autre.
  */
-function willPlayLeadIntent(
-  state: GameState,
-  hand: Card[],
-  card: Card,
-  ctx: PlayContext,
-): number {
+function willPlayLeadIntent(state: GameState, hand: Card[], card: Card, ctx: PlayContext): number {
   const trump = state.trump;
-  const sameSuit = hand.filter(
-    (c) => c.suit === card.suit && c.id !== card.id,
-  );
-  const hasHigherInSuit = sameSuit.some(
-    (c) => rankValue(c.rank) > rankValue(card.rank),
-  );
+  const sameSuit = hand.filter((c) => c.suit === card.suit && c.id !== card.id);
+  const hasHigherInSuit = sameSuit.some((c) => rankValue(c.rank) > rankValue(card.rank));
 
   // Bonne d'atout : il la protège sauf s'il n'a pas le choix (fenêtre
   // d'annonce fermée ou plus faible atout disponible).
   if (trump && card.suit === trump && isBonne(card)) {
-    const hasLowerTrump = sameSuit.some(
-      (c) => rankValue(c.rank) < rankValue(card.rank),
-    );
+    const hasLowerTrump = sameSuit.some((c) => rankValue(c.rank) < rankValue(card.rank));
     if (hasLowerTrump) return 0.2;
     return ctx.stockLeft <= 2 ? 0.6 : 0.3;
   }
@@ -985,12 +953,7 @@ function willPlayLeadIntent(
  * (contrainte de fournir, protection des bonnes, fenêtre d'annonce) sans
  * connaître la main exacte.
  */
-function willPlayIntent(
-  state: GameState,
-  m: OppModel,
-  card: Card,
-  ctx: PlayContext,
-): number {
+function willPlayIntent(state: GameState, m: OppModel, card: Card, ctx: PlayContext): number {
   const trump = state.trump;
 
   if (ctx.position === "follow" && ctx.ledSuit !== null) {
@@ -998,9 +961,7 @@ function willPlayIntent(
       // Il fournit. Probabilité haute sauf s'il a mieux dans la couleur.
       const pHigher = oppHas(
         m,
-        (c) =>
-          c.suit === ctx.ledSuit &&
-          rankValue(c.rank) > rankValue(card.rank),
+        (c) => c.suit === ctx.ledSuit && rankValue(c.rank) > rankValue(card.rank),
       );
       return Math.max(0.5, 1 - pHigher * 0.5);
     }
@@ -1073,8 +1034,7 @@ function myLeadGain(state: GameState, level: Difficulty = "expert"): number {
     const base = state.hands[1].length <= 1 ? 1 : T("tempoBase");
     return level === "legende" ? base * T("legendeLeadBonus") : base;
   }
-  const base =
-    T("tempoBase") + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
+  const base = T("tempoBase") + meldWindow(state) * meldPointsFor(state, 1, state.hands[1]);
   return level === "legende" ? base * T("legendeLeadBonus") : base;
 }
 
@@ -1302,12 +1262,7 @@ function endgameSolver(state: GameState): Card | null {
  * Utilise `endgameEval` (pas `simEval`) car l'endgame valorise surtout les
  * bonnes (10 points par bonne de différence) plus que les comptes.
  */
-function endgameAlphaBeta(
-  s: SimState,
-  alpha: number,
-  beta: number,
-  budget: { n: number },
-): number {
+function endgameAlphaBeta(s: SimState, alpha: number, beta: number, budget: { n: number }): number {
   if (s.hands[0].length === 0 && s.hands[1].length === 0) return endgameEval(s);
   if (budget.n <= 0) return endgameEval(s);
   budget.n -= 1;
@@ -1356,10 +1311,7 @@ function makeEndgameSimState(
   return {
     hands: [oppHand, [...state.hands[1]]],
     stock: [],
-    bonnes: [
-      state.gains[0].filter(isBonne).length,
-      state.gains[1].filter(isBonne).length,
-    ],
+    bonnes: [state.gains[0].filter(isBonne).length, state.gains[1].filter(isBonne).length],
     melded: [
       state.melds[0].reduce((sum, m) => sum + m.points, 0),
       state.melds[1].reduce((sum, m) => sum + m.points, 0),
@@ -2122,9 +2074,7 @@ export function aiAnnounceAt(
       const partAdverse = invisibles.length
         ? invisibles.filter((c) => c.suit === s).length / invisibles.length
         : 0;
-      v +=
-        T("legendeTrumpForce") * force * length -
-        T("legendeTrumpAdverse") * partAdverse * 4;
+      v += T("legendeTrumpForce") * force * length - T("legendeTrumpAdverse") * partAdverse * 4;
     }
     return v;
   };
@@ -2215,8 +2165,7 @@ function meldScore(state: GameState, p: PlayerIndex): number {
 function leafValue(state: GameState): number {
   const bonnes = (p: PlayerIndex) => state.gains[p].filter(isBonne).length;
   const enMain = (p: PlayerIndex) => state.hands[p].filter(isBonne).length;
-  let v =
-    bonnes(1) - bonnes(0) + (meldScore(state, 1) - meldScore(state, 0));
+  let v = bonnes(1) - bonnes(0) + (meldScore(state, 1) - meldScore(state, 0));
   // Une bonne encore en main n'est qu'à moitié acquise.
   v += 0.45 * (enMain(1) - enMain(0));
   // Comptes encore réalisables de part et d'autre, escomptés par le temps qui
@@ -2226,8 +2175,7 @@ function leafValue(state: GameState): number {
     meldWindow(state) *
     (meldPointsFor(state, 1, state.hands[1]) - meldPointsFor(state, 0, state.hands[0]));
   if (state.trump) {
-    const atouts = (p: PlayerIndex) =>
-      state.hands[p].filter((c) => c.suit === state.trump).length;
+    const atouts = (p: PlayerIndex) => state.hands[p].filter((c) => c.suit === state.trump).length;
     v += 0.12 * (atouts(1) - atouts(0));
   }
   // La devanture, qui vaut surtout par ce qu'elle permet d'annoncer.
@@ -2345,7 +2293,6 @@ function legendeAnticipe(state: GameState): Card | null {
   return best;
 }
 
-
 export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   niveauCourant = level;
   const legal = legalCards(state, 1);
@@ -2371,8 +2318,7 @@ export function aiChooseCardAt(state: GameState, level: Difficulty): Card {
   // tous les enchaînements.
   const from = legende ? TUNE.legendePimcStock : -1;
   if (state.stock.length <= from) {
-    const samples =
-      state.stock.length === 0 ? 1 : legende ? TUNE.legendePimcSamples2 : 8;
+    const samples = state.stock.length === 0 ? 1 : legende ? TUNE.legendePimcSamples2 : 8;
     const budget = legende ? TUNE.legendePimcBudget : SEARCH_NODE_BUDGET;
     const exact = pimcChoose(state, samples, 12, budget);
     if (exact) return exact;
