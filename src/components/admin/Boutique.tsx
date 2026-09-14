@@ -290,8 +290,16 @@ export function Boutique({ onErreur }: { onErreur: (e: string | null) => void })
     // « Retirer », on renvoie `null` pour clear la colonne en base.
     const upload = async (): Promise<string | null | undefined> => {
       if (brouillon.assetFile) {
-        const buffer = await brouillon.assetFile.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        // PR19-fix — Encodage base64 par boucle, pas par spread : un
+        // spread `...new Uint8Array(buffer)` crève la pile V8 au-delà
+        // d'environ 125 Ko (la limite d'arguments d'un appel). Pour un
+        // MP3 de 500 Ko (~500 000 octets), on obtenait :
+        //   RangeError: Maximum call stack size exceeded
+        // Une boucle concatène sans spread : aucun risque de pile.
+        const bytes = new Uint8Array(await brouillon.assetFile.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const base64 = btoa(bin);
         const r = await uploadShopAsset({
           data: { id, mime: brouillon.assetFile.type, base64 },
         });
