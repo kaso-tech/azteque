@@ -49,8 +49,8 @@ describe("réglages du son", () => {
     }
   });
 
-  it("nomme chacun des dix-huit sons", () => {
-    expect(SOUND_IDS).toHaveLength(18);
+  it("nomme chacun des vingt sons", () => {
+    expect(SOUND_IDS).toHaveLength(20);
     for (const id of SOUND_IDS) expect(SOUND_LABELS[id]).toBeTruthy();
     expect(new Set(Object.values(SOUND_LABELS)).size).toBe(SOUND_IDS.length);
   });
