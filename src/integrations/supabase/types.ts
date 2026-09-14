@@ -218,6 +218,7 @@ export type Database = {
         Row: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
@@ -241,6 +242,7 @@ export type Database = {
         Insert: {
           avatar_kind?: string
           avatar_url?: string | null
+          background_kind?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
           country?: string | null
@@ -264,6 +266,7 @@ export type Database = {
         Update: {
           avatar_kind?: string
           avatar_url?: string | null
+          background_kind?: string | null
           banned?: boolean
           claimed_local_tokens?: boolean
           country?: string | null
@@ -650,7 +653,7 @@ export type Database = {
           _kind: string
           _name: string
           _price: number
-          _sort: number
+          _sort?: number
         }
         Returns: undefined
       }
@@ -667,6 +670,7 @@ export type Database = {
         Returns: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
@@ -773,6 +777,7 @@ export type Database = {
         Returns: {
           avatar_kind: string
           avatar_url: string | null
+          background_kind: string | null
           banned: boolean
           claimed_local_tokens: boolean
           country: string | null
