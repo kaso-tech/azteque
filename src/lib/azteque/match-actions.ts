@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   announce,
+  anticipate,
   drawNext,
   newRound,
   playCard,
@@ -39,6 +40,7 @@ const actionSchema = z.discriminatedUnion("type", [
     trump: suitSchema.nullable(),
   }),
   z.object({ type: z.literal("skip_announce") }),
+  z.object({ type: z.literal("anticipate") }),
   z.object({ type: z.literal("new_round") }),
   z.object({ type: z.literal("ready_next_round") }),
   z.object({ type: z.literal("propose_bet"), amount: z.number().int().positive() }),
@@ -404,6 +406,13 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       case "draw_next":
         next = drawNext(state);
         if (next === state) throw new Error("Aucune pioche en attente.");
+        break;
+      case "anticipate":
+        // Clôture anticipée du tour. Le moteur vérifie lui-même que le joueur
+        // est en main et qu'aucun pli n'est engagé : un client modifié ne peut
+        // pas arrêter le tour au milieu d'un pli pour sauver son tas.
+        next = anticipate(state, me);
+        if (next === state) throw new Error("L'anticipation n'est pas possible maintenant.");
         break;
     }
     await writeState(next, next.phase === "gameEnd" ? "finished" : "playing");

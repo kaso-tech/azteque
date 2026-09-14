@@ -60,10 +60,12 @@ import {
   requestFriend,
   type FriendshipStatus,
   type HeadToHead,
+  type Profile,
   type PublicProfile,
 } from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
 import { PlayerAvatar } from "@/components/azteque/avatar";
+import { AnticipationButton } from "@/components/azteque/anticipation";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
 
@@ -570,10 +572,12 @@ function OnlineTable() {
       .catch(() => {});
   }, []);
 
-  const [myRank, setMyRank] = useState<number | null>(null);
-  // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
-  // chacun voyant la table avec le sien.
-  const [myTapis, setMyTapis] = useState<string | null>(null);
+  // Le profil du joueur LOCAL, gardé en entier : la table montre son visage et
+  // sa cote au même titre que ceux de l'adversaire, et le tapis acheté en
+  // boutique est le sien — chacun voit la table avec le sien.
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
+  const myRank = myProfile?.rating ?? null;
+  const myTapis = myProfile?.background_kind ?? null;
   const [oppProfile, setOppProfile] = useState<PublicProfile | null>(null);
   const oppRank = oppProfile?.rating ?? null;
   const ended = state?.phase === "gameEnd";
@@ -581,11 +585,7 @@ function OnlineTable() {
     let alive = true;
     const read = () => {
       getMyProfile()
-        .then((p) => {
-          if (!alive) return;
-          setMyRank(p?.rating ?? null);
-          setMyTapis(p?.background_kind ?? null);
-        })
+        .then((p) => alive && setMyProfile(p))
         .catch(() => {});
       if (oppUserId) {
         getPublicProfile(oppUserId)
@@ -1045,6 +1045,10 @@ function OnlineTable() {
     void runAction({ type: "ready_next_round" });
   };
 
+  const anticipateRound = () => {
+    void runAction({ type: "anticipate" });
+  };
+
   if (error) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
@@ -1110,9 +1114,17 @@ function OnlineTable() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
       <header className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2 sm:px-5">
-        <p ref={monNomRef} className="truncate text-left text-xs font-semibold text-foreground">
-          {myName}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <PlayerAvatar className="h-8 w-8" profile={myProfile} />
+          <div className="min-w-0 text-left">
+            <p ref={monNomRef} className="truncate text-xs font-semibold text-foreground">
+              {myName}
+            </p>
+            {myRank !== null && (
+              <RankBadge rating={myRank} compact className="mt-0.5 text-[0.65rem]" />
+            )}
+          </div>
+        </div>
         <div className="min-w-16 text-center">
           <h1 className="gold-text font-black text-lg leading-none sm:text-2xl">Aztèque</h1>
           <p className="mt-1 whitespace-nowrap text-xs font-semibold text-foreground">
@@ -1312,6 +1324,7 @@ function OnlineTable() {
           >
             Bonnes · {myBonnes}
           </button>
+          <AnticipationButton state={state} me={me} onConfirm={anticipateRound} />
           {state.phase !== "gameEnd" && (
             <button
               type="button"

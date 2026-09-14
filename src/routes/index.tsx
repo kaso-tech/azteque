@@ -8,6 +8,7 @@ import {
   aiChooseCardAt,
   aiWantsRedeal,
   announce,
+  anticipate,
   availableMelds,
   drawNext,
   hasMainBlanche,
@@ -32,6 +33,7 @@ import {
   TrickPosition,
   TurnBar,
 } from "@/components/azteque/table";
+import { AnticipationButton } from "@/components/azteque/anticipation";
 import { RulesPanel } from "@/components/azteque/RulesPanel";
 import { InstallPrompt } from "@/components/azteque/install-prompt";
 import { cn } from "@/lib/utils";
@@ -761,6 +763,12 @@ function Azteque() {
     setStarted(false);
   }, []);
 
+  // Clôture anticipée du tour : le moteur vérifie lui-même que le moment s'y
+  // prête et renvoie l'état inchangé sinon, ce qui laisse `setState` inerte.
+  const anticipateRound = useCallback(() => {
+    setState((s) => anticipate(s, 0));
+  }, []);
+
   // Annonce au gestionnaire global d'invitations qu'une partie est en cours :
   // accepter une invitation pendant qu'on joue devra d'abord passer par
   // `quitTable`, avec l'avertissement qui va avec.
@@ -1160,6 +1168,7 @@ function Azteque() {
           >
             Comptes · {myComptes}
           </button>
+          <AnticipationButton state={state} me={0} onConfirm={anticipateRound} />
           <button
             type="button"
             onClick={() => setConfirmQuit(true)}

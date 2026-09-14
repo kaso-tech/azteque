@@ -37,3 +37,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bancs d'essai et mesures jetables : utiles le temps d'un réglage, jamais
+# une source du projet.
+scratchpad/

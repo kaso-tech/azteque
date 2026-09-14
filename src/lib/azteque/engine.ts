@@ -465,6 +465,69 @@ export function endRound(s: GameState): GameState {
   return s;
 }
 
+/* ---------- Clôture anticipée du tour ---------- */
+
+/**
+ * Le moment se prête-t-il à une anticipation ?
+ *
+ * Arrêter le tour n'a de sens qu'entre deux plis, et de la part de celui à qui
+ * c'est de mener : au milieu d'un pli, la carte que l'adversaire vient
+ * d'engager serait escamotée, et tant qu'une pioche est due la main n'est pas
+ * complète — on ne peut pas décider de ce qu'on abandonne sans le voir. On
+ * exige donc la position la plus nette qui soit, qui est aussi celle où le
+ * joueur mesure le mieux son pari.
+ */
+export function canAnticipate(state: GameState, p: PlayerIndex): boolean {
+  return (
+    state.phase === "playing" &&
+    state.turn === p &&
+    state.trick.length === 0 &&
+    state.drawPending.length === 0 &&
+    state.hands[p].length > 0
+  );
+}
+
+/**
+ * Arrêter le tour tout de suite, et le payer.
+ *
+ * Le tour se compte alors en l'état, mais l'anticipation n'est pas gratuite :
+ * toutes les bonnes que l'anticipateur tient encore en main passent au tas de
+ * l'adversaire, et toutes celles restées dans le talon avec elles — elles ne
+ * seront jamais jouées, on les lui crédite. Ce qui était DÉJÀ encaissé, en
+ * revanche, reste acquis : c'est précisément ce que l'anticipation met à
+ * l'abri.
+ *
+ * Le calcul est donc celui-ci : mon tas suffit-il à gagner le tour une fois ma
+ * main et le talon versés en face ? Un joueur qui tient le 10 d'atout sur un
+ * gros tas a tout intérêt à conclure avant de se le faire arracher — perdre ce
+ * 10 lui coûterait le tas entier. Un joueur dont la main est encore riche en
+ * bonnes se ruine au contraire en anticipant. Le talon, lui, ne se compte pas :
+ * personne ne sait ce qu'il cache, et c'est ce qui fait de l'anticipation une
+ * décision plutôt qu'une addition.
+ *
+ * La main de l'adversaire ne bouge pas : elle ne compte pas au décompte, seules
+ * comptent les bonnes encaissées.
+ */
+export function anticipate(state: GameState, p: PlayerIndex): GameState {
+  if (!canAnticipate(state, p)) return state;
+  const s = clone(state);
+  const adverse: PlayerIndex = p === 0 ? 1 : 0;
+  const cedees = [...s.hands[p].filter(isBonne), ...s.stock.filter(isBonne)];
+  s.hands[p] = s.hands[p].filter((c) => !isBonne(c));
+  s.stock = s.stock.filter((c) => !isBonne(c));
+  s.gains[adverse].push(...cedees);
+  s.canAnnounce = null;
+  s.drawPending = [];
+  s.log.unshift(
+    cedees.length === 0
+      ? `${name(p)} anticipe la fin du tour, sans une bonne à céder.`
+      : `${name(p)} anticipe la fin du tour et cède ${cedees.length} bonne${
+          cedees.length > 1 ? "s" : ""
+        }.`,
+  );
+  return endRound(s);
+}
+
 /* ==================================================================
  * IA
  *

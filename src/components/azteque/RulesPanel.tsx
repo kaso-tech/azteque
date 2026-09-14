@@ -65,7 +65,15 @@ const sections: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "10. Victoire",
+    title: "10. Anticiper la fin d'un tour",
+    body: [
+      "Entre deux plis, quand c'est à lui de mener, un joueur peut arrêter le tour et le faire compter en l'état.",
+      "Le prix en est fixé : toutes les bonnes qu'il tient encore en main, ainsi que toutes celles restées dans la pioche, sont transférées à l'adversaire. Les bonnes qu'il a déjà gagnées lui restent.",
+      "C'est donc un pari : il met son tas à l'abri — celui d'un 10 d'atout menacé, par exemple — au prix de ce qu'il n'a pas encore joué, et de ce que la pioche cachait.",
+    ],
+  },
+  {
+    title: "11. Victoire",
     body: [
       "Le champ est remporté par le premier joueur gagnant trois tours, ou immédiatement par tout joueur obtenant au moins treize bonnes en un seul tour.",
     ],
