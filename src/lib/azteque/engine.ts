@@ -711,17 +711,46 @@ const TUNE = {
   /** Nombre d'échantillons de mains adverses pour Légende. */
   legendePimcSamples: 8,
   /**
-   * PR9 — Coefficient Légende sur la valeur de "prendre la main" (lead gain).
+   * Ce que vaut la devanture POUR LA LÉGENDE, en multiple du barème commun.
    *
-   * Multiplie myLeadGain() et oppLeadGain() pour rendre Légende plus combative
-   * sur les plis annonçables : elle lutte plus pour gagner la main quand un
-   * compte peut être annoncé. Légende > 1 signifie Légende accorde plus de
-   * poids à la devanture que Grand Maître.
+   * Multiplie `myLeadGain` et `oppLeadGain` : au-dessus de 1, la Légende se
+   * bat davantage pour chaque pli que le Grand Maître ; en dessous, elle
+   * laisse filer ceux qui ne lui rapportent rien.
    *
-   * À calibrer au banc d'essai (scripts/ai-bench.ts) en A/B contre Grand
-   * Maître : cible Légende > 50 % de victoires sur 200+ tours.
+   * La valeur était à 1.3, au motif qu'une IA plus forte devait être plus
+   * combative. La mesure dit l'inverse, et un joueur l'avait signalé avant
+   * elle : la Légende prenait la devanture sans nécessité, ce qui l'obligeait
+   * à entamer le pli suivant. Or tant que la pioche dure, personne n'est tenu
+   * de fournir : celui qui entame COMMET sa carte le premier, et l'autre
+   * répond en connaissance de cause — il prend le pli quand il en vaut la
+   * peine, il se débarrasse d'un déchet sinon. Payer pour la devanture, c'est
+   * donc dépenser ses bonnes une à une pendant que l'adversaire assainit sa
+   * main et garde les siennes pour la phase finale, où le règlement l'obligera
+   * enfin à les lâcher.
+   *
+   * Balayage sur sept valeurs, quatre jeux de donnes de 150 tours chacun, face
+   * à Grand Maître et à Maître. Tout l'intervalle 0 – 0.9 bat 1.3, qui se
+   * trouvait au creux de la courbe (50.3 % de victoires contre les deux). Le
+   * sommet est à 0.6.
+   *
+   * Vérifié ensuite sur 4 500 donnes JAMAIS servies au réglage (graine
+   * disjointe), en A/B apparié — mêmes donnes, même adversaire, seule cette
+   * constante change :
+   *
+   *              1.3              0.6
+   *   Grand M.   50.9 %  (+0.53)  53.0 %  (+0.77)
+   *   Maître     52.0 %  (+0.66)  53.3 %  (+0.82)
+   *   Expert     59.8 %  (+1.51)  62.6 %  (+1.74)
+   *
+   * (entre parenthèses, l'écart de points par tour). Le gain est modeste mais
+   * il va dans le même sens contre les trois adversaires, et sur deux jeux de
+   * donnes indépendants — ce qui est ce qu'on demande à un réglage, l'écart
+   * bloc à bloc restant lui bruité.
+   *
+   * Ne pas remonter au-dessus de 1 sans refaire cette mesure : c'est
+   * exactement l'intuition qui avait produit le 1.3.
    */
-  legendeLeadBonus: 1.3,
+  legendeLeadBonus: 0.6,
   /** Seuil de talon à partir duquel Légende passe en recherche PIMC. */
   legendePimcStock: 2,
   /** Nombre de mondes échantillonnés par Légende (talon non vide). */
