@@ -299,15 +299,13 @@ export async function clearStaleSession(): Promise<void> {
 }
 
 /**
- * Ouvre la connexion Google via le courtier Lovable (fonctionne aussi dans
- * l'aperçu en iframe). La session est établie au retour.
+ * Ouvre la connexion Google.
+ *
+ * Le choix du chemin — Supabase directement, ou le courtier de l'aperçu — est
+ * expliqué et éprouvé dans `connexion-google.ts`. La session est établie au
+ * retour, par `completeOAuthRedirect` ci-dessous.
  */
-export async function signInWithGoogle() {
-  const { lovable } = await import("@/integrations/lovable");
-  await lovable.auth.signInWithOAuth("google", {
-    redirect_uri: window.location.origin,
-  });
-}
+export { signInWithGoogle } from "./connexion-google";
 
 /**
  * Termine une connexion Google après la redirection pleine page.
