@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ownedSounds, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
+import { iconeDe, ownedSounds, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
 import { Sticker } from "@/components/azteque/stickers";
 import {
   chargerPreferences,
@@ -101,7 +101,7 @@ export function SettingsPanel({ owned, onClose }: SettingsPanelProps) {
                   className="flex items-center justify-between rounded-md border border-border bg-card/40 px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
-                    <Sticker id={s.id} className="h-7 w-7" />
+                    <Sticker id={iconeDe(s).dessin} assetUrl={iconeDe(s).url} className="h-7 w-7" />
                     <span className="text-sm text-foreground">{s.name}</span>
                   </div>
                   <div className="flex items-center gap-2">

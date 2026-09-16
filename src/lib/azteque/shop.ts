@@ -39,7 +39,59 @@ export interface ShopItem {
    * Si absent, le code utilise le fallback (SVG, sfx, BACKGROUND_PRESETS).
    */
   assetUrl?: string | null;
+  /**
+   * L'ICÔNE d'un son, quand l'admin en pose une.
+   *
+   * Un son est le seul article dont le fichier n'est pas une image : son
+   * `assetUrl` porte l'audio. Lui donner aussi son illustration demandait donc
+   * un second champ — sans quoi l'audio finissait dans un `<img>`, ce qui
+   * n'affichait pas une icône mais le carré d'image brisée du navigateur, sur
+   * les boutons de la table comme dans la boutique.
+   */
+  iconUrl?: string | null;
   sort: number;
+}
+
+/**
+ * Le dessin livré avec chacun des sons de base.
+ *
+ * Les quatre sons d'origine portent un identifiant d'article (`snd_rire`) qui
+ * est aussi celui de leur dessin, si bien qu'on a longtemps pu les confondre.
+ * Un son créé depuis la console n'a pas cette chance : son identifiant ne
+ * désigne aucun dessin, et le bouton restait vide. On retombe donc sur le son
+ * qu'il joue, qui lui est toujours renseigné.
+ */
+const DESSIN_PAR_SON: Record<string, string> = {
+  laugh: "snd_rire",
+  cry: "snd_pleurer",
+  taunt: "snd_moquerie",
+  cheer: "snd_felicitations",
+};
+
+/** L'image d'un article, et le dessin qui tient sa place à défaut. */
+export interface IconeArticle {
+  /** Fichier téléversé par l'admin, ou `null`. */
+  url: string | null;
+  /** Dessin livré avec l'application, toujours renseigné. */
+  dessin: string;
+}
+
+/**
+ * De quoi illustrer un article, quelle que soit sa nature.
+ *
+ * La règle tient en une phrase et n'a pas à être redite à chaque bouton :
+ * l'image d'un son est son `iconUrl`, celle de tous les autres est leur
+ * `assetUrl`. C'est pour l'avoir redite quatre fois — et une fois de travers —
+ * que les boutons de sons affichaient leur piste audio comme une image.
+ */
+export function iconeDe(item: ShopItem): IconeArticle {
+  if (item.kind === "sound") {
+    return {
+      url: item.iconUrl ?? null,
+      dessin: item.art || DESSIN_PAR_SON[item.soundId ?? ""] || "snd_generique",
+    };
+  }
+  return { url: item.assetUrl ?? null, dessin: item.art || item.id };
 }
 
 /** Le catalogue tel que la migration l'installe. */
@@ -298,7 +350,14 @@ interface Ligne {
   hint: string | null;
   price: number;
   active?: boolean;
-  data?: { art?: string; phrases?: string[]; css?: string; soundId?: string } | null;
+  data?: {
+    art?: string;
+    phrases?: string[];
+    css?: string;
+    soundId?: string;
+    /** Icône d'un son : voir `ShopItem.iconUrl`. */
+    iconUrl?: string;
+  } | null;
   /** PR19 — URL publique du fichier uploadé (Supabase Storage). */
   asset_url?: string | null;
   sort?: number;
@@ -324,6 +383,9 @@ function depuisLaBase(rows: Ligne[]): ShopItem[] {
       soundId: r.data?.soundId,
       // PR19 — URL publique du fichier uploadé (sticker/son/tapis custom).
       assetUrl: r.asset_url ?? null,
+      // L'icône d'un son voyage dans `data` : `asset_url` y est déjà pris par
+      // l'audio, et un second champ JSON évite une migration de colonne.
+      iconUrl: r.data?.iconUrl ?? null,
       sort: r.sort ?? 0,
     }))
     .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id));

@@ -3,7 +3,13 @@ import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
 import { Sticker, isSticker } from "@/components/azteque/stickers";
-import { ownedPhrases, ownedSounds, ownedStickers, useCatalogue } from "@/lib/azteque/shop";
+import {
+  iconeDe,
+  ownedPhrases,
+  ownedSounds,
+  ownedStickers,
+  useCatalogue,
+} from "@/lib/azteque/shop";
 
 const QUICK_PHRASES = [
   "Bien joué !",
@@ -231,7 +237,9 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
                 onClick={() => send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)}
                 className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
               >
-                <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-6 w-6" />
+                {/* `assetUrl` d'un son porte son AUDIO : le passer ici affichait
+                    une piste MP3 comme une image, donc un carré brisé. */}
+                <Sticker id={iconeDe(s).dessin} assetUrl={iconeDe(s).url} className="h-6 w-6" />
               </button>
             ))}
           </div>

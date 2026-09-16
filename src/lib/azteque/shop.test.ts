@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { FALLBACK_ITEMS, itemsOfKind, ownedPhrases, ownedStickers } from "./shop";
+import {
+  FALLBACK_ITEMS,
+  iconeDe,
+  itemsOfKind,
+  ownedPhrases,
+  ownedStickers,
+  type ShopItem,
+} from "./shop";
 import { sanitizeBackground } from "./backgrounds";
+import { isSticker } from "@/components/azteque/stickers";
 
 /**
  * Le catalogue est écrit deux fois : ici pour les dessins et les libellés, en
@@ -144,5 +152,113 @@ describe("catalogue de la boutique", () => {
     expect(ownedStickers(achats, FALLBACK_ITEMS).map((s) => s.id)).toEqual(
       SHOP_STICKERS.map((s) => s.id),
     );
+  });
+});
+
+/**
+ * L'illustration d'un article, et le piège qu'elle a tendu.
+ *
+ * Un son est le seul article dont le fichier n'est pas une image : son
+ * `assetUrl` porte l'AUDIO. Les boutons le passaient pourtant à la balise
+ * image, qui affichait donc le carré d'image brisée du navigateur — c'est ce
+ * qu'on voyait en partie, dans la boutique et dans la console. Et un son créé
+ * depuis la console, dont l'identifiant ne désigne aucun dessin, n'affichait
+ * rien du tout.
+ */
+describe("iconeDe", () => {
+  const son = (extra: Partial<ShopItem> = {}): ShopItem => ({
+    id: "snd_applaudir",
+    kind: "sound",
+    name: "Applaudir",
+    hint: "",
+    price: 500,
+    active: true,
+    sort: 0,
+    ...extra,
+  });
+
+  it("ne prend JAMAIS la piste audio d'un son pour son image", () => {
+    const i = iconeDe(son({ assetUrl: "https://exemple.test/applaudir.mp3" }));
+    expect(i.url).toBeNull();
+  });
+
+  it("retient l'image que l'admin a posée sur un son", () => {
+    const i = iconeDe(
+      son({ assetUrl: "https://exemple.test/a.mp3", iconUrl: "https://exemple.test/a.png" }),
+    );
+    expect(i.url).toBe("https://exemple.test/a.png");
+  });
+
+  it("retombe sur le dessin du son joué quand l'identifiant n'en désigne aucun", () => {
+    // `snd_applaudir` n'existe pas parmi les dessins livrés ; `cheer`, si.
+    expect(iconeDe(son({ soundId: "cheer" })).dessin).toBe("snd_felicitations");
+    expect(iconeDe(son({ soundId: "laugh" })).dessin).toBe("snd_rire");
+  });
+
+  it("donne un dessin générique plutôt qu'un bouton vide", () => {
+    expect(iconeDe(son()).dessin).toBe("snd_generique");
+    expect(iconeDe(son({ soundId: "inconnu" })).dessin).toBe("snd_generique");
+  });
+
+  it("laisse le dessin choisi par l'admin l'emporter", () => {
+    expect(iconeDe(son({ soundId: "cheer", art: "snd_moquerie" })).dessin).toBe("snd_moquerie");
+  });
+
+  it("garde l'ancienne règle pour tout le reste : l'image EST l'asset", () => {
+    const sticker: ShopItem = {
+      id: "st_perso",
+      kind: "sticker",
+      name: "Perso",
+      hint: "",
+      price: 100,
+      active: true,
+      sort: 0,
+      art: "st_feu",
+      assetUrl: "https://exemple.test/perso.png",
+    };
+    expect(iconeDe(sticker)).toEqual({ url: "https://exemple.test/perso.png", dessin: "st_feu" });
+    expect(iconeDe({ ...sticker, art: undefined, assetUrl: null })).toEqual({
+      url: null,
+      dessin: "st_perso",
+    });
+  });
+
+  it("illustre les quatre sons livrés sans rien leur ajouter", () => {
+    for (const s of FALLBACK_ITEMS.filter((i) => i.kind === "sound")) {
+      const i = iconeDe(s);
+      expect(i.url).toBeNull();
+      expect(i.dessin).toBe(s.id);
+    }
+  });
+});
+
+/**
+ * Le pont entre les deux modules : `iconeDe` nomme un dessin, `stickers.tsx`
+ * le dessine. Rien ne garantissait jusqu'ici qu'ils parlent de la même chose,
+ * et c'est précisément par là que les boutons se vidaient.
+ */
+describe("tout dessin désigné est un dessin qui existe", () => {
+  it("couvre le catalogue livré", () => {
+    for (const item of FALLBACK_ITEMS) {
+      if (item.kind === "messages" || item.kind === "background" || item.kind === "avatar")
+        continue;
+      expect(isSticker(iconeDe(item).dessin)).toBe(true);
+    }
+  });
+
+  it("couvre un son créé depuis la console, quel que soit son identifiant", () => {
+    const inventé = (soundId?: string): ShopItem => ({
+      id: "peu_importe",
+      kind: "sound",
+      name: "",
+      hint: "",
+      price: 0,
+      active: true,
+      sort: 0,
+      ...(soundId ? { soundId } : {}),
+    });
+    for (const s of [undefined, "laugh", "cry", "taunt", "cheer", "n_importe_quoi"]) {
+      expect(isSticker(iconeDe(inventé(s)).dessin)).toBe(true);
+    }
   });
 });

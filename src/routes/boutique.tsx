@@ -6,10 +6,11 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { Sticker } from "@/components/azteque/stickers";
 import {
   equippedBackground,
+  iconeDe,
   itemsOfKind,
-  useCatalogue,
   type ShopItem,
   type ShopKind,
+  useCatalogue,
 } from "@/lib/azteque/shop";
 import {
   buyItem,
@@ -297,7 +298,8 @@ function Boutique() {
           {visibles("sound").map((s) =>
             carte(
               s,
-              <Sticker id={s.id} assetUrl={s.assetUrl ?? null} className="h-16 w-16" />,
+              // `s.assetUrl` est la piste audio du son, pas son illustration.
+              <Sticker id={iconeDe(s).dessin} assetUrl={iconeDe(s).url} className="h-16 w-16" />,
               <button
                 type="button"
                 onClick={(ev) => {

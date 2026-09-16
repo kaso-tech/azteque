@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 /**
  * Les stickers de la boutique.
  *
@@ -263,7 +265,35 @@ function SonFelicitations() {
   );
 }
 
+function SonGenerique() {
+  // Le dessin de secours d'un son créé depuis la console : son identifiant
+  // n'en désigne aucun, et un bouton vide ne dit rien de ce qu'il déclenche.
+  // Un haut-parleur reste juste quel que soit le son posé derrière.
+  return (
+    <>
+      <circle cx="32" cy="32" r="24" fill={CREME} stroke={ENCRE} strokeWidth="2" />
+      {/* Le corps du haut-parleur. */}
+      <path
+        d="M20 27h6l8-7v24l-8-7h-6z"
+        fill={OR}
+        stroke={ENCRE}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      {/* Les ondes, deux arcs ouverts vers la droite. */}
+      <path
+        d="M40 25c3 4 3 10 0 14M46 21c5 6 5 16 0 22"
+        stroke={ENCRE}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </>
+  );
+}
+
 const DESSINS: Record<string, () => React.JSX.Element> = {
+  snd_generique: SonGenerique,
   st_bravo: Bravo,
   st_rire: Rire,
   st_pitie: Pitie,
@@ -295,18 +325,24 @@ export function Sticker({
    */
   assetUrl?: string | null;
 }) {
-  // Asset custom d'abord : si l'admin a posé un fichier, c'est lui qui
-  // s'affiche, peu importe l'ID du SVG inline. Le SVG reste le fallback
-  // historique (PR14 avait ajouté 4 stickers-sons, gardés pour ré-utilisation
-  // ou remplacement par un PNG plus tard).
-  if (assetUrl) {
+  // Une image qui ne charge pas laissait le carré d'image brisée du
+  // navigateur sur le bouton. Un fichier retiré du bucket, une URL périmée,
+  // un réseau coupé : le dessin livré avec l'application vaut mieux que ça,
+  // et il est toujours là.
+  const [echoue, setEchoue] = useState(false);
+  useEffect(() => setEchoue(false), [assetUrl]);
+
+  // Fichier de l'admin d'abord : quand il en a posé un, c'est lui qui compte,
+  // quel que soit le dessin que l'identifiant désignerait.
+  if (assetUrl && !echoue) {
     return (
       <img
         src={assetUrl}
-        alt="Sticker"
+        alt=""
         loading="lazy"
         className={className}
         style={{ objectFit: "contain" }}
+        onError={() => setEchoue(true)}
       />
     );
   }
