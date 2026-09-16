@@ -298,36 +298,86 @@ export function freshDealId(state: GameState | null | undefined): string | null 
  * Elle est purement décorative : un joueur qui a demandé moins d'animations la
  * saute entièrement, plutôt que d'attendre deux secondes devant un écran fixe.
  */
+/** La donne en cours de célébration, et l'instant où la cérémonie s'achève. */
+export interface EtatDonne {
+  dealId: string | null;
+  finAt: number;
+}
+
+export const DONNE_AU_REPOS: EtatDonne = { dealId: null, finAt: 0 };
+
+/**
+ * Ce que devient la cérémonie quand l'état du jeu change. Une seule chose la
+ * déclenche — une donne INCONNUE — et rien ne l'interrompt.
+ *
+ * La nuance est tout le correctif. `freshDealId` ne répond pas « quelle est la
+ * donne » mais « la table est-elle encore intacte » : il retombe à `null` dès
+ * que le premier coup est joué. En ligne, ce coup est celui de l'ADVERSAIRE,
+ * qui n'a aucune raison d'attendre la fin d'une cérémonie qui ne se joue que
+ * sur notre écran. L'identifiant passait donc à `null` au milieu de la donne,
+ * et comme il servait de dépendance à l'effet, React en exécutait le nettoyage
+ * — lequel annulait le minuteur chargé de RENDRE les mains. La cérémonie ne se
+ * terminait plus jamais : les deux mains restaient masquées, le jeu continuait
+ * dessous, et les joueurs finissaient le champ sans voir leurs cartes.
+ *
+ * D'où cette règle, qui ne regarde `dealId` que pour COMMENCER : passer à
+ * `null` ou rester identique laisse la cérémonie courir jusqu'à son terme.
+ */
+export function avanceDonne(
+  precedent: EtatDonne,
+  dealId: string | null,
+  maintenant: number,
+  duree: number,
+): EtatDonne {
+  if (!dealId || dealId === precedent.dealId) return precedent;
+  return { dealId, finAt: maintenant + duree };
+}
+
 export function useDealCeremony(
   state: GameState | null | undefined,
   active: boolean,
   pace: DealPace = "solo",
 ) {
   const [dealing, setDealing] = useState(false);
-  const lastDeal = useRef<string | null>(null);
+  const suivi = useRef<EtatDonne>(DONNE_AU_REPOS);
+  const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dealId = active ? freshDealId(state) : null;
 
   useEffect(() => {
-    if (!dealId || dealId === lastDeal.current) return;
-    lastDeal.current = dealId;
+    const avant = suivi.current;
+    const apres = avanceDonne(avant, dealId, Date.now(), ceremonyMs(pace));
+    // Rien de neuf : surtout ne toucher à rien. C'est ici que l'ancienne
+    // version annulait le minuteur d'une cérémonie encore en cours.
+    if (apres === avant) return;
+    suivi.current = apres;
     if (
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
     ) {
       return;
     }
+    if (minuteur.current) clearTimeout(minuteur.current);
     setDealing(true);
-    const t = setTimeout(() => setDealing(false), ceremonyMs(pace));
-    return () => clearTimeout(t);
+    minuteur.current = setTimeout(() => setDealing(false), Math.max(0, apres.finAt - Date.now()));
   }, [dealId, pace]);
+
+  // Le seul nettoyage lié au cycle de vie est le démontage. Le rattacher aux
+  // dépendances de l'effet ci-dessus est précisément ce qui masquait les mains
+  // pour le reste du champ.
+  useEffect(
+    () => () => {
+      if (minuteur.current) clearTimeout(minuteur.current);
+    },
+    [],
+  );
 
   // Quitter la table pendant la donne ne doit pas laisser les mains masquées.
   useEffect(() => {
-    if (!active) {
-      setDealing(false);
-      lastDeal.current = null;
-    }
+    if (active) return;
+    if (minuteur.current) clearTimeout(minuteur.current);
+    setDealing(false);
+    suivi.current = DONNE_AU_REPOS;
   }, [active]);
 
   return dealing;

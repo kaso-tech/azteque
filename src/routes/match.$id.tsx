@@ -1457,6 +1457,10 @@ function OnlineTable() {
             isDisabled={(c) =>
               meldDecisionPending ||
               animating ||
+              // La main est masquée pendant la cérémonie, mais elle reste
+              // dans la page : sans ce verrou, une tape au hasard y jouait
+              // une carte à l'aveugle.
+              dealing ||
               state.turn !== me ||
               state.phase !== "playing" ||
               state.trick.length >= 2 ||

@@ -1195,6 +1195,9 @@ function Azteque() {
             animateArrivals={false}
             isDisabled={(c) =>
               meldDecisionPending ||
+              // Même raison qu'en ligne : masquée n'est pas injouable. La main
+              // reste dans la page pendant la cérémonie, à opacité nulle.
+              dealing ||
               state.drawPending.length > 0 ||
               state.turn !== 0 ||
               state.phase !== "playing" ||
