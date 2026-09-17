@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAztequeAuth as requireSupabaseAuth } from "@/lib/azteque/auth-middleware-azteque";
 import {
   announce,
   anticipate,
