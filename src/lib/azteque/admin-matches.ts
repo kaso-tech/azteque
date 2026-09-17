@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/azteque/supabase-client";
 
 /**
  * Console d'administration — gestion des parties.

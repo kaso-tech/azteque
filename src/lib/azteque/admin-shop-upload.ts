@@ -12,7 +12,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAztequeAuth as requireSupabaseAuth } from "@/lib/azteque/auth-middleware-azteque";
 import { isAdminRpcServer } from "./admin-guard-server";
 
 interface UploadInput {

@@ -27,7 +27,7 @@ const base = {
   seauEcritureErreur: null as { code?: string; message?: string } | null,
 };
 
-vi.mock("@/integrations/supabase/client", () => ({
+vi.mock("@/lib/azteque/supabase-client", () => ({
   supabase: {
     auth: {
       getSession: () =>

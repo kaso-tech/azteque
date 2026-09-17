@@ -1,5 +1,5 @@
 import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/azteque/supabase-client";
 import { setTokens } from "@/lib/azteque/tokens";
 import { START_RATING } from "@/lib/azteque/rank";
 
