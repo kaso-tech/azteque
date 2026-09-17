@@ -208,7 +208,7 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => requestSchema.parse(data))
   .handler(async ({ data: request, context }): Promise<MatchActionResult> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
     const { matchId, action: data } = request;
 
     const { data: row, error: loadError } = await supabaseAdmin

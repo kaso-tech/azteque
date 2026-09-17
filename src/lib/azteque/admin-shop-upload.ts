@@ -69,7 +69,7 @@ export const uploadShopAsset = createServerFn({
     const admin = await isAdminRpcServer(context);
     if (!admin) throw new Error("Réservé aux administrateurs.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
     const bytes = Buffer.from(input.base64, "base64");
     if (bytes.byteLength > MAX_BYTES) {
       throw new Error("Fichier trop volumineux (max 5 Mo).");
