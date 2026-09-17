@@ -15,7 +15,7 @@ interface AuthContext {
 export async function isAdminRpcServer(context: AuthContext): Promise<boolean> {
   const userId = context.userId;
   if (!userId) return false;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("is_admin")
