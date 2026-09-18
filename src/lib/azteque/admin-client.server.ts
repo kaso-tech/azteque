@@ -1,0 +1,80 @@
+/**
+ * Client Supabase privilégié (clé de service) pour les opérations serveur :
+ * arbitrage des parties en ligne, gardes administrateur, uploads boutique.
+ *
+ * Copie de `src/integrations/supabase/client.server.ts` (fichier généré
+ * automatiquement, non modifiable), avec une différence : la clé de service
+ * est lue depuis `AZTEQUE_SERVICE_ROLE_KEY`. Le nom d'origine
+ * `SUPABASE_SERVICE_ROLE_KEY` est un préfixe réservé par la plateforme et ne
+ * peut pas recevoir la clé d'un projet Supabase externe.
+ *
+ * SECURITE : clé service_role — contourne la RLS. Serveur uniquement, jamais
+ * exposée au client. Charger dans les handlers :
+ *   const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
+ */
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+import { PROJET_URL } from "@/lib/azteque/supabase-projet";
+
+function isNewSupabaseApiKey(value: string): boolean {
+  return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
+}
+
+function createSupabaseFetch(supabaseKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(
+      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
+    );
+
+    if (init?.headers) {
+      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    }
+
+    // Les nouvelles clés Supabase sont opaques, pas des JWT porteurs.
+    if (
+      isNewSupabaseApiKey(supabaseKey) &&
+      headers.get("Authorization") === `Bearer ${supabaseKey}`
+    ) {
+      headers.delete("Authorization");
+    }
+
+    headers.set("apikey", supabaseKey);
+    return fetch(input, { ...init, headers });
+  };
+}
+
+function createSupabaseAdminClient() {
+  const SUPABASE_URL = PROJET_URL;
+  const SERVICE_ROLE_KEY =
+    process.env["AZTEQUE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
+
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    const missing = [
+      ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
+      ...(!SERVICE_ROLE_KEY ? ["AZTEQUE_SERVICE_ROLE_KEY"] : []),
+    ];
+    const message = `Variable(s) d'environnement manquante(s) : ${missing.join(", ")}. Configurez la clé de service du projet Supabase dans les secrets du déploiement.`;
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  return createClient<Database>(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    global: {
+      fetch: createSupabaseFetch(SERVICE_ROLE_KEY),
+    },
+    auth: {
+      storage: undefined,
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+let _supabaseAdmin: ReturnType<typeof createSupabaseAdminClient> | undefined;
+
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createSupabaseAdminClient>, {
+  get(_, prop, receiver) {
+    if (!_supabaseAdmin) _supabaseAdmin = createSupabaseAdminClient();
+    return Reflect.get(_supabaseAdmin, prop, receiver);
+  },
+});

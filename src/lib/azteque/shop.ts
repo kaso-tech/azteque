@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/azteque/supabase-client";
 import { BACKGROUND_PRESETS, backgroundImage } from "@/lib/azteque/backgrounds";
 
 /**

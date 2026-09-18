@@ -12,7 +12,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAztequeAuth as requireSupabaseAuth } from "@/lib/azteque/auth-middleware-azteque";
 import { isAdminRpcServer } from "./admin-guard-server";
 
 interface UploadInput {
@@ -69,7 +69,7 @@ export const uploadShopAsset = createServerFn({
     const admin = await isAdminRpcServer(context);
     if (!admin) throw new Error("Réservé aux administrateurs.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
     const bytes = Buffer.from(input.base64, "base64");
     if (bytes.byteLength > MAX_BYTES) {
       throw new Error("Fichier trop volumineux (max 5 Mo).");

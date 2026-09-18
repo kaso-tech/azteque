@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAztequeAuth as requireSupabaseAuth } from "@/lib/azteque/auth-middleware-azteque";
 import {
   announce,
   anticipate,
@@ -208,7 +208,7 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => requestSchema.parse(data))
   .handler(async ({ data: request, context }): Promise<MatchActionResult> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/azteque/admin-client.server");
     const { matchId, action: data } = request;
 
     const { data: row, error: loadError } = await supabaseAdmin

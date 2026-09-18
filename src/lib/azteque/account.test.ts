@@ -23,7 +23,7 @@ const base = {
 
 const TOUTES = ["id", "username", "rating", "avatar_kind", "avatar_url", "tokens"];
 
-vi.mock("@/integrations/supabase/client", () => ({
+vi.mock("@/lib/azteque/supabase-client", () => ({
   supabase: {
     auth: {
       getSession: () =>
