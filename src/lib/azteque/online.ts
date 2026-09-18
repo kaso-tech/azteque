@@ -79,6 +79,45 @@ export async function getMatch(id: string) {
   return (data as unknown as MatchRow | null) ?? null;
 }
 
+/**
+ * La table que ce joueur a laissée ouverte, s'il y en a une.
+ *
+ * Quitter une table par accident — un retour en arrière, une application
+ * fermée, un téléphone qui s'éteint — ne laissait aucun chemin de retour. Le
+ * code de la partie n'en est pas un : `join_match_by_code` n'accepte qu'une
+ * table encore en attente d'adversaire, et refuse donc celle où l'on était
+ * déjà assis. Seule l'adresse exacte ramenait à la table, et c'est justement
+ * ce qu'on n'a plus après avoir fermé l'application.
+ *
+ * La ligne, elle, a toujours su qui joue : `host_id` et `guest_id` portent les
+ * deux sièges, et la politique de lecture autorise déjà un participant à
+ * relire sa propre partie. Il suffisait de la demander.
+ *
+ * On ne retient que les tables VIVANTES — en attente ou en cours — et la plus
+ * récemment touchée : une partie terminée n'a rien à proposer, et une vieille
+ * table oubliée ne doit pas passer devant celle qu'on vient de quitter.
+ */
+export async function myOpenMatch(): Promise<MatchRow | null> {
+  const user = await ensureOnlineIdentity();
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .or(`host_id.eq.${user.id},guest_id.eq.${user.id}`)
+    .in("status", ["waiting", "playing"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as unknown as MatchRow | null) ?? null;
+}
+
+/** Le siège qu'occupe ce joueur à cette table. */
+export function mySeat(match: MatchRow, userId: string): "host" | "guest" | null {
+  if (match.host_id === userId) return "host";
+  if (match.guest_id === userId) return "guest";
+  return null;
+}
+
 export async function joinMatch(code: string, guestName: string) {
   await ensureOnlineIdentity();
   const { data, error } = await supabase.rpc("join_match_by_code", {

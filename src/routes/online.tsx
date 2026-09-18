@@ -22,6 +22,8 @@ import {
 import {
   createMatch,
   joinMatch,
+  myOpenMatch,
+  mySeat,
   normalizeCode,
   subscribeMatch,
   type MatchRow,
@@ -169,6 +171,34 @@ function OnlineLobby() {
   useEffect(() => {
     if (!profile) return;
     return trackLobbyPresence(profile.id, setOnline);
+  }, [profile]);
+
+  /* ---------- Reprendre une table laissée en plan ---------- */
+
+  /**
+   * Une table quittée par accident restait perdue : son code ne permet pas d'y
+   * revenir (il n'ouvre qu'une table encore en attente) et l'adresse exacte
+   * disparaît avec l'onglet fermé. On la retrouve donc ici, à l'endroit même
+   * où le joueur revient.
+   */
+  const [openMatch, setOpenMatch] = useState<{ match: MatchRow; seat: "host" | "guest" } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!profile) return;
+    let vivant = true;
+    myOpenMatch()
+      .then((m) => {
+        if (!vivant || !m) return;
+        const seat = mySeat(m, profile.id);
+        if (seat) setOpenMatch({ match: m, seat });
+      })
+      .catch(() => {
+        /* le salon reste utilisable : au pire, la reprise n'est pas proposée */
+      });
+    return () => {
+      vivant = false;
+    };
   }, [profile]);
 
   /* ---------- Inviter un joueur ---------- */
@@ -320,6 +350,24 @@ function OnlineLobby() {
 
       {/* Les invitations reçues s'affichent désormais partout, y compris en
           pleine partie : voir InviteManager, monté à la racine. */}
+
+      {openMatch && (
+        <div className="panel w-full px-5 py-4 text-left">
+          <p className="text-sm font-semibold text-gold">Vous avez une partie en cours</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {openMatch.seat === "host"
+              ? (openMatch.match.guest_name ?? "En attente d'un adversaire")
+              : openMatch.match.host_name}{" "}
+            · code {openMatch.match.code}
+          </p>
+          <Button
+            onClick={() => enterTable(openMatch.match.id, openMatch.seat)}
+            className="mt-3 w-full font-semibold"
+          >
+            Reprendre la partie
+          </Button>
+        </div>
+      )}
 
       {profile && (
         <FriendsPanel profile={profile} online={online} onInvite={invite} busyInvite={busyInvite} />

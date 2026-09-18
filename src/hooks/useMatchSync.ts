@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getMatch, subscribeMatch, type MatchRow } from "@/lib/azteque/online";
 import { withRetry } from "@/lib/azteque/net";
 
@@ -158,5 +158,15 @@ export function useMatchSync(
     };
   }, [refresh]);
 
-  return { live, offline, stale, refresh };
+  /**
+   * Mémorisé, et ce n'est pas un détail de confort.
+   *
+   * Cet objet était reconstruit à chaque rendu. La table le passe en
+   * dépendance de `runAction`, dont dépend `declareForfeit`, dont dépendait
+   * l'effet qui décompte l'attente de connexion : cet effet se rejouait donc à
+   * CHAQUE rendu, son nettoyage annulait le minuteur, et le décompte repartait
+   * de soixante secondes. Il n'atteignait jamais zéro, et le joueur resté seul
+   * à la table n'était jamais déclaré vainqueur.
+   */
+  return useMemo(() => ({ live, offline, stale, refresh }), [live, offline, stale, refresh]);
 }

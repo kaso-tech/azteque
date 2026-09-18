@@ -50,6 +50,7 @@ import {
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
+import { LINK_WAIT_LIMIT, verdictAttente } from "@/lib/azteque/attente-lien";
 import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
 import { previewAction } from "@/lib/azteque/preview";
 import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
@@ -122,7 +123,6 @@ const TURN_LIMIT = 30;
  * rétablir — pendant laquelle la réflexion est gelée — avant que l'absence ne
  * soit tenue pour un abandon.
  */
-const LINK_WAIT_LIMIT = 60;
 
 function OnlineTable() {
   const { id } = Route.useParams();
@@ -1060,20 +1060,41 @@ function OnlineTable() {
    * que l'adversaire décompte de son côté le même délai contre nous.
    */
   const [linkWaitLeft, setLinkWaitLeft] = useState<number | null>(null);
+  /**
+   * L'échéance, posée UNE FOIS au début de l'attente et gardée hors du cycle
+   * des effets. C'est la correction : tant qu'elle vivait dans la portée de
+   * l'effet, chaque rendu la repoussait de soixante secondes et le décompte
+   * n'arrivait jamais à zéro — le joueur resté seul n'était jamais déclaré
+   * vainqueur. Voir `verdictAttente`.
+   */
+  const echeanceAttente = useRef<number | null>(null);
+  // L'abandon se déclare à travers une ref : le passer en dépendance
+  // rejouerait l'effet dès que son identité change, ce qui est précisément
+  // ce qui remettait le compteur à zéro.
+  const declareRef = useRef(declareForfeit);
+  declareRef.current = declareForfeit;
+
+  const phaseEnCours = state?.phase;
   useEffect(() => {
-    if (!waitingOnLink || !state || state.phase !== "playing") {
+    if (!waitingOnLink || phaseEnCours !== "playing") {
+      echeanceAttente.current = null;
       setLinkWaitLeft(null);
       return;
     }
-    const start = Date.now();
-    setLinkWaitLeft(LINK_WAIT_LIMIT);
-    const t = setInterval(() => {
-      const left = Math.max(0, LINK_WAIT_LIMIT - Math.round((Date.now() - start) / 1000));
-      setLinkWaitLeft(left);
-      if (left === 0 && linkHealthy && !oppOnline) declareForfeit("disconnect");
-    }, 1000);
+    echeanceAttente.current ??= Date.now() + LINK_WAIT_LIMIT * 1000;
+    const echeance = echeanceAttente.current;
+    const battement = () => {
+      const v = verdictAttente(echeance, Date.now(), {
+        lienSain: linkHealthy,
+        adversairePresent: oppOnline,
+      });
+      setLinkWaitLeft(v.restant);
+      if (v.declarer) declareRef.current("disconnect");
+    };
+    battement();
+    const t = setInterval(battement, 1000);
     return () => clearInterval(t);
-  }, [waitingOnLink, linkHealthy, oppOnline, state, declareForfeit]);
+  }, [waitingOnLink, linkHealthy, oppOnline, phaseEnCours]);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   // Panneau main blanche : visible en début de tour, si le joueur local a
