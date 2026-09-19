@@ -132,7 +132,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    // Couleur posée en dur, avant même la feuille de style externe : le
+    // fond par défaut du navigateur est blanc, et le temps qu'`appCss` se
+    // charge et s'applique, ce blanc s'affichait — un éclair net entre
+    // l'écran de lancement (thématisé, lui) et la table verte de l'accueil.
+    // Même vert que `theme-color` et `background_color` du manifeste, pour
+    // qu'aucune des trois étapes ne jure avec les deux autres.
+    <html lang="fr" style={{ backgroundColor: "#12352a" }}>
       <head>
         <HeadContent />
         {/* Rend l'application installable (icône, plein écran, hors ligne
