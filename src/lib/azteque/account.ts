@@ -407,6 +407,18 @@ export async function signOut() {
   if (error) throw error;
 }
 
+/**
+ * Supprime définitivement le compte courant (voir `account-deletion.ts`
+ * pour ce que ça couvre côté base). Le jeton du compte supprimé n'a plus
+ * cours côté serveur, mais la session locale doit être effacée séparément :
+ * `signOut()` révoque le jeton, ici il n'y a plus rien à révoquer.
+ */
+export async function deleteAccount(): Promise<void> {
+  const { deleteMyAccount } = await import("@/lib/azteque/account-deletion");
+  await deleteMyAccount();
+  await supabase.auth.signOut();
+}
+
 /** Prévient à chaque changement de session (connexion, déconnexion, retour). */
 export function onAuthChange(cb: (userId: string | null) => void) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {

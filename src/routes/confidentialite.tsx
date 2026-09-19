@@ -193,9 +193,9 @@ function ConfidentialitePage() {
               <strong>Compte actif</strong> : les données sont conservées tant que le compte existe.
             </li>
             <li>
-              <strong>Compte supprimé</strong> : les données personnelles sont effacées sous 30
-              jours. Certaines données peuvent être conservées plus longtemps pour des raisons
-              légales (registre des achats, obligations comptables).
+              <strong>Compte supprimé</strong> : les données personnelles sont effacées
+              immédiatement et définitivement, depuis le bouton « Supprimer mon compte » de votre
+              profil. Aucune copie n'est conservée au-delà de ce moment.
             </li>
             <li>
               <strong>Cookies et jetons de session</strong> : expirent à la fin de la session ou
@@ -215,8 +215,8 @@ function ConfidentialitePage() {
               incomplètes (via votre profil).
             </li>
             <li>
-              <strong>Droit à l'effacement</strong> : demander la suppression de votre compte et de
-              vos données (depuis votre profil, ou par e-mail).
+              <strong>Droit à l'effacement</strong> : supprimer votre compte et vos données depuis
+              votre profil (bouton « Supprimer mon compte »), ou en nous écrivant.
             </li>
             <li>
               <strong>Droit à la limitation</strong> : suspendre temporairement le traitement de vos

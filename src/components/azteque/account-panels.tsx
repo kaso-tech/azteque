@@ -14,6 +14,7 @@ import {
 } from "@/lib/azteque/tokens";
 import {
   USERNAME_RULE,
+  deleteAccount,
   describeError,
   isUsernameFree,
   PAYS_PROPOSES,
@@ -326,6 +327,20 @@ export function AccountIdentity({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [confirmSuppr, setConfirmSuppr] = useState(false);
+  const [busySuppr, setBusySuppr] = useState(false);
+  const [errSuppr, setErrSuppr] = useState<string | null>(null);
+
+  const supprimerLeCompte = () => {
+    if (busySuppr) return;
+    setBusySuppr(true);
+    setErrSuppr(null);
+    deleteAccount().catch((e: unknown) => {
+      setErrSuppr(describeError(e, "Suppression impossible."));
+      setBusySuppr(false);
+      setConfirmSuppr(false);
+    });
+  };
 
   const modifie = name.trim().toLowerCase() !== profile.username.toLowerCase();
 
@@ -510,6 +525,47 @@ export function AccountIdentity({
         </div>
       )}
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+
+      <p className="mt-8 text-sm text-destructive">Zone de suppression</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Supprime définitivement le compte : jetons, amis, historique de parties. Cette action est
+        irréversible.
+      </p>
+      {!confirmSuppr ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2 border-destructive text-destructive hover:bg-destructive/10"
+          onClick={() => setConfirmSuppr(true)}
+        >
+          Supprimer mon compte
+        </Button>
+      ) : (
+        <div className="mt-2 space-y-2 rounded-md border border-destructive/50 bg-destructive/5 p-3">
+          <p className="text-xs text-foreground">
+            Confirmez-vous la suppression définitive de ce compte ?
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={busySuppr}
+              onClick={supprimerLeCompte}
+            >
+              {busySuppr ? "…" : "Confirmer la suppression"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busySuppr}
+              onClick={() => setConfirmSuppr(false)}
+            >
+              Annuler
+            </Button>
+          </div>
+        </div>
+      )}
+      {errSuppr && <p className="mt-2 text-sm text-destructive">{errSuppr}</p>}
     </>
   );
 }
