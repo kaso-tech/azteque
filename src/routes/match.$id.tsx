@@ -65,6 +65,8 @@ import {
   headToHead,
   friendshipStatus,
   requestFriend,
+  reportPlayer,
+  describeError,
   type FriendshipStatus,
   type HeadToHead,
   type PublicProfile,
@@ -124,6 +126,13 @@ const center = (el: HTMLElement | null | undefined) => {
  * consomme pas.
  */
 const TURN_LIMIT = 30;
+/** Motifs proposés pour signaler un adversaire (voir `reportPlayer`). */
+const MOTIFS_SIGNALEMENT = [
+  "Comportement toxique",
+  "Triche suspectée",
+  "Pseudo ou contenu inapproprié",
+  "Autre",
+] as const;
 /**
  * Temps d'attente accordé à la CONNEXION, indépendant du temps de réflexion
  * (secondes).
@@ -610,6 +619,26 @@ function OnlineTable() {
         // mériter un message d'erreur au sortir d'un champ.
       })
       .finally(() => setAddingFriend(false));
+  };
+
+  /** Signalement de l'adversaire, proposé en fin de partie (voir `reportPlayer`). */
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportMotif, setReportMotif] = useState<string>(MOTIFS_SIGNALEMENT[0]);
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const envoyerSignalement = () => {
+    if (!oppUserId || reportBusy) return;
+    setReportBusy(true);
+    setReportError(null);
+    reportPlayer(oppUserId, reportMotif, reportDetails.trim())
+      .then(() => {
+        setReportSent(true);
+        setReportOpen(false);
+      })
+      .catch((e: unknown) => setReportError(describeError(e, "Signalement impossible.")))
+      .finally(() => setReportBusy(false));
   };
 
   // Grades des deux joueurs. Celui de l'adversaire s'affiche dès l'entrée à la
@@ -1738,6 +1767,68 @@ function OnlineTable() {
             )}
             {state.phase === "gameEnd" && friendState === "pending-sent" && (
               <p className="mt-4 text-xs text-gold">Demande d'ami envoyée à {oppName}.</p>
+            )}
+
+            {state.phase === "gameEnd" && oppUserId && !reportSent && (
+              <div className="mt-4 text-left">
+                {!reportOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setReportOpen(true)}
+                    className="text-[0.7rem] text-muted-foreground underline"
+                  >
+                    Signaler {oppName}
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3">
+                    <label htmlFor="report-motif" className="text-xs text-foreground">
+                      Motif du signalement
+                    </label>
+                    <select
+                      id="report-motif"
+                      value={reportMotif}
+                      onChange={(e) => setReportMotif(e.target.value)}
+                      className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:border-gold"
+                    >
+                      {MOTIFS_SIGNALEMENT.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      value={reportDetails}
+                      onChange={(e) => setReportDetails(e.target.value)}
+                      maxLength={500}
+                      placeholder="Détails (facultatif)"
+                      rows={2}
+                      className="mt-2 w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-gold"
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={reportBusy}
+                        onClick={envoyerSignalement}
+                        className="rounded-full bg-destructive-solid px-4 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
+                      >
+                        {reportBusy ? "…" : "Envoyer"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={reportBusy}
+                        onClick={() => setReportOpen(false)}
+                        className="rounded-full border border-border px-4 py-1.5 text-xs text-muted-foreground disabled:opacity-60"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                    {reportError && <p className="mt-2 text-xs text-destructive">{reportError}</p>}
+                  </div>
+                )}
+              </div>
+            )}
+            {state.phase === "gameEnd" && reportSent && (
+              <p className="mt-4 text-[0.7rem] text-muted-foreground">Signalement envoyé. Merci.</p>
             )}
 
             {state.phase === "roundEnd" ? (

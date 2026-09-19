@@ -894,6 +894,16 @@ export async function settleMatch(matchId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Signale un joueur à l'équipe de modération (voir `admin_list_reports`). */
+export async function reportPlayer(targetId: string, reason: string, details = ""): Promise<void> {
+  const { error } = await rpc("submit_player_report", {
+    _target: targetId,
+    _reason: reason,
+    _details: details,
+  });
+  if (error) throw error;
+}
+
 /* ---------- Recherche et amis ---------- */
 
 export async function searchPlayers(query: string, limit = 10): Promise<PublicProfile[]> {
