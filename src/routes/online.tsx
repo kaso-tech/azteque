@@ -20,6 +20,12 @@ import {
   type Profile,
 } from "@/lib/azteque/account";
 import {
+  chercherAdversaire,
+  interrogerFile,
+  quitterFile,
+  type Recherche,
+} from "@/lib/azteque/matchmaking";
+import {
   createMatch,
   joinMatch,
   myOpenMatch,
@@ -211,6 +217,78 @@ function OnlineLobby() {
     [navigate],
   );
 
+  /* ---------- Chercher un adversaire ---------- */
+
+  /**
+   * L'attente, tenue par un battement régulier.
+   *
+   * La recherche proprement dite n'a lieu qu'au premier appel ; ensuite on se
+   * contente de prendre des nouvelles, ce qui rafraîchit aussi notre place
+   * dans la file. Interroger en boucle plutôt que rechercher en boucle évite
+   * que deux clients ne tentent de s'apparier l'un à l'autre en même temps.
+   */
+  const [enRecherche, setEnRecherche] = useState(false);
+  const [devant, setDevant] = useState(0);
+
+  const partirEnTable = useCallback(
+    (r: Recherche) => {
+      if (!r.trouve) {
+        setDevant(r.devant);
+        return false;
+      }
+      setEnRecherche(false);
+      enterTable(r.matchId, r.seat);
+      return true;
+    },
+    [enterTable],
+  );
+
+  const chercher = () => {
+    setError(null);
+    setEnRecherche(true);
+    setDevant(0);
+    chercherAdversaire()
+      .then(partirEnTable)
+      .catch((e: unknown) => {
+        setEnRecherche(false);
+        setError(describeError(e, "Recherche impossible."));
+      });
+  };
+
+  const renoncer = () => {
+    setEnRecherche(false);
+    void quitterFile().catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!enRecherche) return;
+    let vivant = true;
+    const battre = () => {
+      interrogerFile()
+        .then((r) => {
+          if (vivant) partirEnTable(r);
+        })
+        .catch(() => {
+          /* un battement manqué n'annule pas l'attente : le suivant reprendra */
+        });
+    };
+    const t = setInterval(battre, 2500);
+    return () => {
+      vivant = false;
+      clearInterval(t);
+    };
+  }, [enRecherche, partirEnTable]);
+
+  // Quitter le salon en cours de recherche ne doit pas laisser une place
+  // fantôme dans la file. Le battement de cœur finirait par l'effacer, mais
+  // autant ne pas faire attendre un adversaire devant une porte fermée.
+  useEffect(
+    () => () => {
+      void quitterFile().catch(() => {});
+    },
+    [],
+  );
+
   const invite = (playerId: string, username: string) => {
     if (!profile) return;
     setBusyInvite(playerId);
@@ -355,6 +433,26 @@ function OnlineLobby() {
 
       {/* Les invitations reçues s'affichent désormais partout, y compris en
           pleine partie : voir InviteManager, monté à la racine. */}
+
+      {profile &&
+        !openMatch &&
+        (enRecherche ? (
+          <div className="panel w-full px-5 py-4 text-center">
+            <p className="text-sm font-semibold text-gold">Recherche d'un adversaire…</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {devant === 0
+                ? "Vous êtes le prochain servi. Dès qu'un joueur cherche, la table s'ouvre."
+                : `${devant} joueur${devant > 1 ? "s" : ""} devant vous.`}
+            </p>
+            <Button variant="outline" className="mt-3 w-full" onClick={renoncer}>
+              Renoncer
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={chercher} className="w-full font-semibold">
+            Chercher un adversaire
+          </Button>
+        ))}
 
       {openMatch && (
         <div className="panel w-full px-5 py-4 text-left">
