@@ -105,7 +105,8 @@ BEGIN
 
   -- Ménage opportuniste : les lignes sans battement depuis trop longtemps.
   DELETE FROM public.matchmaking_queue
-  WHERE match_id IS NULL AND seen_at < now() - public.mm_peremption();
+  WHERE public.matchmaking_queue.match_id IS NULL
+    AND seen_at < now() - public.mm_peremption();
 
   -- Le plus ancien qui attend vraiment.
   SELECT q.user_id INTO _autre
@@ -179,7 +180,7 @@ BEGIN
   -- Le battement : tant que le client interroge, sa place est tenue.
   UPDATE public.matchmaking_queue
   SET seen_at = now()
-  WHERE user_id = _moi AND match_id IS NULL;
+  WHERE user_id = _moi AND public.matchmaking_queue.match_id IS NULL;
 
   SELECT q.match_id INTO _trouvee
   FROM public.matchmaking_queue q

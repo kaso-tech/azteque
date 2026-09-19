@@ -126,7 +126,7 @@ BEGIN
   -- Le battement : tant que le client interroge, sa place est tenue.
   UPDATE public.matchmaking_queue
   SET seen_at = now()
-  WHERE user_id = _moi AND match_id IS NULL;
+  WHERE user_id = _moi AND public.matchmaking_queue.match_id IS NULL;
 
   SELECT q.match_id INTO _trouvee
   FROM public.matchmaking_queue q
