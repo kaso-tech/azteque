@@ -34,13 +34,6 @@ export async function ensureOnlineIdentity() {
   return user;
 }
 
-const rpc = (nom: string, args: Record<string, unknown> = {}) =>
-  (
-    supabase as unknown as {
-      rpc: (n: string, a: Record<string, unknown>) => ReturnType<typeof supabase.rpc>;
-    }
-  ).rpc(nom, args);
-
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function makeCode(len = 5) {
@@ -97,25 +90,25 @@ export async function getMatch(id: string) {
  * ce qu'on n'a plus après avoir fermé l'application.
  *
  * La ligne, elle, a toujours su qui joue : `host_id` et `guest_id` portent les
- * deux sièges, et la fonction `my_open_match` (SECURITY DEFINER) autorise déjà
- * un participant à relire sa propre partie. Il suffisait de la demander.
+ * deux sièges, et la politique de lecture autorise déjà un participant à
+ * relire sa propre partie. Il suffisait de la demander.
  *
  * On ne retient que les tables VIVANTES — en attente ou en cours — et la plus
  * récemment touchée : une partie terminée n'a rien à proposer, et une vieille
  * table oubliée ne doit pas passer devant celle qu'on vient de quitter.
- *
- * `my_open_match` referme aussi, à la demande, une table restée muette trop
- * longtemps (voir la migration `partie_abandonnee_se_termine_seule`) : un
- * abandon simultané des deux joueurs, sans qu'aucun navigateur ne reste ouvert
- * pour le constater, ne doit pas bloquer indéfiniment le retour à la
- * recherche d'un adversaire.
  */
 export async function myOpenMatch(): Promise<MatchRow | null> {
-  await ensureOnlineIdentity();
-  const { data, error } = await rpc("my_open_match");
+  const user = await ensureOnlineIdentity();
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .or(`host_id.eq.${user.id},guest_id.eq.${user.id}`)
+    .in("status", ["waiting", "playing"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
-  const rows = (data as unknown as MatchRow[] | null) ?? [];
-  return rows[0] ?? null;
+  return (data as unknown as MatchRow | null) ?? null;
 }
 
 /** Le siège qu'occupe ce joueur à cette table. */
