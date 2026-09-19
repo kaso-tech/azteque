@@ -153,6 +153,23 @@ export interface NextRoundReady {
   guest: boolean;
 }
 
+/**
+ * L'accord des deux joueurs pour repartir sur un champ neuf, et la table qui
+ * en est née.
+ *
+ * Un champ réglé ne se rejoue pas dans la même ligne : `settle_match` y a
+ * inscrit le vainqueur, déplacé les jetons et posé `settled_at`, qui interdit
+ * tout second règlement. Rejouer là reviendrait à jouer pour rien. La revanche
+ * ouvre donc une ligne neuve, et l'ancienne en garde l'adresse le temps que
+ * les deux joueurs l'y suivent.
+ */
+export interface RematchReady {
+  host: boolean;
+  guest: boolean;
+  /** La nouvelle table, une fois les deux joueurs d'accord. */
+  matchId?: string;
+}
+
 // L'état de partie (`state`) et les paramètres (`settings`, dont la mise) ne
 // sont plus jamais écrits directement par le client : voir
 // src/lib/azteque/match-actions.ts, qui rejoue et valide chaque action côté

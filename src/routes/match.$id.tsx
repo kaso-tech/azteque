@@ -47,6 +47,7 @@ import {
   trackPresence,
   type MatchRow,
   type NextRoundReady,
+  type RematchReady,
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
@@ -664,6 +665,30 @@ function OnlineTable() {
   const iAmReady = !!nextReady?.[isHost ? "host" : "guest"];
   const oppIsReady = !!nextReady?.[isHost ? "guest" : "host"];
 
+  // Accord de revanche, et la table neuve qui en naît. Voir `resolveRematch` :
+  // un champ réglé ne se rejoue pas dans la même ligne.
+  const rematch = ((row?.settings as Record<string, unknown> | undefined)?.["rematch"] ??
+    null) as RematchReady | null;
+  const jeVeuxRejouer = !!rematch?.[isHost ? "host" : "guest"];
+  const ilVeutRejouer = !!rematch?.[isHost ? "guest" : "host"];
+  const tableSuivante = rematch?.matchId ?? null;
+
+  /**
+   * La nouvelle table est ouverte : les deux joueurs l'y suivent.
+   *
+   * Chacun garde son siège, ce qui évite de renégocier qui distribue et laisse
+   * l'écran repartir exactement comme sur une table fraîchement rejointe.
+   */
+  useEffect(() => {
+    if (!tableSuivante || !verifiedSeat) return;
+    void navigate({
+      to: "/match/$id",
+      params: { id: tableSuivante },
+      search: { seat: verifiedSeat },
+      replace: true,
+    });
+  }, [tableSuivante, verifiedSeat, navigate]);
+
   // Détecte la carte que l'ADVERSAIRE vient de jouer (celle du joueur local
   // est animée directement au clic, voir playMyCard) pour la faire voyager de
   // sa main vers le tapis, qu'elle arrive par la réponse de notre propre appel
@@ -1257,6 +1282,10 @@ function OnlineTable() {
     void runAction({ type: "ready_next_round" });
   };
 
+  const demanderRevanche = () => {
+    void runAction({ type: "rematch" });
+  };
+
   if (error) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
@@ -1734,13 +1763,26 @@ function OnlineTable() {
                   </button>
                 </>
               )
+            ) : jeVeuxRejouer ? (
+              <p className="mt-5 text-xs text-muted-foreground">
+                En attente de {oppName} pour une nouvelle partie…
+              </p>
             ) : (
-              <Link
-                to="/online"
-                className="mt-5 inline-block rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground"
-              >
-                Retour au salon
-              </Link>
+              <>
+                {ilVeutRejouer && (
+                  <p className="mt-5 text-xs text-gold">{oppName} propose une revanche.</p>
+                )}
+                <button
+                  type="button"
+                  onClick={demanderRevanche}
+                  className={
+                    "rounded-full bg-[image:var(--gradient-gold)] px-6 py-2.5 font-display text-sm font-semibold text-primary-foreground " +
+                    (ilVeutRejouer ? "mt-3" : "mt-5")
+                  }
+                >
+                  {ilVeutRejouer ? "Accepter la revanche" : "Rejouer"}
+                </button>
+              </>
             )}
             {/* En fin de tour le champ n'est pas joué : partir revient à
                 abandonner, on passe donc par la confirmation qui déclare le

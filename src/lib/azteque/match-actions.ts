@@ -13,7 +13,7 @@ import {
   type PlayerIndex,
 } from "./engine";
 import { BET_STEPS } from "./tokens";
-import type { BetNegotiation, MatchStatus, NextRoundReady } from "./online";
+import type { BetNegotiation, MatchStatus, NextRoundReady, RematchReady } from "./online";
 
 /**
  * Arbitre serveur des parties en ligne.
@@ -44,6 +44,8 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("anticipate") }),
   z.object({ type: z.literal("new_round") }),
   z.object({ type: z.literal("ready_next_round") }),
+  /** Accord pour repartir sur un champ neuf : voir `resolveRematch`. */
+  z.object({ type: z.literal("rematch") }),
   z.object({ type: z.literal("propose_bet"), amount: z.number().int().positive() }),
   z.object({ type: z.literal("accept_bet") }),
   z.object({
@@ -156,6 +158,92 @@ export async function resolveReadyNextRound(
     if (attempt >= 3) throw new Error("Table occupée, réessayez.");
     current = await io.reload();
   }
+}
+
+/**
+ * Accord des deux joueurs pour repartir sur un champ neuf, une fois le
+ * précédent terminé (`phase === "gameEnd"`).
+ *
+ * La revanche ouvre une LIGNE NEUVE plutôt que de rejouer dans l'ancienne, et
+ * ce n'est pas un détail d'organisation : `settle_match` a inscrit dans celle
+ * du champ écoulé son vainqueur, le mouvement de jetons et la variation de
+ * cote, puis posé `settled_at`, qui refuse tout second règlement. Un second
+ * champ joué là ne serait jamais réglé — ni jetons, ni classement — et
+ * l'écran de fin continuerait d'afficher le résultat du premier.
+ *
+ * L'accord se prend dans l'ancienne ligne, qui garde ensuite l'adresse de la
+ * nouvelle le temps que les deux joueurs l'y suivent. On reprend mot pour mot
+ * la concurrence optimiste de `resolveReadyNextRound` : en fin de champ les
+ * deux joueurs cliquent souvent ensemble, et un simple lire-modifier-écrire
+ * perdrait la marque du plus lent — ou, pire ici, créerait DEUX tables.
+ *
+ * `creerLaTable` est injectée pour que cette décision reste éprouvable sans
+ * Supabase, comme ses voisines.
+ */
+export async function resolveRematch(
+  seat: "host" | "guest",
+  initialRow: ReadyRoundRow,
+  io: ReadyRoundIO,
+  creerLaTable: () => Promise<string>,
+): Promise<MatchActionResult> {
+  let current = initialRow;
+  for (let attempt = 0; ; attempt++) {
+    const curState = (current.state as GameState | null) ?? null;
+    const curSettings = (current.settings ?? {}) as Record<string, unknown>;
+    const deja = (curSettings["rematch"] as RematchReady | undefined) ?? {
+      host: false,
+      guest: false,
+    };
+
+    // La table est déjà née : la demande a abouti, fût-ce par l'autre joueur.
+    if (deja.matchId) return { state: curState, settings: curSettings };
+
+    if (!curState || curState.phase !== "gameEnd") {
+      if (attempt === 0) throw new Error("Le champ n'est pas terminé.");
+      // Après un conflit : l'adversaire a fait aboutir la revanche entre-temps
+      // et la ligne a changé sous nos pieds. On rend l'état à jour.
+      return { state: curState, settings: curSettings };
+    }
+
+    const pret: RematchReady = { ...deja, [seat]: true };
+    const lesDeux = pret.host && pret.guest;
+
+    // La table ne se crée qu'une fois les deux d'accord, et AVANT l'écriture :
+    // si l'écriture échoue sur un conflit, la boucle relit et découvre que
+    // l'adversaire a déjà créé la sienne, qu'on adopte alors.
+    const nouvelle = lesDeux ? await creerLaTable() : undefined;
+    const patch: Record<string, unknown> = {
+      settings: {
+        ...curSettings,
+        rematch: nouvelle ? { ...pret, matchId: nouvelle } : pret,
+      },
+    };
+
+    const written = await io.tryWrite(patch, current.updated_at);
+    if (written)
+      return {
+        state: (written.state as GameState | null) ?? null,
+        settings: (written.settings ?? {}) as Record<string, unknown>,
+      };
+
+    if (attempt >= 3) throw new Error("Table occupée, réessayez.");
+    current = await io.reload();
+  }
+}
+
+/**
+ * Un code de table, tiré côté serveur.
+ *
+ * Même alphabet que celui du client (`makeCode`) : ni O ni 0, ni I ni 1, pour
+ * qu'un code dicté à voix haute ne se lise pas de deux façons.
+ */
+function codeDePartie(len = 5): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  const buf = new Uint32Array(len);
+  crypto.getRandomValues(buf);
+  for (let i = 0; i < len; i += 1) out += alphabet[buf[i]! % alphabet.length];
+  return out;
 }
 
 /** Motif d'abandon, tel qu'envoyé par le client. */
@@ -396,6 +484,58 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
           if (error) throw error;
           return written ?? null;
         },
+      });
+    }
+
+    // Revanche : mêmes joueurs, mêmes sièges, table neuve. Voir
+    // `resolveRematch` pour la raison — une ligne réglée ne se rejoue pas.
+    if (data.type === "rematch") {
+      const io = {
+        reload: async () => {
+          const { data: again, error } = await supabaseAdmin
+            .from("matches")
+            .select("*")
+            .eq("id", matchId)
+            .maybeSingle();
+          if (error) throw error;
+          if (!again) throw new Error("Cette partie n'existe plus.");
+          return again;
+        },
+        tryWrite: async (patch: Record<string, unknown>, expectedUpdatedAt: string) => {
+          const { data: written, error } = await supabaseAdmin
+            .from("matches")
+            .update(patch as never)
+            .eq("id", matchId)
+            .eq("updated_at", expectedUpdatedAt)
+            .select()
+            .maybeSingle();
+          if (error) throw error;
+          return written ?? null;
+        },
+      };
+      return resolveRematch(seat, row, io, async () => {
+        // Les deux sièges sont déjà occupés : la table naît en jeu, sans passer
+        // par le code d'invitation. Elle démarre sans état ni mise — les deux
+        // joueurs renégocient leur mise, puis l'hôte distribue, exactement
+        // comme sur une table fraîchement rejointe.
+        for (let essai = 0; essai < 5; essai += 1) {
+          const { data: creee, error } = await supabaseAdmin
+            .from("matches")
+            .insert({
+              code: codeDePartie(),
+              host_id: row.host_id,
+              host_name: row.host_name,
+              guest_id: row.guest_id,
+              guest_name: row.guest_name,
+              status: "playing" satisfies MatchStatus,
+              settings: {} as never,
+            } as never)
+            .select("id")
+            .single();
+          if (!error && creee) return (creee as { id: string }).id;
+          if (error && !error.message.toLowerCase().includes("duplicate")) throw error;
+        }
+        throw new Error("Impossible de générer un code de partie.");
       });
     }
 
