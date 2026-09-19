@@ -191,13 +191,21 @@ function OnlineLobby() {
     null,
   );
   useEffect(() => {
-    if (!profile) return;
+    if (!profile) {
+      setOpenMatch(null);
+      return;
+    }
     let vivant = true;
+    setOpenMatch(null);
     myOpenMatch()
       .then((m) => {
-        if (!vivant || !m) return;
+        if (!vivant) return;
+        if (!m) {
+          setOpenMatch(null);
+          return;
+        }
         const seat = mySeat(m, profile.id);
-        if (seat) setOpenMatch({ match: m, seat });
+        setOpenMatch(seat ? { match: m, seat } : null);
       })
       .catch(() => {
         /* le salon reste utilisable : au pire, la reprise n'est pas proposée */

@@ -68,7 +68,8 @@ BEGIN
 
   -- Ménage opportuniste : les lignes sans battement depuis trop longtemps.
   DELETE FROM public.matchmaking_queue
-  WHERE match_id IS NULL AND seen_at < now() - public.mm_peremption();
+  WHERE public.matchmaking_queue.match_id IS NULL
+    AND seen_at < now() - public.mm_peremption();
 
   -- Le plus ancien qui attend vraiment, ET qui a le droit de jouer.
   SELECT q.user_id INTO _autre
