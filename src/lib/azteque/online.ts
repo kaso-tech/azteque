@@ -19,6 +19,11 @@ export interface MatchRow {
   rating_delta_guest?: number | null;
 }
 
+/** Une reprise n'a de sens que pour une table où les deux joueurs sont assis. */
+export function estPartieReprenable(match: MatchRow): boolean {
+  return match.status === "playing" && match.host_id !== null && match.guest_id !== null;
+}
+
 /**
  * Exige une session ouverte. Le jeu en ligne repose désormais sur de vrais
  * comptes (connexion Google, voir account.ts) : les jetons, les amis et
@@ -93,9 +98,9 @@ export async function getMatch(id: string) {
  * deux sièges, et la politique de lecture autorise déjà un participant à
  * relire sa propre partie. Il suffisait de la demander.
  *
- * On ne retient que les tables VIVANTES — en attente ou en cours — et la plus
- * récemment touchée : une partie terminée n'a rien à proposer, et une vieille
- * table oubliée ne doit pas passer devant celle qu'on vient de quitter.
+ * On ne retient que les tables réellement commencées, avec leurs deux joueurs,
+ * et la plus récemment touchée. Une ancienne invitation ou une table par code
+ * encore en attente ne doit jamais empêcher une nouvelle recherche.
  */
 export async function myOpenMatch(): Promise<MatchRow | null> {
   const user = await ensureOnlineIdentity();
@@ -103,12 +108,15 @@ export async function myOpenMatch(): Promise<MatchRow | null> {
     .from("matches")
     .select("*")
     .or(`host_id.eq.${user.id},guest_id.eq.${user.id}`)
-    .in("status", ["waiting", "playing"])
+    .eq("status", "playing")
+    .not("host_id", "is", null)
+    .not("guest_id", "is", null)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return (data as unknown as MatchRow | null) ?? null;
+  const match = (data as unknown as MatchRow | null) ?? null;
+  return match && estPartieReprenable(match) ? match : null;
 }
 
 /** Le siège qu'occupe ce joueur à cette table. */
