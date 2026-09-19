@@ -31,6 +31,17 @@ vi.mock("@/lib/azteque/supabase-client", () => ({
     },
     rpc: (nom: string, args: Record<string, unknown>) => {
       base.dernierRpc = { nom, args };
+      // `username_is_free` a sa propre logique : c'est elle qui remplace la
+      // lecture directe de `profiles`, désormais fermée aux autres joueurs
+      // (voir la migration `profils_prives_par_defaut`). Les autres RPC
+      // restent pilotées par `base.rpc`, comme avant.
+      if (nom === "username_is_free") {
+        const demande = String(args["_username"] ?? "").toLowerCase();
+        const libre = !base.profils.some(
+          (p) => String(p["username"]).toLowerCase() === demande && p["id"] !== base.moi,
+        );
+        return Promise.resolve({ data: libre, error: null });
+      }
       return Promise.resolve(base.rpc);
     },
     from: () => {

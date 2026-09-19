@@ -653,15 +653,21 @@ export async function setBackgroundKind(kind: string | null): Promise<void> {
  * n'est qu'une politesse, pour ne pas laisser saisir un nom voué à l'échec.
  * Elle ne conditionne donc rien : si elle échoue, l'enregistrement reste
  * possible et c'est la base qui répond.
+ *
+ * Passe par `username_is_free` plutôt que par une lecture directe de
+ * `profiles` : la table ne laisse plus lire que sa propre ligne (voir la
+ * migration `profils_prives_par_defaut`), et cette question — un pseudo
+ * appartient-il à quelqu'un d'autre — est justement la seule qui ait besoin
+ * de regarder les lignes des AUTRES. La fonction ne renvoie qu'un oui ou un
+ * non, jamais la ligne elle-même.
  */
 export async function isUsernameFree(username: string): Promise<boolean> {
   const name = username.trim();
   if (!USERNAME_RULE.test(name)) return false;
-  const me = await currentUserId();
   // Une vérification qui n'aboutit pas doit se déclarer perdue plutôt que de
   // laisser le joueur devant un « Vérification… » sans fin : c'est un confort,
   // pas une condition.
-  const timeoutFallback: PostgrestSingleResponse<{ id: string }[]> = {
+  const timeoutFallback: PostgrestSingleResponse<boolean> = {
     data: null,
     error: {
       message: "Vérification interrompue",
@@ -675,16 +681,14 @@ export async function isUsernameFree(username: string): Promise<boolean> {
     status: 0,
     statusText: "",
     success: false,
-  };
+  } as unknown as PostgrestSingleResponse<boolean>;
   const { data, error } = await withTimeout(
-    (async () => supabase.from("profiles").select("id").ilike("username", name).limit(2))(),
+    (async () => rpc("username_is_free", { _username: name }))(),
     6000,
     timeoutFallback,
   );
   if (error) throw error;
-  const rows = (data as unknown as { id: string }[]) ?? [];
-  // Reprendre son propre pseudo, ou n'en changer que la casse, reste permis.
-  return rows.every((r) => r.id === me);
+  return data === true;
 }
 
 /** Renomme le compte. Le pseudo reste unique, à la casse près. */
