@@ -265,9 +265,14 @@ function OnlineLobby() {
       {children}
       {/* PR18 — Accès rapide à la boutique depuis le salon. La boutique
           elle-même est aussi accessible via le lien dans le profil joueur. */}
-      <Link to="/boutique" className="text-xs text-gold underline">
-        Visiter la boutique
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link to="/classement" className="text-xs text-gold underline">
+          Classement
+        </Link>
+        <Link to="/boutique" className="text-xs text-gold underline">
+          Visiter la boutique
+        </Link>
+      </div>
       <Link to="/" className="text-xs text-gold underline">
         Retour au menu
       </Link>

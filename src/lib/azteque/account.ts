@@ -545,6 +545,40 @@ function asPublic(row: Partial<PublicProfile> & { id: string; username: string }
   };
 }
 
+/* ---------- Classement ---------- */
+
+/** Une ligne du classement : de quoi situer un joueur, rien de plus. */
+export interface LigneClassement extends PublicProfile {
+  /** Champs classés joués. Zéro signifie « pas encore de cote méritée ». */
+  rated_games: number;
+}
+
+/**
+ * Le classement des joueurs, du plus fort au plus faible.
+ *
+ * Volontairement SANS seuil d'entrée. Sur une communauté encore petite, exiger
+ * un nombre de parties avant d'apparaître vide le tableau et décourage ceux
+ * qu'il devrait justement motiver. On montre donc tout le monde, et le nombre
+ * de champs joués dit lui-même ce que vaut chaque cote : une cote de 1000 en
+ * zéro partie n'est pas une performance, et se lit comme telle.
+ *
+ * La vue `public_profiles` n'expose que ce qu'un adversaire peut déjà voir.
+ * Elle se lit en une requête, sans fonction dédiée : la colonne de tri est
+ * indexée par la clé primaire du profil, et quelques dizaines de lignes ne
+ * justifient pas davantage.
+ */
+export async function listeClassement(limite = 50): Promise<LigneClassement[]> {
+  const { data, error } = await anyTable("public_profiles")
+    .select("id, username, rating, avatar_kind, avatar_url, rated_games")
+    .order("rating", { ascending: false })
+    .order("username", { ascending: true })
+    .limit(limite);
+  if (error) throw error;
+  const rows =
+    (data as unknown as (Partial<LigneClassement> & { id: string; username: string })[]) ?? [];
+  return rows.map((r) => ({ ...asPublic(r), rated_games: r.rated_games ?? 0 }));
+}
+
 /* ---------- Pseudo et avatar ---------- */
 
 /**
