@@ -193,8 +193,15 @@ export interface ChatMessage {
   name: string;
   text: string;
   reaction?: "taunt" | "cheer" | null;
-  /** Identifiant d'un sticker de la boutique, à la place du texte. */
+  /** Identifiant du DESSIN affiché, à la place du texte. */
   sticker?: string | null;
+  /**
+   * L'image téléversée par l'admin, quand l'article en porte une.
+   *
+   * Sans elle, la bulle retombait sur le dessin pendant que le bouton montrait
+   * l'image : on cliquait sur un visuel et il en partait un autre.
+   */
+  stickerUrl?: string | null;
   /** PR14 — Identifiant du son à jouer (de la boutique snd_*).
    *  Combiné avec un `sticker` non vide : un clic = sticker visuel + son. */
   soundId?: string | null;

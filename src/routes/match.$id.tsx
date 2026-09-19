@@ -39,7 +39,7 @@ import {
 import { sfx, setSoundContext } from "@/lib/azteque/sfx";
 import { MatchChat } from "@/components/azteque/MatchChat";
 import { BetPanel } from "@/components/azteque/BetPanel";
-import { Recap } from "@/components/azteque/panels";
+import { MeldHistoryPanel, Recap } from "@/components/azteque/panels";
 import { HeaderSettingsButton } from "@/components/azteque/header-settings-button";
 import {
   ensureOnlineIdentity,
@@ -70,7 +70,7 @@ import {
 } from "@/lib/azteque/account";
 import { RankBadge, RankOutcome } from "@/components/azteque/rank";
 import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
-import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
+import { DealCeremony, freshDealId, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
 
 export const Route = createFileRoute("/match/$id")({
@@ -99,6 +99,15 @@ export const Route = createFileRoute("/match/$id")({
 const TRICK_DELAY = 550;
 /** Temps de pose avant qu'une carte ne quitte le talon, et durée de son vol. */
 const ATTENTE_PIOCHE = 300;
+/**
+ * Ce que la SECONDE carte attend, une fois la première partie.
+ *
+ * La pose de 300 ms sépare le ramassage du pli du premier geste du donneur :
+ * elle a un sens là, et aucun entre les deux cartes d'un même lot, qu'un
+ * donneur enchaîne d'un seul mouvement. La seconde décolle donc pendant que la
+ * première est encore en l'air.
+ */
+const ATTENTE_PIOCHE_SUIVANTE = 60;
 const VOL_PIOCHE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
@@ -850,6 +859,24 @@ function OnlineTable() {
   const piochePlayer = piocheEnCours?.player ?? null;
   const piocheCle = piocheEnCours?.cle ?? null;
 
+  /**
+   * Cette pioche ouvre-t-elle le lot, ou suit-elle la précédente ?
+   *
+   * Décidé ici, avant les deux effets qui s'en servent — le vol et la demande
+   * — afin qu'ils lisent la même réponse dans le même rendu.
+   */
+  const attentePioche = useRef(ATTENTE_PIOCHE);
+  const lotCommence = useRef(false);
+  useEffect(() => {
+    if (piocheCle === null) {
+      lotCommence.current = false;
+      attentePioche.current = ATTENTE_PIOCHE;
+      return;
+    }
+    attentePioche.current = lotCommence.current ? ATTENTE_PIOCHE_SUIVANTE : ATTENTE_PIOCHE;
+    lotCommence.current = true;
+  }, [piocheCle]);
+
   // Ce qu'on MONTRE de la pioche — même partage que pour le pli, et pour la
   // même raison : accrochée à la demande, l'animation de l'invité était
   // toujours annulée par la pioche de l'hôte, arrivée bien avant son propre
@@ -888,7 +915,7 @@ function OnlineTable() {
             setDrawFlights((v) => (v[0]?.cle === cle ? [] : v));
           }, VOL_PIOCHE + 6000),
         );
-      }, ATTENTE_PIOCHE),
+      }, attentePioche.current),
     );
   }, [piochePlayer, piocheCle, handRefs, stockRef]);
 
@@ -919,12 +946,17 @@ function OnlineTable() {
       return;
     }
     if (piocheDemandee.current === piocheCle) return;
+    // La demande ne suit plus la pose : elle part tout de suite, et sa réponse
+    // voyage pendant que la carte se soulève au lieu de s'ajouter à elle.
+    // C'est ce qui rapproche le départ de la seconde carte de celui de la
+    // première — sur l'écran de l'ADVERSAIRE aussi, lui qui ne voit le lot
+    // avancer qu'au rythme des réponses du serveur.
     const t = setTimeout(
       () => {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      isHost ? ATTENTE_PIOCHE : ATTENTE_PIOCHE + 2000,
+      isHost ? 0 : ATTENTE_PIOCHE + 2000,
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
@@ -1095,6 +1127,55 @@ function OnlineTable() {
     const t = setInterval(battement, 1000);
     return () => clearInterval(t);
   }, [waitingOnLink, linkHealthy, oppOnline, phaseEnCours]);
+
+  /**
+   * Les comptes annoncés, et leur total — ce que la table contre l'IA montre
+   * déjà et qui manquait ici.
+   *
+   * La manche se repère à la DONNE et non au score : le talon baisse à chaque
+   * pioche, et les tours gagnés n'avancent pas sur un pont, si bien que deux
+   * manches consécutives pourraient porter le même repère et confondre leurs
+   * comptes. `freshDealId` change à chaque distribution, et ne change qu'alors.
+   */
+  const donneFraiche = freshDealId(state);
+  const [manche, setManche] = useState(0);
+  const derniereDonne = useRef<string | null>(null);
+  useEffect(() => {
+    if (!donneFraiche || donneFraiche === derniereDonne.current) return;
+    const premiere = derniereDonne.current === null;
+    derniereDonne.current = donneFraiche;
+    if (!premiere) setManche((n) => n + 1);
+  }, [donneFraiche]);
+
+  const [meldHistory, setMeldHistory] = useState<
+    { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const mesMelds = state ? state.melds : null;
+  useEffect(() => {
+    if (!mesMelds) return;
+    setMeldHistory((prev) => {
+      const connus = new Set(prev.map((e) => e.key));
+      const ajouts: typeof prev = [];
+      ([0, 1] as PlayerIndex[]).forEach((p) => {
+        mesMelds[p].forEach((m) => {
+          const key = `${manche}-${p}-${m.suit}-${m.type}`;
+          if (connus.has(key)) return;
+          ajouts.push({
+            key,
+            round: manche + 1,
+            player: p,
+            label: `${SUIT_SYMBOL[m.suit]} ${SUIT_NAME[m.suit]} — compte ${m.type === "triple" ? "trio" : "simple"}`,
+            points: m.points,
+          });
+        });
+      });
+      return ajouts.length > 0 ? [...prev, ...ajouts] : prev;
+    });
+  }, [mesMelds, manche]);
+  const myComptes = meldHistory
+    .filter((e) => e.player === me)
+    .reduce((somme, e) => somme + e.points, 0);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   // Panneau main blanche : visible en début de tour, si le joueur local a
@@ -1510,6 +1591,13 @@ function OnlineTable() {
           </button>
           <button
             type="button"
+            onClick={() => setShowHistory(true)}
+            className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold"
+          >
+            Comptes · {myComptes}
+          </button>
+          <button
+            type="button"
             // Anticiper sert surtout en fin de main, quand la suite est
             // perdue d'avance : le bouton reste actif toute la manche, à ceci
             // près qu'on n'arrête pas le tour au milieu d'un pli. C'est le
@@ -1520,7 +1608,7 @@ function OnlineTable() {
             onClick={() => setConfirmAnticipate(true)}
             className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold disabled:opacity-40"
           >
-            Anticiper la fin
+            Anticiper
           </button>
           {state.phase !== "gameEnd" && (
             <button
@@ -1528,7 +1616,7 @@ function OnlineTable() {
               onClick={() => setConfirmQuit(true)}
               className="rounded-full border border-destructive/50 bg-felt-deep/95 px-3 py-1 text-[0.68rem] font-semibold text-destructive"
             >
-              Quitter la table
+              Quitter
             </button>
           )}
         </div>
@@ -1737,6 +1825,10 @@ function OnlineTable() {
       )}
 
       {showMyGains && <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />}
+      {showHistory && (
+        <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
+      )}
+
       {showMyBonnes && (
         <GainsPanel
           cards={state.gains[me].filter(isBonne)}

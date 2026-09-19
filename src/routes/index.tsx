@@ -112,6 +112,9 @@ const center = (el: HTMLElement | null | undefined) => {
 
 const TURN_LIMIT = 30;
 
+/** Souffle entre le départ de la première carte piochée et celui de la seconde. */
+const DECALAGE_PIOCHE = 150;
+
 function Azteque() {
   const [state, setState] = useState<GameState>(() => newRound(1));
   const [showRules, setShowRules] = useState(false);
@@ -197,6 +200,28 @@ function Azteque() {
   // carte qui s'y découvre est un échange net, sans fondu — il ne passe
   // inaperçu que si les deux occupent exactement le même point.
   const volArrivee = useVolArrivee(flight, state.trick, trickCardRefs, tableRef);
+  /**
+   * La volée de pioche : ses minuteries vivent hors du cycle des effets, car
+   * l'entrée de la PREMIÈRE carte dans la main rejoue l'effet, et son
+   * nettoyage couperait le vol de la seconde en plein ciel.
+   */
+  const volsPioche = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lotEnVol = useRef(false);
+  useEffect(
+    () => () => {
+      volsPioche.current.forEach(clearTimeout);
+      volsPioche.current = [];
+    },
+    [],
+  );
+  // Filet : hors phase de jeu, aucune volée ne doit rester en suspens ni
+  // laisser le verrou fermé sur la pioche du tour suivant.
+  useEffect(() => {
+    if (state.phase === "playing") return;
+    volsPioche.current.forEach(clearTimeout);
+    volsPioche.current = [];
+    lotEnVol.current = false;
+  }, [state.phase]);
   const aiRedealChecked = useRef(-1);
   const askedForName = useRef(false);
   // Série de bonnes prises sans que l'adversaire n'en reprenne une : remise à
@@ -621,6 +646,10 @@ function Azteque() {
   useEffect(() => {
     if (!started || state.phase !== "playing" || state.drawPending.length === 0) return;
     if (state.stock.length === 0) return;
+    // Un lot est déjà en l'air : c'est le `setState` de la première carte qui
+    // vient de rejouer cet effet, pas une nouvelle pioche. Le relancer
+    // referait partir la seconde carte, qui vole déjà.
+    if (lotEnVol.current) return;
     const player = state.drawPending[0]!;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
@@ -653,23 +682,52 @@ function Azteque() {
       if (availableMelds(state, 0).length > 0) return;
     }
 
+    /*
+     * Les deux cartes partent ENSEMBLE, à un souffle d'intervalle.
+     *
+     * Elles se suivaient auparavant : la seconde n'était lancée qu'une fois la
+     * première posée dans la main, puis après sa propre pose — près d'une
+     * seconde entre les deux départs, alors que le geste d'un donneur est
+     * continu. Le talon sait pourtant dès maintenant qui pioche et dans quel
+     * ordre : rien n'obligeait à attendre.
+     *
+     * La seconde décolle donc pendant que la première est encore en l'air, et
+     * chacune rejoint sa main à l'arrivée de SON vol.
+     */
     const t = setTimeout(() => {
       const from = center(stockRef.current);
-      // Elle vise l'emplacement libre qu'elle vient combler, pas le milieu de
-      // la main : sinon elle atterrit au centre puis saute jusqu'à sa place.
-      const to = centreDuSlotLibre(player === 0 ? playerHandRef.current : opponentHandRef.current);
-      if (from && to) {
-        setDrawFlights([{ id: Date.now(), player, from, to, delay: 0 }]);
-        jouerPour(player, () => sfx.draw());
+      const joueurs = state.drawPending.slice(0, state.stock.length);
+      lotEnVol.current = true;
+      const vols = from
+        ? joueurs.flatMap((p, i) => {
+            const to = centreDuSlotLibre(p === 0 ? playerHandRef.current : opponentHandRef.current);
+            return to
+              ? [{ id: Date.now() + i, player: p, from, to, delay: i * DECALAGE_PIOCHE }]
+              : [];
+          })
+        : [];
+      if (vols.length > 0) setDrawFlights(vols);
+      if (vols.length === 0) {
+        lotEnVol.current = false;
+        return;
       }
-      // La carte rejoint la main exactement à l'arrivée du vol. La main rend
-      // immédiatement son nouveau slot, sans seconde animation d'apparition.
-      timers.push(
-        setTimeout(() => {
-          setState((s) => drawNext(s));
-          setDrawFlights([]);
-        }, DUREE_PIOCHE),
-      );
+      vols.forEach((vol, i) => {
+        volsPioche.current.push(
+          setTimeout(() => jouerPour(vol.player, () => sfx.draw()), vol.delay),
+        );
+        // La carte rejoint la main exactement à l'arrivée de son vol. La main
+        // rend immédiatement son nouveau slot, sans seconde animation.
+        volsPioche.current.push(
+          setTimeout(() => {
+            setState((s) => drawNext(s));
+            // Seul le dernier vol arrivé efface la volée et rouvre le talon.
+            if (i === vols.length - 1) {
+              setDrawFlights([]);
+              lotEnVol.current = false;
+            }
+          }, vol.delay + DUREE_PIOCHE),
+        );
+      });
     }, 420);
     timers.push(t);
 
@@ -1240,14 +1298,14 @@ function Azteque() {
             onClick={() => setConfirmAnticipate(true)}
             className="gold-tag rounded-full border border-gold/40 bg-felt-deep/60 px-3 py-1 text-[0.68rem] font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-40"
           >
-            Anticiper la fin
+            Anticiper
           </button>
           <button
             type="button"
             onClick={() => setConfirmQuit(true)}
             className="rounded-full border border-destructive/50 bg-felt-deep/95 px-3 py-1 text-[0.68rem] font-semibold text-destructive transition-colors hover:bg-destructive/10"
           >
-            Quitter la table
+            Quitter
           </button>
         </div>
       </section>

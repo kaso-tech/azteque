@@ -3,6 +3,7 @@ import { openChat, type ChatMessage } from "@/lib/azteque/online";
 import { sfx } from "@/lib/azteque/sfx";
 import { cn } from "@/lib/utils";
 import { Sticker, isSticker } from "@/components/azteque/stickers";
+import { centreBulle } from "@/lib/azteque/bulles";
 import {
   iconeDe,
   ownedPhrases,
@@ -45,7 +46,7 @@ interface Bubble extends ChatMessage {
 
 /** Les bulles flottantes, mêmes dimensions pour un texte ou un sticker. */
 const bulle =
-  "max-w-[85%] animate-[banner-in_180ms_ease-out] rounded-full border bg-felt-deep/95 px-3 py-1 text-[0.7rem] font-semibold";
+  "max-w-[17rem] animate-[banner-in_180ms_ease-out] whitespace-pre-wrap break-words rounded-2xl border bg-felt-deep/95 px-3 py-1 text-center text-[0.7rem] font-semibold";
 
 export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatarRef }: Props) {
   const vide = useMemo(() => new Set<string>(), []);
@@ -111,7 +112,9 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
         if (!ref) continue;
         const r = ref.getBoundingClientRect();
         next[b.id] = {
-          left: r.left + r.width / 2,
+          // Centré sur l'avatar, mais jamais au point de sortir de l'écran :
+          // un avatar est par définition près d'un bord. Voir `centreBulle`.
+          left: centreBulle(r.left + r.width / 2, window.innerWidth),
           top: r.bottom + 6 + i * 32,
         };
       }
@@ -142,6 +145,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
     sticker: string | null = null,
     soundId: string | null = null,
     soundUrl: string | null = null,
+    stickerUrl: string | null = null,
   ) => {
     const clean = text.trim().slice(0, 120);
     if (!clean && !sticker && !soundId && !soundUrl) return;
@@ -152,6 +156,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
       text: clean,
       reaction,
       sticker,
+      stickerUrl,
       soundId,
       soundUrl,
     };
@@ -212,8 +217,8 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
               )}
               style={{ left: pos.left, top: pos.top }}
             >
-              {b.sticker && isSticker(b.sticker) ? (
-                <Sticker id={b.sticker} className="h-7 w-7" />
+              {b.sticker && (isSticker(b.sticker) || b.stickerUrl) ? (
+                <Sticker id={b.sticker} assetUrl={b.stickerUrl ?? null} className="h-7 w-7" />
               ) : (
                 b.text
               )}
@@ -234,7 +239,16 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
                 key={s.id}
                 type="button"
                 title={s.name}
-                onClick={() => send("", null, s.id, s.soundId ?? null, s.assetUrl ?? null)}
+                onClick={() =>
+                  send(
+                    "",
+                    null,
+                    iconeDe(s).dessin,
+                    s.soundId ?? null,
+                    s.assetUrl ?? null,
+                    iconeDe(s).url,
+                  )
+                }
                 className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-felt-deep/95 shadow-lg hover:border-gold"
               >
                 {/* `assetUrl` d'un son porte son AUDIO : le passer ici affichait
@@ -289,7 +303,7 @@ export function MatchChat({ matchId, seat, myName, owned, myAvatarRef, oppAvatar
                   key={s.id}
                   type="button"
                   title={s.name}
-                  onClick={() => send(s.name, null, s.id)}
+                  onClick={() => send(s.name, null, iconeDe(s).dessin, null, null, iconeDe(s).url)}
                   className="rounded-lg border border-gold/40 p-1"
                 >
                   <Sticker id={s.art ?? s.id} className="h-8 w-8" />
