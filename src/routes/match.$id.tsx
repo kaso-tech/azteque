@@ -106,11 +106,14 @@ const ATTENTE_PIOCHE = 300;
  * Ce que la SECONDE carte attend, une fois la première partie.
  *
  * La pose de 300 ms sépare le ramassage du pli du premier geste du donneur :
- * elle a un sens là, et aucun entre les deux cartes d'un même lot, qu'un
- * donneur enchaîne d'un seul mouvement. La seconde décolle donc pendant que la
- * première est encore en l'air.
+ * elle a un sens là, mais les deux cartes d'un même lot doivent au contraire
+ * s'enchaîner comme un seul geste du donneur. Le rythme de référence est
+ * celui du ramassage d'un pli (`lastDelay`, plus bas) : la seconde carte
+ * décolle avec le même écart, ni plus vite (ça paraît haché, presque un seul
+ * mouvement flou) ni plus lentement (le lot traîne). Elle part donc pendant
+ * que la première est encore en l'air.
  */
-const ATTENTE_PIOCHE_SUIVANTE = 60;
+const ATTENTE_PIOCHE_SUIVANTE = 140;
 const VOL_PIOCHE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */

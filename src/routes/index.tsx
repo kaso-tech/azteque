@@ -112,7 +112,11 @@ const center = (el: HTMLElement | null | undefined) => {
 
 const TURN_LIMIT = 30;
 
-/** Souffle entre le départ de la première carte piochée et celui de la seconde. */
+/**
+ * Souffle entre le départ de la première carte piochée et celui de la
+ * seconde — calé sur le rythme du ramassage d'un pli (`lastDelay`, 140 ms
+ * plus bas), légèrement au-dessus pour ne pas paraître plus pressé que lui.
+ */
 const DECALAGE_PIOCHE = 150;
 
 function Azteque() {
