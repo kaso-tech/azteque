@@ -179,8 +179,16 @@ const LARGEUR_PLI = 72;
  */
 export const DUREE_VOL = 420;
 
-/** Durée du trajet entre la pioche et une main. */
-export const DUREE_PIOCHE = 480;
+/**
+ * Durée du trajet entre la pioche et une main.
+ *
+ * Plus longue que celle d'une carte posée : le talon est loin de la main, et
+ * une carte qu'on se donne se regarde venir. Elle sert aussi d'horloge au
+ * relais entre le vol et la main (voir `match.$id.tsx`) — c'est la même
+ * constante des deux côtés, pour qu'un jour l'une ne s'ajuste pas sans
+ * l'autre : le son et l'arrivée en main se décaleraient du geste qu'on voit.
+ */
+export const DUREE_PIOCHE = 560;
 
 /**
  * La carte que l'on pose, de la main jusqu'au tapis.

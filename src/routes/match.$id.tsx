@@ -29,6 +29,7 @@ import {
 import {
   CoinBurst,
   CollectCard,
+  DUREE_PIOCHE,
   DrawCard,
   angleOf,
   departAdverse,
@@ -116,7 +117,6 @@ const ATTENTE_PIOCHE = 300;
  * que la première est encore en l'air.
  */
 const ATTENTE_PIOCHE_SUIVANTE = 140;
-const VOL_PIOCHE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
 const center = (el: HTMLElement | null | undefined) => {
@@ -224,8 +224,8 @@ function OnlineTable() {
       delay: number;
     }[]
   >([]);
-  /** Vol de pioche dont la durée minimale est écoulée : il peut céder la place. */
-  const [volPiocheAbouti, setVolPiocheAbouti] = useState("");
+  /** Vols de pioche dont la durée est écoulée : ils peuvent céder la place. */
+  const [volsAboutis, setVolsAboutis] = useState<ReadonlySet<string>>(() => new Set());
   const [sweepFlights, setSweepFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; delay: number }[]
   >([]);
@@ -919,21 +919,23 @@ function OnlineTable() {
   const piocheCle = piocheEnCours?.cle ?? null;
 
   /**
-   * Cette pioche ouvre-t-elle le lot, ou suit-elle la précédente ?
+   * L'horaire du lot, posé une fois pour toutes par sa première carte.
    *
-   * Décidé ici, avant les deux effets qui s'en servent — le vol et la demande
-   * — afin qu'ils lisent la même réponse dans le même rendu.
+   * Chaque carte attendait jusqu'ici un délai compté depuis SON apparition,
+   * c'est-à-dire depuis la réponse du serveur à la pioche précédente. Le lot se
+   * déroulait donc au rythme du réseau : deux cartes presque collées sur une
+   * bonne liaison, largement espacées sur une mauvaise, et jamais deux fois le
+   * même geste. L'horaire est désormais fixé au départ de la première carte :
+   * la seconde part `ATTENTE_PIOCHE_SUIVANTE` après elle, quoi que fasse le
+   * réseau — et jamais plus tôt.
    */
-  const attentePioche = useRef(ATTENTE_PIOCHE);
-  const lotCommence = useRef(false);
+  const lotDebut = useRef(0);
+  const lotRang = useRef(0);
   useEffect(() => {
     if (piocheCle === null) {
-      lotCommence.current = false;
-      attentePioche.current = ATTENTE_PIOCHE;
-      return;
+      lotDebut.current = 0;
+      lotRang.current = 0;
     }
-    attentePioche.current = lotCommence.current ? ATTENTE_PIOCHE_SUIVANTE : ATTENTE_PIOCHE;
-    lotCommence.current = true;
   }, [piocheCle]);
 
   // Ce qu'on MONTRE de la pioche — même partage que pour le pli, et pour la
@@ -949,32 +951,53 @@ function OnlineTable() {
     if (piocheAnimee.current === piocheCle) return;
     piocheAnimee.current = piocheCle;
     const cle = piocheCle;
+
+    // La première carte du lot pose le repère, les suivantes s'y accrochent.
+    // `max(0, …)` : une carte que le serveur annonce en retard part aussitôt,
+    // plutôt que de courir après un horaire déjà passé.
+    const maintenant = Date.now();
+    if (lotRang.current === 0) lotDebut.current = maintenant;
+    const prevu = lotDebut.current + ATTENTE_PIOCHE + lotRang.current * ATTENTE_PIOCHE_SUIVANTE;
+    lotRang.current += 1;
+
     animTimers.current.push(
-      setTimeout(() => {
-        const from = center(stockRef.current);
-        // Cap sur l'emplacement libre que la carte vient combler, pas sur le
-        // milieu de la main.
-        const to = centreDuSlotLibre(handRefs[piochePlayer].current);
-        if (!from || !to) return;
-        setDrawFlights([{ id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 }]);
-        animTimers.current.push(
-          setTimeout(() => {
-            // Le vol a fait son chemin : il peut désormais s'effacer, mais
-            // seulement quand la carte apparaît vraiment dans la main.
-            setVolPiocheAbouti(cle);
-            // Le bruit de la pioche accompagne le geste qu'on voit, pas la
-            // réponse du serveur : chez l'invité, elle est déjà passée.
-            sfx.draw();
-          }, VOL_PIOCHE),
-        );
-        // Filet de sécurité : si la pioche n'aboutit jamais (envoi perdu), le
-        // vol ne doit pas rester suspendu à l'écran.
-        animTimers.current.push(
-          setTimeout(() => {
-            setDrawFlights((v) => (v[0]?.cle === cle ? [] : v));
-          }, VOL_PIOCHE + 6000),
-        );
-      }, attentePioche.current),
+      setTimeout(
+        () => {
+          const from = center(stockRef.current);
+          // Cap sur l'emplacement libre que la carte vient combler, pas sur le
+          // milieu de la main.
+          const to = centreDuSlotLibre(handRefs[piochePlayer].current);
+          if (!from || !to) return;
+          // Les vols s'AJOUTENT. Le tableau était remplacé à chaque carte, si
+          // bien que la seconde effaçait la première EN PLEIN VOL : selon la
+          // latence, la première avait parcouru cinquante millisecondes ou
+          // quatre cents avant de disparaître. D'où une pioche qui n'était
+          // jamais deux fois la même, et toujours tronquée. Les deux cartes
+          // d'un lot volent maintenant ensemble, comme face à l'IA.
+          setDrawFlights((v) => [
+            ...v.filter((f) => f.cle !== cle),
+            { id: Date.now(), cle, player: piochePlayer, from, to, delay: 0 },
+          ]);
+          animTimers.current.push(
+            setTimeout(() => {
+              // Le vol a fait son chemin : il peut désormais s'effacer, mais
+              // seulement quand la carte apparaît vraiment dans la main.
+              setVolsAboutis((s) => (s.has(cle) ? s : new Set(s).add(cle)));
+              // Le bruit de la pioche accompagne le geste qu'on voit, pas la
+              // réponse du serveur : chez l'invité, elle est déjà passée.
+              sfx.draw();
+            }, DUREE_PIOCHE),
+          );
+          // Filet de sécurité : si la pioche n'aboutit jamais (envoi perdu), le
+          // vol ne doit pas rester suspendu à l'écran.
+          animTimers.current.push(
+            setTimeout(() => {
+              setDrawFlights((v) => v.filter((f) => f.cle !== cle));
+            }, DUREE_PIOCHE + 6000),
+          );
+        },
+        Math.max(0, prevu - maintenant),
+      ),
     );
   }, [piochePlayer, piocheCle, handRefs, stockRef]);
 
@@ -987,12 +1010,17 @@ function OnlineTable() {
    * fois sa durée écoulée ET la pioche réellement servie par le serveur.
    */
   useEffect(() => {
-    const vol = drawFlights[0];
-    if (!vol) return;
-    if (volPiocheAbouti !== vol.cle) return;
-    if (piocheCle === vol.cle) return;
-    setDrawFlights([]);
-  }, [drawFlights, volPiocheAbouti, piocheCle]);
+    if (drawFlights.length === 0) return;
+    // Chaque vol s'efface pour SON propre compte : un lot de deux cartes ne
+    // doit pas voir la première emporter la seconde en se retirant.
+    const restants = drawFlights.filter((f) => !(volsAboutis.has(f.cle) && piocheCle !== f.cle));
+    if (restants.length !== drawFlights.length) setDrawFlights(restants);
+  }, [drawFlights, volsAboutis, piocheCle]);
+
+  // Plus rien en vol : la mémoire des vols aboutis n'a plus d'objet.
+  useEffect(() => {
+    if (drawFlights.length === 0 && volsAboutis.size > 0) setVolsAboutis(new Set());
+  }, [drawFlights.length, volsAboutis]);
 
   // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
   // tranche, l'invité n'intervient qu'à défaut. Elle part dès que la carte
