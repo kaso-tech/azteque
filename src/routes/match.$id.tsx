@@ -104,19 +104,18 @@ export const Route = createFileRoute("/match/$id")({
 
 const TRICK_DELAY = 550;
 /** Temps de pose avant qu'une carte ne quitte le talon, et durée de son vol. */
-const ATTENTE_PIOCHE = 300;
+const ATTENTE_PIOCHE = 420;
 /**
  * Ce que la SECONDE carte attend, une fois la première partie.
  *
- * La pose de 300 ms sépare le ramassage du pli du premier geste du donneur :
+ * La pose de 420 ms sépare le ramassage du pli du premier geste du donneur :
  * elle a un sens là, mais les deux cartes d'un même lot doivent au contraire
  * s'enchaîner comme un seul geste du donneur. Le rythme de référence est
- * celui du ramassage d'un pli (`lastDelay`, plus bas) : la seconde carte
- * décolle avec le même écart, ni plus vite (ça paraît haché, presque un seul
- * mouvement flou) ni plus lentement (le lot traîne). Elle part donc pendant
- * que la première est encore en l'air.
+ * celui d'un vrai geste de donne : la seconde carte ne part qu'une fois la
+ * première presque arrivée. Un léger recouvrement garde le lot fluide sans
+ * superposer les deux dos de carte pendant l'essentiel de leur trajet.
  */
-const ATTENTE_PIOCHE_SUIVANTE = 140;
+const ATTENTE_PIOCHE_SUIVANTE = 480;
 
 /** Le centre d'un élément à l'écran, ou `null` s'il n'est pas encore posé. */
 const center = (el: HTMLElement | null | undefined) => {
@@ -931,10 +930,13 @@ function OnlineTable() {
    */
   const lotDebut = useRef(0);
   const lotRang = useRef(0);
+  /** Instant de départ visuel prévu pour chaque pioche du lot. */
+  const departPiochePrevu = useRef(new Map<string, number>());
   useEffect(() => {
     if (piocheCle === null) {
       lotDebut.current = 0;
       lotRang.current = 0;
+      departPiochePrevu.current.clear();
     }
   }, [piocheCle]);
 
@@ -959,6 +961,7 @@ function OnlineTable() {
     if (lotRang.current === 0) lotDebut.current = maintenant;
     const prevu = lotDebut.current + ATTENTE_PIOCHE + lotRang.current * ATTENTE_PIOCHE_SUIVANTE;
     lotRang.current += 1;
+    departPiochePrevu.current.set(cle, prevu);
 
     animTimers.current.push(
       setTimeout(
@@ -1023,9 +1026,9 @@ function OnlineTable() {
   }, [drawFlights.length, volsAboutis]);
 
   // La DEMANDE de pioche, elle, s'arbitre comme la résolution du pli : l'hôte
-  // tranche, l'invité n'intervient qu'à défaut. Elle part dès que la carte
-  // décolle, pour que la main soit garnie au moment où le vol s'y pose : la
-  // réponse du serveur voyage pendant le vol au lieu de le suivre.
+  // tranche, l'invité n'intervient qu'à défaut. Elle part au même instant que
+  // la carte visible : le talon, le vol et l'insertion en main restent ainsi
+  // un seul geste, sans que l'état ne prenne de l'avance sur l'animation.
   const piocheDemandee = useRef("");
   useEffect(() => {
     if (piochePlayer === null || piocheCle === null) {
@@ -1033,17 +1036,14 @@ function OnlineTable() {
       return;
     }
     if (piocheDemandee.current === piocheCle) return;
-    // La demande ne suit plus la pose : elle part tout de suite, et sa réponse
-    // voyage pendant que la carte se soulève au lieu de s'ajouter à elle.
-    // C'est ce qui rapproche le départ de la seconde carte de celui de la
-    // première — sur l'écran de l'ADVERSAIRE aussi, lui qui ne voit le lot
-    // avancer qu'au rythme des réponses du serveur.
+    const depart = departPiochePrevu.current.get(piocheCle) ?? Date.now() + ATTENTE_PIOCHE;
+    const attenteAvantDepart = Math.max(0, depart - Date.now());
     const t = setTimeout(
       () => {
         piocheDemandee.current = piocheCle;
         void runAction({ type: "draw_next" }, { silent: true });
       },
-      isHost ? 0 : ATTENTE_PIOCHE + 2000,
+      attenteAvantDepart + (isHost ? 0 : 2000),
     );
     return () => clearTimeout(t);
   }, [isHost, piochePlayer, piocheCle, runAction]);
