@@ -69,7 +69,7 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
   const [gradeFiltre, setGradeFiltre] = useState<string>("tous");
   const [liste, setListe] = useState<AdminPlayer[]>([]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
-  const [sheetPlayer, setSheetPlayer] = useState<AdminPlayer | null>(null);
+  const [sheetId, setSheetId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [montant, setMontant] = useState("500");
@@ -134,9 +134,21 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
   };
 
   const ouvrirFiche = (p: AdminPlayer) => {
-    setSheetPlayer(p);
+    setSheetId(p.id);
     setSheetOpen(true);
   };
+
+  /**
+   * La fiche suit la LISTE, elle n'en garde pas un instantané.
+   *
+   * Sans cela, suspendre un joueur depuis sa fiche laissait le bouton
+   * proposer « Suspendre » juste après l'avoir fait : la liste se rechargeait
+   * bien, mais la fiche montrait encore l'état d'avant l'ouverture.
+   */
+  const sheetPlayer = useMemo(
+    () => (sheetId === null ? null : (liste.find((j) => j.id === sheetId) ?? null)),
+    [liste, sheetId],
+  );
 
   const agir = (p: Promise<unknown>) => {
     setBusy(true);
@@ -467,7 +479,13 @@ export function Joueurs({ onErreur }: { onErreur: (e: string | null) => void }) 
         </div>
       )}
 
-      <PlayerSheet player={sheetPlayer} open={sheetOpen} onOpenChange={setSheetOpen} />
+      <PlayerSheet
+        player={sheetPlayer}
+        open={sheetOpen}
+        busy={busy}
+        onAction={agir}
+        onOpenChange={setSheetOpen}
+      />
     </div>
   );
 }

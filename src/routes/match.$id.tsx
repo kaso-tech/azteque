@@ -1455,8 +1455,11 @@ function OnlineTable() {
         </div>
       )}
 
-      {/* Main adverse */}
-      <section>
+      {/* Main adverse. Le même écart qu'ailleurs entre les cartes et la barre
+          de temps : sans lui, elle était collée au bas des cartes adverses,
+          alors que celle du joueur local — et les deux de la table contre
+          l'IA — respirent. */}
+      <section className="flex flex-col gap-2">
         <div ref={handRefs[opp]} style={{ opacity: dealing ? 0 : 1 }}>
           <HandRow
             cards={state.hands[opp]}

@@ -4,7 +4,7 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { RankBadge } from "@/components/azteque/rank";
 import { rankOf } from "@/lib/azteque/rank";
 import { describeError } from "@/lib/azteque/account";
-import { estEnLigne, type AdminPlayer } from "@/lib/azteque/admin";
+import { adminSetAdmin, adminSetBanned, estEnLigne, type AdminPlayer } from "@/lib/azteque/admin";
 import {
   adminPlayerDetail,
   type PlayerDetail,
@@ -72,15 +72,29 @@ function formatDateTime(iso: string): string {
 export function PlayerSheet({
   player,
   open,
+  busy: busyParent = false,
+  onAction,
   onOpenChange,
 }: {
   player: AdminPlayer | null;
   open: boolean;
+  /** Une action du tableau est déjà en cours. */
+  busy?: boolean;
+  /**
+   * Exécute une action serveur puis recharge la liste.
+   *
+   * C'est la même fonction que celle du tableau : les boutons de la fiche ne
+   * refont donc ni la gestion d'erreur ni le rechargement, et la fiche
+   * affiche l'état neuf aussitôt après (voir `sheetPlayer`, côté Joueurs).
+   */
+  onAction?: (p: Promise<unknown>) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const [detail, setDetail] = useState<PlayerDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  /** Chargement de la fiche, ou action en cours ailleurs dans la console. */
+  const occupe = busy || busyParent;
 
   useEffect(() => {
     if (!player || !open) {
@@ -199,16 +213,30 @@ export function PlayerSheet({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border p-4">
-              <Button size="sm" className="font-semibold">
+              {/* Ces deux-là n'ont encore aucune fonction serveur derrière :
+                  ni envoi de message à un joueur, ni don d'article. Tant
+                  qu'elles n'existent pas, mieux vaut un bouton qui se déclare
+                  à venir qu'un bouton qui ne répond pas au clic. */}
+              <Button size="sm" className="font-semibold" disabled title="Bientôt disponible">
                 📩 Envoyer un message
               </Button>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" disabled title="Bientôt disponible">
                 🎁 Offrir un article
               </Button>
-              <Button size="sm" variant="outline">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={occupe || !onAction}
+                onClick={() => onAction?.(adminSetBanned(player.id, !player.banned))}
+              >
                 {player.banned ? "Rétablir" : "Suspendre"}
               </Button>
-              <Button size="sm" variant="outline">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={occupe || !onAction}
+                onClick={() => onAction?.(adminSetAdmin(player.id, !player.is_admin))}
+              >
                 {player.is_admin ? "Révoquer admin" : "Nommer admin"}
               </Button>
             </div>
