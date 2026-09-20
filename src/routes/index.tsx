@@ -26,6 +26,7 @@ import {
   type PlayerIndex,
   type Suit,
 } from "@/lib/azteque/engine";
+import { totalDuTour, type LigneDeCompte } from "@/lib/azteque/comptes";
 import {
   CapturedPile,
   GainsPanel,
@@ -143,9 +144,7 @@ function Azteque() {
   const [started, setStarted] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
   const [redealDone, setRedealDone] = useState(false);
-  const [meldHistory, setMeldHistory] = useState<
-    { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
-  >([]);
+  const [meldHistory, setMeldHistory] = useState<LigneDeCompte[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
   const [collect, setCollect] = useState<
@@ -939,7 +938,9 @@ function Azteque() {
   };
 
   const myBonnes = state.gains[0].filter(isBonne).length;
-  const myComptes = meldHistory.filter((e) => e.player === 0).reduce((sum, e) => sum + e.points, 0);
+  // Le bouton ne porte que sur le tour en cours ; l'historique garde tout le
+  // champ. Voir `comptes.ts`, où les deux lectures sont expliquées.
+  const myComptes = totalDuTour(meldHistory, 0, roundKey + 1);
   const oppBonnes = state.gains[1].filter(isBonne).length;
   const revealOpp = state.phase !== "playing";
   if (!started) {
@@ -1520,7 +1521,7 @@ function Azteque() {
         />
       )}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel entries={meldHistory} me={0} onClose={() => setShowHistory(false)} />
       )}
     </main>
   );

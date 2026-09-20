@@ -4,6 +4,7 @@ import { Bot, BookOpen, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DIFFICULTY_LABEL, type Difficulty, type PlayerIndex } from "@/lib/azteque/engine";
+import type { LigneDeCompte } from "@/lib/azteque/comptes";
 import { AccountIdentity, ReferralCard } from "@/components/azteque/account-panels";
 import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
 import type { Profile } from "@/lib/azteque/account";
@@ -407,11 +408,22 @@ export function Recap({
 
 export function MeldHistoryPanel({
   entries,
+  me,
   onClose,
 }: {
-  entries: { key: string; round: number; player: PlayerIndex; label: string; points: number }[];
+  entries: readonly LigneDeCompte[];
+  /**
+   * Le siège de celui qui regarde.
+   *
+   * Le panneau tenait le siège 0 pour « vous » : vrai contre l'IA et pour
+   * l'hôte d'une table en ligne, faux pour l'INVITÉ, qui voyait ses propres
+   * comptes attribués à son adversaire et réciproquement. La moitié des
+   * joueurs en ligne lisait donc l'historique à l'envers.
+   */
+  me: PlayerIndex;
   onClose: () => void;
 }) {
+  const opp: PlayerIndex = me === 0 ? 1 : 0;
   const totals = entries.reduce(
     (acc, e) => {
       acc[e.player] += e.points;
@@ -433,7 +445,7 @@ export function MeldHistoryPanel({
           <div>
             <h2 className="gold-text text-2xl">Historique des comptes</h2>
             <p className="text-xs text-muted-foreground">
-              Vous {totals[0]} pts · Adversaire {totals[1]} pts
+              Vous {totals[me]} pts · Adversaire {totals[opp]} pts
             </p>
           </div>
           <button
@@ -456,8 +468,8 @@ export function MeldHistoryPanel({
                 className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs"
               >
                 <span className="text-muted-foreground">Tour {e.round}</span>
-                <span className={e.player === 0 ? "text-gold" : "text-foreground"}>
-                  {e.player === 0 ? "Vous" : "Adversaire"}
+                <span className={e.player === me ? "text-gold" : "text-foreground"}>
+                  {e.player === me ? "Vous" : "Adversaire"}
                 </span>
                 <span className="flex-1 text-right text-muted-foreground">{e.label}</span>
                 <span className="font-semibold text-foreground">+{e.points}</span>

@@ -17,6 +17,7 @@ import {
   type PlayerIndex,
   type Suit,
 } from "@/lib/azteque/engine";
+import { totalDuTour, type LigneDeCompte } from "@/lib/azteque/comptes";
 import {
   CapturedPile,
   GainsPanel,
@@ -1205,9 +1206,7 @@ function OnlineTable() {
     if (!premiere) setManche((n) => n + 1);
   }, [donneFraiche]);
 
-  const [meldHistory, setMeldHistory] = useState<
-    { key: string; round: number; player: PlayerIndex; label: string; points: number }[]
-  >([]);
+  const [meldHistory, setMeldHistory] = useState<LigneDeCompte[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const mesMelds = state ? state.melds : null;
   useEffect(() => {
@@ -1231,9 +1230,9 @@ function OnlineTable() {
       return ajouts.length > 0 ? [...prev, ...ajouts] : prev;
     });
   }, [mesMelds, manche]);
-  const myComptes = meldHistory
-    .filter((e) => e.player === me)
-    .reduce((somme, e) => somme + e.points, 0);
+  // Le bouton ne porte que sur le tour en cours ; l'historique garde tout le
+  // champ. Voir `comptes.ts`, où les deux lectures sont expliquées.
+  const myComptes = totalDuTour(meldHistory, me, manche + 1);
 
   const myMelds = useMemo(() => (state ? availableMelds(state, me) : []), [state, me]);
   // Panneau main blanche : visible en début de tour, si le joueur local a
@@ -1963,7 +1962,7 @@ function OnlineTable() {
 
       {showMyGains && <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel entries={meldHistory} me={me} onClose={() => setShowHistory(false)} />
       )}
 
       {showMyBonnes && (
