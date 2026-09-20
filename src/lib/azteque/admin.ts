@@ -231,6 +231,26 @@ export async function adminSetAdmin(userId: string, isAdmin: boolean): Promise<v
   if (error) throw error;
 }
 
+/**
+ * Offre un article : le joueur le possède comme s'il l'avait acheté.
+ *
+ * Sans effet s'il l'avait déjà — offrir deux fois n'est pas une erreur.
+ */
+export async function adminGrantItem(userId: string, itemId: string, reason = ""): Promise<void> {
+  const { error } = await rpc("admin_grant_item", {
+    _user: userId,
+    _item_id: itemId,
+    _reason: reason,
+  });
+  if (error) throw error;
+}
+
+/** Écrit au joueur. Il le lira à sa prochaine ouverture (voir `messages.ts`). */
+export async function adminSendMessage(userId: string, body: string): Promise<void> {
+  const { error } = await rpc("admin_send_message", { _user: userId, _body: body });
+  if (error) throw error;
+}
+
 export interface AdminShopItem {
   id: string;
   kind: string;

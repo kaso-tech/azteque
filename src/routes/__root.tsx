@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { InviteManager } from "@/components/azteque/invite-manager";
+import { MessageInbox } from "@/components/azteque/message-inbox";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -246,6 +247,9 @@ function RootComponent() {
       {/* Invitations à jouer et annonces de connexion : fonctionnent quel que
           soit l'écran affiché, y compris en pleine partie. */}
       <InviteManager />
+      {/* Messages de l'administration : même raison d'être ici, un message
+          qui attend dans un écran jamais ouvert n'a pas été envoyé. */}
+      <MessageInbox />
       <Toaster position="top-center" />
     </QueryClientProvider>
   );

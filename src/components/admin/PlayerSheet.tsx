@@ -4,7 +4,16 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { RankBadge } from "@/components/azteque/rank";
 import { rankOf } from "@/lib/azteque/rank";
 import { describeError } from "@/lib/azteque/account";
-import { adminSetAdmin, adminSetBanned, estEnLigne, type AdminPlayer } from "@/lib/azteque/admin";
+import {
+  adminGrantItem,
+  adminListItems,
+  adminSendMessage,
+  adminSetAdmin,
+  adminSetBanned,
+  estEnLigne,
+  type AdminPlayer,
+  type AdminShopItem,
+} from "@/lib/azteque/admin";
 import {
   adminPlayerDetail,
   type PlayerDetail,
@@ -95,6 +104,57 @@ export function PlayerSheet({
   const [erreur, setErreur] = useState<string | null>(null);
   /** Chargement de la fiche, ou action en cours ailleurs dans la console. */
   const occupe = busy || busyParent;
+
+  /** Le volet ouvert sous les boutons : rédaction d'un message, ou choix d'un article. */
+  const [volet, setVolet] = useState<"message" | "article" | null>(null);
+  const [texte, setTexte] = useState("");
+  const [article, setArticle] = useState("");
+  const [articles, setArticles] = useState<AdminShopItem[]>([]);
+  const [envoi, setEnvoi] = useState(false);
+  /** Confirmation brève, effacée au changement de joueur. */
+  const [fait, setFait] = useState<string | null>(null);
+
+  // Tout se referme en changeant de joueur : un message à moitié écrit ne doit
+  // pas suivre la fiche d'un joueur à l'autre, et partir au mauvais compte.
+  useEffect(() => {
+    setVolet(null);
+    setTexte("");
+    setArticle("");
+    setFait(null);
+  }, [player?.id, open]);
+
+  // Le catalogue n'est chargé qu'à l'ouverture du volet : la fiche s'ouvre
+  // surtout pour consulter, et cette liste ne sert qu'à ce geste-là.
+  useEffect(() => {
+    if (volet !== "article" || articles.length > 0) return;
+    adminListItems()
+      .then(setArticles)
+      .catch((e: unknown) => setErreur(describeError(e, "Catalogue indisponible.")));
+  }, [volet, articles.length]);
+
+  const agirIci = (p: Promise<unknown>, confirmation: string) => {
+    setEnvoi(true);
+    setErreur(null);
+    setFait(null);
+    p.then(() => {
+      setFait(confirmation);
+      setVolet(null);
+      setTexte("");
+      setArticle("");
+    })
+      .catch((e: unknown) => setErreur(describeError(e, "Action impossible.")))
+      .finally(() => setEnvoi(false));
+  };
+
+  const envoyerMessage = () => {
+    if (!player || !texte.trim()) return;
+    agirIci(adminSendMessage(player.id, texte.trim()), "Message envoyé.");
+  };
+
+  const offrirArticle = () => {
+    if (!player || !article) return;
+    agirIci(adminGrantItem(player.id, article), `Article ${article} offert.`);
+  };
 
   useEffect(() => {
     if (!player || !open) {
@@ -212,33 +272,116 @@ export function PlayerSheet({
               </section>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 border-t border-border p-4">
-              {/* Ces deux-là n'ont encore aucune fonction serveur derrière :
-                  ni envoi de message à un joueur, ni don d'article. Tant
-                  qu'elles n'existent pas, mieux vaut un bouton qui se déclare
-                  à venir qu'un bouton qui ne répond pas au clic. */}
-              <Button size="sm" className="font-semibold" disabled title="Bientôt disponible">
-                📩 Envoyer un message
-              </Button>
-              <Button size="sm" variant="outline" disabled title="Bientôt disponible">
-                🎁 Offrir un article
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={occupe || !onAction}
-                onClick={() => onAction?.(adminSetBanned(player.id, !player.banned))}
-              >
-                {player.banned ? "Rétablir" : "Suspendre"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={occupe || !onAction}
-                onClick={() => onAction?.(adminSetAdmin(player.id, !player.is_admin))}
-              >
-                {player.is_admin ? "Révoquer admin" : "Nommer admin"}
-              </Button>
+            <div className="border-t border-border p-4">
+              {volet === "message" && (
+                <div className="mb-3 rounded-md border border-border bg-card/40 p-3">
+                  <label htmlFor="message-joueur" className="text-xs font-semibold text-foreground">
+                    Message à {player.username}
+                  </label>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Il le lira à sa prochaine ouverture du jeu. Il ne peut pas y répondre.
+                  </p>
+                  <textarea
+                    id="message-joueur"
+                    value={texte}
+                    onChange={(e) => setTexte(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="Votre compte a été rétabli…"
+                    className="mt-2 w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+                  />
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="font-semibold"
+                      disabled={envoi || !texte.trim()}
+                      onClick={envoyerMessage}
+                    >
+                      {envoi ? "…" : "Envoyer"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setVolet(null)}>
+                      Annuler
+                    </Button>
+                    <span className="ml-auto text-[10px] text-muted-foreground">
+                      {texte.length}/1000
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {volet === "article" && (
+                <div className="mb-3 rounded-md border border-border bg-card/40 p-3">
+                  <label htmlFor="article-offert" className="text-xs font-semibold text-foreground">
+                    Offrir un article à {player.username}
+                  </label>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Il le possédera comme s'il l'avait acheté. Sans effet s'il l'a déjà.
+                  </p>
+                  <select
+                    id="article-offert"
+                    value={article}
+                    onChange={(e) => setArticle(e.target.value)}
+                    className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="">Choisir un article…</option>
+                    {articles.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.id} · {a.kind} · 🪙 {a.price}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="font-semibold"
+                      disabled={envoi || !article}
+                      onClick={offrirArticle}
+                    >
+                      {envoi ? "…" : "Offrir"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setVolet(null)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {fait && <p className="mb-3 text-xs text-emerald-400">{fait}</p>}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  className="font-semibold"
+                  disabled={occupe}
+                  onClick={() => setVolet(volet === "message" ? null : "message")}
+                >
+                  📩 Envoyer un message
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={occupe}
+                  onClick={() => setVolet(volet === "article" ? null : "article")}
+                >
+                  🎁 Offrir un article
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={occupe || !onAction}
+                  onClick={() => onAction?.(adminSetBanned(player.id, !player.banned))}
+                >
+                  {player.banned ? "Rétablir" : "Suspendre"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={occupe || !onAction}
+                  onClick={() => onAction?.(adminSetAdmin(player.id, !player.is_admin))}
+                >
+                  {player.is_admin ? "Révoquer admin" : "Nommer admin"}
+                </Button>
+              </div>
             </div>
           </>
         ) : null}
