@@ -759,13 +759,6 @@ const TUNE = {
   legendePimcBudget: 120000,
   /** Poids de l'anticipation d'un pli dans la note finale (Légende). */
   legendeAnticipation: 0.15,
-  /**
-   * Échelle d'écrasement de la marge, en points (Légende). Voir `margeUtile`.
-   *
-   * Plus la valeur est grande, plus l'évaluation reste linéaire — donc proche
-   * du comportement d'origine. À l'infini, `margeUtile` est l'identité.
-   */
-  legendeMargeEchelle: 3,
   /** Poids de la hauteur de la couleur dans le choix de l'atout (Légende). */
   legendeTrumpForce: 0.3,
   /** Pénalité si la couleur est encore très présente chez l'adversaire. */
@@ -2268,28 +2261,6 @@ function deroulePli(monde: GameState, c: Card): number | null {
 const MONDES_LEGENDE = 4;
 
 /**
- * La marge, telle qu'elle COMPTE vraiment pour gagner le tour.
- *
- * Un tour se gagne au SIGNE de la marge, jamais à sa taille : l'emporter
- * 20 à 12 ne vaut pas mieux que l'emporter 14 à 12, et mené d'un point, une
- * ligne qui joue gros vaut mieux qu'une défaite tranquille. L'évaluation, elle,
- * rend une marge linéaire — un huitième point de plus y pèse autant que le
- * premier, celui qui fait passer devant.
- *
- * Mesuré : la Légende marque plus de points par tour que le Grand Maître
- * (+0,58) sans gagner plus souvent — ses points s'entassent là où le tour est
- * déjà acquis, pendant que les tours serrés lui échappent.
- *
- * `tanh` garde l'unité en points et la linéarité près de zéro — là où se
- * décide le tour — et écrase les écarts au-delà : une avance confortable cesse
- * d'appeler des points qui ne rapportent plus rien.
- */
-function margeUtile(v: number): number {
-  const k = T("legendeMargeEchelle");
-  return k * Math.tanh(v / k);
-}
-
-/**
  * Choix de carte par anticipation d'un pli. Renvoie null quand la position ne
  * s'y prête pas (comptage incohérent, un seul coup légal) : l'appelant retombe
  * alors sur l'heuristique tactique.
@@ -2317,7 +2288,7 @@ function legendeAnticipe(state: GameState): Card | null {
     for (const c of cands) {
       const v = deroulePli(monde, c);
       if (v === null) continue;
-      totaux.set(c, (totaux.get(c) ?? 0) + margeUtile(v) / MONDES_LEGENDE);
+      totaux.set(c, (totaux.get(c) ?? 0) + v / MONDES_LEGENDE);
     }
   }
   if (totaux.size === 0) return null;
