@@ -30,6 +30,7 @@ import {
   CollectCard,
   DrawCard,
   angleOf,
+  departAdverse,
   FlyingCard,
   SweepCard,
   useCardFlight,
@@ -737,8 +738,8 @@ function OnlineTable() {
     const already = prevTrickRef.current.some((entry) => entry.player === opp);
     const oppEntry = state.trick.find((entry) => entry.player === opp);
     if (oppEntry && !already && sawStateRef.current) {
-      const from = center(handRefs[opp].current);
-      if (from) fly(oppEntry.card, from);
+      const depart = departAdverse(handRefs[opp].current, opp);
+      if (depart) fly(oppEntry.card, depart.from, depart.width, depart.rot);
       sfx.place();
     }
     prevTrickRef.current = state.trick;

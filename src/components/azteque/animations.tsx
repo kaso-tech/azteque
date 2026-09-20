@@ -11,20 +11,40 @@ import { PlayingCard } from "@/components/azteque/PlayingCard";
 import { sfx } from "@/lib/azteque/sfx";
 import type { Card, GameState, PlayerIndex } from "@/lib/azteque/engine";
 
-/** Déclenche la transition à la frame suivante (mouvement toujours joué). */
+/**
+ * Déclenche la transition une fois le point de départ RÉELLEMENT peint.
+ *
+ * Deux images, et non une seule : une transition ne s'interpole qu'à partir
+ * d'un état déjà peint. Le premier `requestAnimationFrame` s'exécute encore
+ * avant la peinture de l'image en cours — basculer là revient à changer la
+ * transformation dans la même image que le premier rendu, si bien que le
+ * navigateur n'a rien à interpoler et que la carte se TÉLÉPORTE. Le second
+ * n'a lieu qu'une fois la carte posée à son point de départ, et le vol part
+ * alors toujours.
+ *
+ * Le symptôme était intermittent, donc facile à prendre pour un caprice du
+ * réseau : il ne se produisait que lorsque le navigateur groupait les deux
+ * changements dans la même image, c'est-à-dire d'autant plus souvent que le
+ * fil principal était chargé — en ligne, précisément, où l'arrivée d'un état
+ * par le temps réel déclenche le vol au milieu d'un rendu complet de la table.
+ */
 export function useDeparture(delay: number) {
   const [departed, setDeparted] = useState(false);
   useEffect(() => {
-    let raf = 0;
+    let premiere = 0;
+    let seconde = 0;
     const timer = setTimeout(
       () => {
-        raf = requestAnimationFrame(() => setDeparted(true));
+        premiere = requestAnimationFrame(() => {
+          seconde = requestAnimationFrame(() => setDeparted(true));
+        });
       },
       Math.max(0, delay),
     );
     return () => {
       clearTimeout(timer);
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(premiere);
+      cancelAnimationFrame(seconde);
     };
   }, [delay]);
   return departed;
@@ -38,6 +58,23 @@ export function angleOf(el: Element | null | undefined): number {
   const m = new DOMMatrixReadOnly(t);
   return (Math.atan2(m.b, m.a) * 180) / Math.PI;
 }
+
+/**
+ * La courbe de TOUS les trajets de carte : posée, piochée, ramassée, raflée.
+ *
+ * Chaque vol avait la sienne, à quelques centièmes près — quatre courbes
+ * presque identiques, nées l'une après l'autre sans que rien ne les distingue
+ * vraiment. Ce n'est pas anodin : l'œil reconnaît une main qui manipule les
+ * cartes à la constance de son geste, et quatre décélérations légèrement
+ * différentes se lisent comme quatre mains. Une seule courbe, un seul geste.
+ *
+ * Elle démarre franchement et s'éteint longuement : une carte lancée perd sa
+ * vitesse en glissant, elle ne freine pas au dernier moment.
+ *
+ * Les DURÉES, elles, restent propres à chaque trajet : elles disent la
+ * distance et le poids du geste, pas son caractère.
+ */
+export const COURBE_VOL = "cubic-bezier(.22,.78,.28,1)";
 
 /** Mouvement fluide : uniquement des transformations (aucun recalcul de mise en page). */
 export function flightStyle(
@@ -86,7 +123,7 @@ export function SweepCard({
           scale: 1,
           rotate: 6,
           duration: 560,
-          ease: "cubic-bezier(.33,.9,.28,1)",
+          ease: COURBE_VOL,
         }),
         opacity: departed ? 1 : 0.95,
       }}
@@ -118,11 +155,10 @@ export function CollectCard({
           scale: 0.555,
           rotate: 3,
           duration: 520,
-          ease: "cubic-bezier(.32,.72,.2,1)",
+          ease: COURBE_VOL,
         }),
-        filter: departed
-          ? "drop-shadow(0 6px 10px rgba(0,0,0,0.35))"
-          : "drop-shadow(0 16px 24px rgba(0,0,0,0.5))",
+        // Une seule ombre, tenue d'un bout à l'autre — voir `FlyingCard`.
+        filter: "drop-shadow(0 12px 18px rgba(0,0,0,0.45))",
         opacity: 1,
       }}
     >
@@ -185,12 +221,22 @@ export function FlyingCard({
           rotate: 0,
           startRotate: fromRotate,
           duration: DUREE_VOL,
-          ease: "cubic-bezier(.22,.78,.28,1)",
+          ease: COURBE_VOL,
         }),
         width,
-        filter: departed
-          ? "drop-shadow(0 6px 12px rgba(0,0,0,0.4))"
-          : "drop-shadow(0 18px 26px rgba(0,0,0,0.5))",
+        // Une seule ombre, tenue d'un bout à l'autre du vol.
+        //
+        // Elle passait auparavant d'une ombre haute à une ombre basse à
+        // l'instant du départ — mais `filter` n'est pas dans la liste des
+        // propriétés en transition, si bien qu'elle ne fondait pas : elle
+        // SAUTAIT, d'un seul coup, sur la première image du vol. L'effet
+        // voulu — une carte qu'on soulève puis qu'on repose — se lisait comme
+        // un clignotement. L'y ajouter coûterait cher : une ombre portée se
+        // recalcule à chaque image, hors du compositeur, et c'est justement
+        // ce qui fait hacher une animation sur un téléphone. La carte est en
+        // l'air tout du long : une ombre d'altitude constante est d'ailleurs
+        // plus juste.
+        filter: "drop-shadow(0 14px 20px rgba(0,0,0,0.45))",
       }}
     >
       <PlayingCard card={card} size="hand" />
@@ -289,7 +335,7 @@ export function DrawCard({
           scale: 0.86,
           rotate: player === 0 ? 5 : -5,
           duration: DUREE_PIOCHE,
-          ease: "cubic-bezier(.24,.82,.28,1)",
+          ease: COURBE_VOL,
         }),
         opacity: 1,
         filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))",
@@ -399,6 +445,36 @@ export function centreDe(el: Element | null | undefined) {
 export function centreDuSlotLibre(row: HTMLElement | null | undefined) {
   const libre = row?.querySelector<HTMLElement>("[data-empty-slot]");
   return centreDe(libre) ?? centreDe(row);
+}
+
+/**
+ * Le départ d'une carte jouée par l'ADVERSAIRE.
+ *
+ * On ignore de quelle place de sa main elle est partie — ses cartes sont face
+ * cachée et interchangeables à l'œil — donc elle quitte le milieu de la
+ * rangée, comme avant. Ce qui change, c'est qu'elle en part à la TAILLE de
+ * ses cartes et légèrement penchée.
+ *
+ * Sans cela, faute de largeur mesurée, elle partait d'emblée au format du
+ * tapis : elle ne rétrécissait pas, ne se redressait pas, elle GLISSAIT — un
+ * pion qu'on pousse, là où la carte du joueur local, elle, est soulevée de
+ * son éventail puis reposée à plat. Le même coup n'avait pas le même geste
+ * selon le côté de la table, ce qui se remarque surtout en ligne, où les deux
+ * joueurs sont de vraies mains.
+ */
+export function departAdverse(row: HTMLElement | null | undefined, joueur: PlayerIndex) {
+  const from = centreDe(row);
+  if (!from) return null;
+  const carte = row?.querySelector<HTMLElement>("[data-carte-main]");
+  const largeur = carte?.offsetWidth ?? 0;
+  return {
+    from,
+    ...(largeur > 0 ? { width: largeur } : {}),
+    // Sa rangée est à plat : l'inclinaison de départ n'est pas relevée, elle
+    // est posée. Deux petits degrés suffisent à faire lire un soulèvement,
+    // orientés vers le tapis comme le ferait la main qui la dépose.
+    rot: joueur === 0 ? -3 : 3,
+  };
 }
 
 /**

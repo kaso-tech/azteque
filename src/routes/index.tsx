@@ -63,6 +63,7 @@ import {
   DUREE_PIOCHE,
   DrawCard,
   angleOf,
+  departAdverse,
   FlyingCard,
   SweepCard,
   useCardFlight,
@@ -756,8 +757,8 @@ function Azteque() {
       // se posait auparavant d'un coup sur le tapis, sans qu'on la voie
       // quitter la main d'en face — seule celle du joueur volait.
       const card = aiChooseCardAt(state, settings.difficulty);
-      const from = center(opponentHandRef.current);
-      if (from) fly(card, from);
+      const depart = departAdverse(opponentHandRef.current, 1);
+      if (depart) fly(card, depart.from, depart.width, depart.rot);
       jouerPour(1, () => sfx.place());
       setState((s) => playCard(s, 1, card.id));
     }, 750);

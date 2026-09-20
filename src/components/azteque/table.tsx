@@ -373,6 +373,10 @@ export function HandRow({
             onPointerDown={interactive ? handlePointerDown(c.id) : undefined}
             className={cn(caseClass, !fan && "transition-transform duration-300")}
             style={place(i)}
+            // Repère de mesure, comme `data-empty-slot` plus haut : le vol
+            // d'une carte adverse y relève la largeur qu'ont ses cartes, pour
+            // en partir à leur taille (voir `departAdverse`).
+            data-carte-main="true"
           >
             <PlayingCard
               card={c}
