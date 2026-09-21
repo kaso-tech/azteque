@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { notifier, resynchroniser } from "@/lib/azteque/push";
 import { Button } from "@/components/ui/button";
 import { FriendsPanel, SignInCard, UsernameCard } from "@/components/azteque/account-panels";
 import { RankProgressCard } from "@/components/azteque/rank";
@@ -176,6 +177,13 @@ function OnlineLobby() {
 
   useEffect(() => {
     if (!profile) return;
+    // L'ami absent n'a aucun client pour remarquer notre arrivée : c'est donc
+    // à nous de l'annoncer. Le serveur tient le verrou d'une heure, sans quoi
+    // un simple rechargement de page déclencherait une rafale.
+    void notifier({ type: "ami_en_ligne" });
+    // Et tant qu'on y est : un abonnement qui a survécu au navigateur mais
+    // perdu sa ligne en base se répare ici, en silence.
+    void resynchroniser().catch(() => {});
     return trackLobbyPresence(profile.id, setOnline);
   }, [profile]);
 
@@ -245,6 +253,10 @@ function OnlineLobby() {
         return false;
       }
       setEnRecherche(false);
+      // C'est nous qui découvrons l'appariement ; l'autre attend peut-être
+      // écran éteint. Le serveur retrouve son identité depuis la table — la
+      // file d'attente ne nous l'a pas donnée.
+      void notifier({ type: "appariement", matchId: r.matchId });
       enterTable(r.matchId, r.seat);
       return true;
     },
@@ -304,6 +316,9 @@ function OnlineLobby() {
     createMatch(profile.username)
       .then(async (match) => {
         const inviteId = await invitePlayer(playerId, match.id);
+        // L'invité a peut-être le téléphone en poche : c'est le seul moment où
+        // la notification remplace vraiment l'écran qu'il ne regarde pas.
+        void notifier({ type: "invitation", vers: playerId });
         setPending({ match, who: username, inviteId });
         // L'invité accepté rejoint la partie : la ligne se met à jour.
         unwatch.current?.();

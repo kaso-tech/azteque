@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { DIFFICULTY_LABEL, type Difficulty, type PlayerIndex } from "@/lib/azteque/engine";
 import type { LigneDeCompte } from "@/lib/azteque/comptes";
 import { AccountIdentity, ReferralCard } from "@/components/azteque/account-panels";
+import { NotificationSettings } from "@/components/azteque/notification-settings";
 import { PlayerAvatar, type AvatarSource } from "@/components/azteque/avatar";
 import type { Profile } from "@/lib/azteque/account";
 import { RankLadder, RankProgressCard } from "@/components/azteque/rank";
@@ -282,6 +283,10 @@ export function PlayerProfilePanel({
             />
           </>
         )}
+
+        {/* Les notifications s'adressent à un compte : c'est lui qui reçoit
+            les invitations, et c'est sur lui que sont rangées les préférences. */}
+        {account && <NotificationSettings />}
 
         <p className="mt-6 text-sm text-foreground">Effets sonores</p>
         <div className="mt-2 flex gap-2">

@@ -23,6 +23,53 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/* ---------- Notifications ---------- */
+
+// Le message arrive chiffré ; le navigateur l'a déjà déchiffré quand il nous
+// le remet (voir web-push.ts pour l'autre bout). On ne fait ici que l'afficher.
+//
+// `tag` regroupe par type : deux invitations coup sur coup remplacent la
+// première notification au lieu d'empiler deux lignes identiques dans le
+// volet du téléphone. `renotify` fait tout de même vibrer la seconde, sans
+// quoi elle passerait inaperçue.
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let charge = {};
+  try {
+    charge = event.data.json();
+  } catch {
+    charge = { titre: "Aztèque", corps: event.data.text() };
+  }
+  const titre = charge.titre || "Aztèque";
+  event.waitUntil(
+    self.registration.showNotification(titre, {
+      body: charge.corps || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: charge.type || "azteque",
+      renotify: true,
+      data: { lien: charge.lien || "/" },
+    }),
+  );
+});
+
+// Un clic doit RETROUVER la partie déjà ouverte, pas en ouvrir une seconde :
+// deux onglets sur la même table, c'est deux abonnements temps réel et un
+// joueur qui se voit jouer en double.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const lien = (event.notification.data && event.notification.data.lien) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((fenetres) => {
+      for (const fenetre of fenetres) {
+        if (new URL(fenetre.url).origin !== self.location.origin) continue;
+        return fenetre.focus().then((f) => (f && f.navigate ? f.navigate(lien) : f));
+      }
+      return self.clients.openWindow(lien);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;

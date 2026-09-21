@@ -57,6 +57,7 @@ import { isTransientError, withRetry } from "@/lib/azteque/net";
 import { LINK_WAIT_LIMIT, verdictAttente } from "@/lib/azteque/attente-lien";
 import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
 import { previewAction } from "@/lib/azteque/preview";
+import { notifier } from "@/lib/azteque/push";
 import { announceFreed, registerGameSession } from "@/lib/azteque/game-session";
 import { useMatchSync } from "@/hooks/useMatchSync";
 import { useTurnCountdown } from "@/hooks/useTurnTimer";
@@ -1343,7 +1344,17 @@ function OnlineTable() {
   };
 
   const demanderRevanche = () => {
-    void runAction({ type: "rematch" });
+    void runAction({ type: "rematch" }).then(
+      () => {
+        // Après l'action seulement : le serveur ne reconnaît la demande de
+        // revanche qu'une fois la main levée dans `settings`, et refuserait
+        // d'envoyer quoi que ce soit avant.
+        if (oppUserId) void notifier({ type: "revanche", vers: oppUserId, matchId: id });
+      },
+      () => {
+        /* action refusée : il n'y a rien à annoncer */
+      },
+    );
   };
 
   if (error) {

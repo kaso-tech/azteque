@@ -4,6 +4,7 @@ import { PlayerAvatar } from "@/components/azteque/avatar";
 import { RankBadge } from "@/components/azteque/rank";
 import { rankOf } from "@/lib/azteque/rank";
 import { describeError } from "@/lib/azteque/account";
+import { notifier } from "@/lib/azteque/push";
 import {
   adminGrantItem,
   adminListItems,
@@ -148,7 +149,17 @@ export function PlayerSheet({
 
   const envoyerMessage = () => {
     if (!player || !texte.trim()) return;
-    agirIci(adminSendMessage(player.id, texte.trim()), "Message envoyé.");
+    const cible = player.id;
+    agirIci(
+      adminSendMessage(cible, texte.trim()).then(async (r) => {
+        // Le contenu ne part PAS dans la notification : elle dit seulement
+        // qu'un message attend, et il se lit dans le jeu, où lui seul y a
+        // accès. Le volet du téléphone, lui, s'affiche écran verrouillé.
+        await notifier({ type: "message", vers: cible });
+        return r;
+      }),
+      "Message envoyé.",
+    );
   };
 
   const offrirArticle = () => {
