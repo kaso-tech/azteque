@@ -28,6 +28,7 @@ import {
 } from "@/lib/azteque/matchmaking";
 import {
   createMatch,
+  echeanceAttente,
   joinMatch,
   myOpenMatch,
   mySeat,
@@ -97,6 +98,9 @@ function OnlineLobby() {
     inviteId: string | null;
   } | null>(null);
   const unwatch = useRef<(() => void) | null>(null);
+
+  /** Secondes restantes avant que la table en attente ne soit supprimée. */
+  const [resteAttente, setResteAttente] = useState(0);
 
   const [codeInput, setCodeInput] = useState(codeParam ? normalizeCode(codeParam) : "");
   const [busyCode, setBusyCode] = useState(false);
@@ -309,6 +313,48 @@ function OnlineLobby() {
     [],
   );
 
+  /**
+   * Cesser d'attendre : on ferme l'écoute et on retire l'invitation.
+   *
+   * Partagé par le bouton « Annuler » et par l'expiration, parce que ce sont
+   * les mêmes gestes — la seule différence est le mot qu'on laisse à l'écran.
+   */
+  const cesserDAttendre = useCallback((motif: string | null) => {
+    unwatch.current?.();
+    unwatch.current = null;
+    setPending((p) => {
+      // Retirer l'invitation : sans cela l'adversaire se verrait proposer une
+      // table que plus personne n'attend — et qui n'existe déjà plus en base.
+      if (p?.inviteId) void respondInvite(p.inviteId, "cancelled").catch(() => {});
+      return null;
+    });
+    setError(motif);
+  }, []);
+
+  /**
+   * Le compte à rebours de l'attente.
+   *
+   * Le serveur supprime la table au bout de `DELAI_ATTENTE_MS` ; sans ce
+   * minuteur, l'hôte resterait devant un écran d'attente qui ne mène plus à
+   * rien, à guetter un adversaire dont l'invitation a disparu avec la ligne.
+   */
+  useEffect(() => {
+    if (!pending) {
+      setResteAttente(0);
+      return;
+    }
+    const echeance = echeanceAttente(pending.match);
+    const battre = () => {
+      const reste = echeance - Date.now();
+      setResteAttente(Math.max(0, Math.ceil(reste / 1000)));
+      if (reste > 0) return;
+      cesserDAttendre("Personne n'a rejoint : la table a expiré. Vous pouvez réessayer.");
+    };
+    battre();
+    const t = setInterval(battre, 500);
+    return () => clearInterval(t);
+  }, [pending, cesserDAttendre]);
+
   const invite = (playerId: string, username: string) => {
     if (!profile) return;
     setBusyInvite(playerId);
@@ -409,18 +455,16 @@ function OnlineLobby() {
         <p className="text-xs text-muted-foreground">
           La table s'ouvrira dès que votre adversaire aura accepté.
         </p>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => {
-            unwatch.current?.();
-            unwatch.current = null;
-            // Retirer l'invitation : sans cela l'adversaire se verrait proposer
-            // une table que plus personne n'attend.
-            if (pending.inviteId) void respondInvite(pending.inviteId, "cancelled").catch(() => {});
-            setPending(null);
-          }}
-        >
+        {/* L'attente a une fin, et on la montre : un écran qui tourne sans
+            promesse laisse croire qu'il suffit de patienter encore. */}
+        <p className="text-xs text-muted-foreground">
+          Sans réponse, la table expire dans{" "}
+          <span className="text-accent">
+            {Math.floor(resteAttente / 60)}:{String(resteAttente % 60).padStart(2, "0")}
+          </span>
+          .
+        </p>
+        <Button variant="secondary" className="w-full" onClick={() => cesserDAttendre(null)}>
           Annuler
         </Button>
       </div>,

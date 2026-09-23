@@ -21,6 +21,7 @@ import {
   type GameInvite,
 } from "@/lib/azteque/account";
 import { currentGameSession, onFreed } from "@/lib/azteque/game-session";
+import { DELAI_ATTENTE_MS } from "@/lib/azteque/online";
 
 /**
  * Filet de sécurité si aucune fin de tour ne survient pour réveiller un
@@ -29,6 +30,14 @@ import { currentGameSession, onFreed } from "@/lib/azteque/game-session";
  * naturel où la question revient — elle serait reportée pour toujours.
  */
 const SNOOZE_FALLBACK_MS = 3 * 60 * 1000;
+
+/*
+ * Ce report dure plus longtemps que l'invitation elle-même (voir
+ * `DELAI_ATTENTE_MS`), et c'est voulu : reporter, c'est laisser la table
+ * expirer. L'hôte cesse d'attendre tout de suite au lieu de guetter une
+ * réponse qui viendrait trois minutes plus tard, et celui qui a reporté reste
+ * libre d'inviter à son tour dès qu'il se libère.
+ */
 
 /** Pause minimale entre deux annonces de connexion pour le même ami. */
 const FRIEND_TOAST_COOLDOWN_MS = 5 * 60 * 1000;
@@ -196,8 +205,33 @@ export function InviteManager() {
     [],
   );
 
-  const visible = invites.find((i) => !snoozedIds.has(i.id)) ?? null;
-  const waitingCount = invites.length - (visible ? 1 : 0);
+  /**
+   * Une invitation périmée ne s'affiche plus.
+   *
+   * La table qu'elle désigne est supprimée au bout de `DELAI_ATTENTE_MS` :
+   * l'invitation disparaît avec elle (cascade), mais seulement une fois la
+   * notification temps réel arrivée. Ce compte local ferme le popup à la
+   * seconde près, plutôt que de laisser un bouton « Accepter » qui ne peut
+   * plus qu'échouer.
+   */
+  const [, battement] = useState(0);
+  const vivantes = invites.filter(
+    (i) => Date.now() - new Date(i.created_at).getTime() < DELAI_ATTENTE_MS,
+  );
+  useEffect(() => {
+    if (invites.length === 0) return;
+    // Un seul minuteur, posé sur la prochaine échéance : réveiller le
+    // composant chaque seconde pour ne rien faire redessinerait le popup en
+    // boucle.
+    const prochaine = Math.min(
+      ...invites.map((i) => new Date(i.created_at).getTime() + DELAI_ATTENTE_MS - Date.now()),
+    );
+    const t = setTimeout(() => battement((n) => n + 1), Math.max(250, prochaine));
+    return () => clearTimeout(t);
+  }, [invites]);
+
+  const visible = vivantes.find((i) => !snoozedIds.has(i.id)) ?? null;
+  const waitingCount = vivantes.length - (visible ? 1 : 0);
 
   const doAccept = useCallback(
     (invite: GameInvite) => {

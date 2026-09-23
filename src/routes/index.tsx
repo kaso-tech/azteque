@@ -73,6 +73,7 @@ import {
 } from "@/components/azteque/animations";
 import { DealCeremony, useDealCeremony } from "@/components/azteque/dealing";
 import { useTapisSurface } from "@/lib/azteque/tapis";
+import { DELAI_ANNONCE_REDONNE } from "@/lib/azteque/redonne";
 import {
   AiProfilePanel,
   DEFAULT_SETTINGS,
@@ -495,19 +496,29 @@ function Azteque() {
     setRoundKey((k) => k + 1);
   }, []);
 
-  // Main blanche de l'ordinateur
+  /**
+   * Main blanche de l'ordinateur : annoncée, puis redistribuée.
+   *
+   * Le joueur subit cette redonne sans l'avoir demandée. Elle s'annonçait
+   * d'une ligne dans le journal — qu'on ne lit pas en pleine donne — et ses
+   * cartes changeaient sans explication. Le même délai qu'en ligne s'écoule
+   * donc ici, derrière la même bannière (voir `DELAI_ANNONCE_REDONNE`).
+   */
+  const [annonceRedonne, setAnnonceRedonne] = useState(false);
   useEffect(() => {
     if (!started || !freshRound || dealing || aiRedealChecked.current === roundKey) return;
     aiRedealChecked.current = roundKey;
     if (aiWantsRedeal(state, settings.difficulty)) {
+      setAnnonceRedonne(true);
       const t = setTimeout(() => {
+        setAnnonceRedonne(false);
         setState((s) => {
           const ns = newRound(s.dealer, s.roundsWon);
           ns.log.unshift("L'adversaire avait une main blanche : redistribution.");
           return ns;
         });
         setRoundKey((k) => k + 1);
-      }, 500);
+      }, DELAI_ANNONCE_REDONNE);
       return () => clearTimeout(t);
     }
     return;
@@ -928,6 +939,9 @@ function Azteque() {
     // rejoindre la main. Ce garde-fou remplace le grisage des cartes, qui
     // rendait toute la main translucide le temps du vol.
     if (state.drawPending.length > 0) return;
+    // Ni pendant l'annonce d'une redonne : la carte jouée serait emportée par
+    // la nouvelle donne, et le joueur la chercherait ensuite en vain.
+    if (annonceRedonne) return;
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
     // pour que le vol prenne le relais sans à-coup.
@@ -1171,6 +1185,20 @@ function Azteque() {
           <span className="gold-tag pointer-events-none absolute right-2 top-2 z-20 rounded border border-gold/45 bg-felt-deep/90 px-2 py-1 text-[0.58rem] font-semibold text-gold shadow-[var(--shadow-card)]">
             Atout · {SUIT_SYMBOL[state.trump]} {SUIT_NAME[state.trump]}
           </span>
+        )}
+
+        {/* L'ordinateur a une main blanche : on le dit AVANT que les cartes
+            du joueur ne changent, pas dans le journal après coup. */}
+        {annonceRedonne && (
+          <div
+            role="status"
+            className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]"
+          >
+            <p className="text-xs text-accent">
+              L'adversaire annonce une main blanche : ni Roi, ni Dame, ni Valet.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Nouvelle donne…</p>
+          </div>
         )}
 
         {/* Main blanche */}
@@ -1428,7 +1456,8 @@ function Azteque() {
             <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
             <p className="mt-3 text-xs text-muted-foreground">
               Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
-              pioche sont versées à l'adversaire, puis les points sont comptés.
+              pioche sont versées à l'adversaire, et la main lui revient aussi — le dernier pli
+              n'ayant pas été joué. Les points sont ensuite comptés.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button

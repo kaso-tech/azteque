@@ -455,7 +455,15 @@ export function canAnticipate(state: GameState, p: PlayerIndex): boolean {
  * Un joueur peut décider d'arrêter le tour avant que les cartes ne soient
  * épuisées. Le prix est lourd et volontairement dissuasif : toutes les bonnes
  * encore dans SA main, ainsi que toutes celles restées dans la pioche, sont
- * versées au tas de l'adversaire. Le tour est ensuite décompté normalement.
+ * versées au tas de l'adversaire — ET LA MAIN avec elles. Le tour est ensuite
+ * décompté normalement.
+ *
+ * La main est le point du dernier pli, et arrêter le tour, c'est justement ne
+ * pas jouer ce dernier pli : personne ne l'a remporté. Le laisser à celui qui
+ * menait jusque-là revenait à offrir un point à l'anticipateur au moment même
+ * où il renonce à le disputer — et rendait l'anticipation rentable dans des
+ * positions où elle ne devrait pas l'être. Elle revient donc à l'adversaire,
+ * comme le reste de ce qu'on abandonne.
  *
  * Le moment où l'action est recevable est décidé par `canAnticipate` : l'état
  * revient inchangé partout ailleurs.
@@ -471,8 +479,11 @@ export function anticipate(state: GameState, p: PlayerIndex): GameState {
   s.trick = [];
   s.drawPending = [];
   s.canAnnounce = null;
+  // `endRound` attribue la main à `lastTrickWinner` : la déplacer ici est ce
+  // qui la fait changer de camp, sans toucher au décompte lui-même.
+  s.lastTrickWinner = opp;
   s.log.unshift(
-    `${name(p)} anticipe la fin du tour : ${moved.length} bonne(s) versée(s) à ${name(opp)}.`,
+    `${name(p)} anticipe la fin du tour : ${moved.length} bonne(s) et la main versées à ${name(opp)}.`,
   );
   return endRound(s);
 }

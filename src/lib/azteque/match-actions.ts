@@ -13,6 +13,7 @@ import {
   type PlayerIndex,
 } from "./engine";
 import { BET_STEPS } from "./tokens";
+import { redonneEcheance, type AnnonceRedonne } from "./redonne";
 import type { BetNegotiation, MatchStatus, NextRoundReady, RematchReady } from "./online";
 
 /**
@@ -55,9 +56,15 @@ const actionSchema = z.discriminatedUnion("type", [
   /**
    * Demande de redistribution pour main blanche. Le serveur vérifie qu'au
    * moins l'un des deux joueurs a une main blanche (sans K, Q ni J), sinon
-   * il refuse. Distribue une nouvelle donne en gardant le même donneur.
+   * il refuse. N'ANNONCE que la demande : c'est `apply_redeal` qui donne.
    */
   z.object({ type: z.literal("request_redeal") }),
+  /**
+   * Redistribue effectivement, une fois l'annonce affichée assez longtemps
+   * pour être lue. N'importe lequel des deux joueurs peut la déclencher —
+   * voir `DELAI_ANNONCE_REDONNE`.
+   */
+  z.object({ type: z.literal("apply_redeal") }),
 ]);
 
 /** L'action à jouer, telle que construite par le client (sans l'identifiant de partie). */
@@ -374,6 +381,23 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
     const betAccepted = () =>
       (settings["bet"] as BetNegotiation | undefined)?.status === "accepted";
 
+    // Pendant l'annonce d'une redistribution, la donne est gelée.
+    //
+    // Sans ce verrou, l'adversaire — dont le client n'a aucune raison de
+    // bloquer ses propres boutons — pouvait jouer une carte pendant les
+    // quelques secondes de l'annonce. Son coup était alors emporté par la
+    // redonne : il l'avait joué, il ne l'avait plus, et rien à l'écran
+    // n'expliquait où il était passé. Abandonner reste possible, et
+    // `apply_redeal` est précisément ce qu'on attend.
+    if (
+      settings["redeal"] &&
+      data.type !== "apply_redeal" &&
+      data.type !== "forfeit" &&
+      data.type !== "request_redeal"
+    ) {
+      throw new Error("Redistribution annoncée : la donne est sur le point d'être refaite.");
+    }
+
     // La mise est celle du CHAMP entier : elle se négocie avant la première
     // donne et se règle à la fin du champ. Une fois acceptée elle est figée —
     // sans quoi un joueur en mauvaise posture pourrait la revoir à la baisse
@@ -437,13 +461,20 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       return { state: next, settings };
     }
 
-    // Redistribution pour main blanche : n'importe quel joueur peut demander,
-    // à condition qu'au moins l'un des deux ait une main blanche. Le serveur
-    // garde le même donneur (c'est une redistribution, pas un nouveau tour).
+    // Redistribution pour main blanche, en DEUX temps.
+    //
+    // Le premier ne fait qu'annoncer : les cartes ne bougent pas encore, et
+    // les deux joueurs voient qui demande et pourquoi. Le second redistribue,
+    // une fois l'annonce restée à l'écran le temps d'être lue.
+    //
+    // Les deux temps plutôt qu'un seul, parce que la donne appartient aussi à
+    // l'adversaire : voir la seule main qu'on tenait remplacée sans un mot ne
+    // se distingue pas d'une anomalie.
     if (data.type === "request_redeal") {
       if (!state) throw new Error("Aucune partie en cours.");
       if (state.phase !== "playing") throw new Error("Le pli n'est pas en cours.");
       if (state.trick.length !== 0) throw new Error("Le pli a déjà commencé.");
+      if (settings["redeal"]) throw new Error("Une redistribution est déjà annoncée.");
       // Protection : on refuse la redistribution si personne n'a de main
       // blanche, pour éviter qu'un client malveillant ne déclenche des
       // redistributions à l'infini.
@@ -452,10 +483,36 @@ export const applyMatchAction = createServerFn({ method: "POST", strict: { outpu
       if (!blanche0 && !blanche1) {
         throw new Error("Aucune main blanche : redistribution impossible.");
       }
+      const annonce: AnnonceRedonne = {
+        par: seat,
+        nom: (me === 0 ? row.host_name : row.guest_name) || "Votre adversaire",
+        at: new Date().toISOString(),
+      };
+      const nextSettings = { ...settings, redeal: annonce };
+      await writeSettings(nextSettings);
+      return { state, settings: nextSettings };
+    }
+
+    // Second temps. Déclenché par le premier des deux clients dont le
+    // compte à rebours arrive au bout : si celui qui a demandé ferme son
+    // application entre-temps, l'autre redistribue à sa place plutôt que de
+    // rester devant une annonce qui ne se réalise jamais.
+    if (data.type === "apply_redeal") {
+      const annonce = settings["redeal"] as AnnonceRedonne | undefined;
+      // Déjà redistribuée par l'autre client : son appel a gagné la course,
+      // et le nôtre n'a plus rien à faire. Ce n'est pas une erreur.
+      if (!annonce) return { state, settings };
+      if (!state) throw new Error("Aucune partie en cours.");
+      if (Date.now() < redonneEcheance(annonce)) {
+        throw new Error("L'annonce n'a pas encore été affichée.");
+      }
       const next = newRound(state.dealer, state.roundsWon);
-      next.log.unshift("Main blanche : la donne est redistribuée.");
+      next.log.unshift(`Main blanche annoncée par ${annonce.nom} : la donne est redistribuée.`);
+      const nextSettings = { ...settings };
+      delete nextSettings["redeal"];
+      await writeSettings(nextSettings);
       await writeState(next, "playing");
-      return { state: next, settings };
+      return { state: next, settings: nextSettings };
     }
 
     // Donnes suivantes : les DEUX joueurs doivent accepter d'enchaîner — voir

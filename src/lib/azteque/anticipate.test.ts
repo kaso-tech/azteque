@@ -131,10 +131,29 @@ describe("anticipate", () => {
 
     expect(n.phase).not.toBe("playing");
     expect(n.roundScore).not.toBeNull();
-    // 2 bonnes encaissées + la main ; l'adversaire reçoit l'As abandonné.
-    expect(n.roundScore![0].total).toBe(3);
-    expect(n.roundScore![1].total).toBe(1);
-    expect(n.roundWinner).toBe(0);
+    // 2 bonnes encaissées, et rien de plus : la main part avec l'As abandonné.
+    expect(n.roundScore![0].total).toBe(2);
+    expect(n.roundScore![1].total).toBe(2);
+    // Égalité : celui qui menait perd le point de la main en arrêtant le tour.
+    expect(n.roundWinner).toBeNull();
+  });
+
+  it("verse la main à l'adversaire, même à celui qui menait les plis", () => {
+    // Le dernier pli n'a pas été joué : personne ne l'a remporté, et celui
+    // qui renonce à le disputer ne peut pas en encaisser le point.
+    const s = makeState({
+      turn: 0,
+      hands: [[card("7", "H")], [card("8", "C")]],
+      lastTrickWinner: 0,
+    });
+
+    const n = anticipate(s, 0);
+
+    expect(n.roundScore![0].main).toBe(0);
+    expect(n.roundScore![1].main).toBe(1);
+    // Et c'est donc l'adversaire qui distribuera la donne suivante, la donne
+    // revenant à qui tient la main (voir resolveReadyNextRound).
+    expect(n.lastTrickWinner).toBe(1);
   });
 
   it("peut faire perdre celui qui anticipe : les bonnes livrées comptent", () => {
@@ -149,11 +168,10 @@ describe("anticipate", () => {
 
     const n = anticipate(s, 0);
 
-    expect(n.roundScore![0].total).toBe(3);
-    expect(n.roundScore![1].total).toBe(3);
-    // Égalité : le tour est rejoué.
-    expect(n.roundWinner).toBeNull();
-    expect(n.pont).toBe(true);
+    expect(n.roundScore![0].total).toBe(2);
+    // 3 bonnes reçues, plus la main abandonnée.
+    expect(n.roundScore![1].total).toBe(4);
+    expect(n.roundWinner).toBe(1);
   });
 
   it("ne permet pas d'escamoter la carte déjà engagée par l'adversaire", () => {

@@ -2,6 +2,7 @@ import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "@/lib/azteque/supabase-client";
 import { setTokens } from "@/lib/azteque/tokens";
 import { START_RATING } from "@/lib/azteque/rank";
+import { DELAI_ATTENTE_MS } from "@/lib/azteque/online";
 
 /**
  * Comptes joueurs : connexion Google, pseudo unique, amis, invitations à
@@ -1051,7 +1052,14 @@ export async function invitePlayer(toId: string, matchId: string): Promise<strin
 }
 
 /** Au-delà de ce délai, une invitation restée sans réponse n'est plus proposée. */
-const INVITE_TTL_MS = 10 * 60 * 1000;
+/**
+ * Au-delà, une invitation reçue n'est plus proposée.
+ *
+ * C'est exactement la durée de vie de la table qu'elle désigne : passé ce
+ * délai le serveur la supprime, et accepter ne mènerait qu'à « cette partie
+ * n'est plus disponible ». Autant ne plus l'offrir.
+ */
+const INVITE_TTL_MS = DELAI_ATTENTE_MS;
 
 export async function listIncomingInvites(): Promise<GameInvite[]> {
   const me = await currentUserId();

@@ -19,6 +19,34 @@ export interface MatchRow {
   rating_delta_guest?: number | null;
 }
 
+/**
+ * Le temps qu'une table tient sans adversaire.
+ *
+ * Passé ce délai, le serveur la SUPPRIME (voir la migration
+ * `tables_en_attente_expirent`). Le client tient le même compte pour cesser
+ * d'attendre de lui-même, au lieu de laisser tourner un écran sur une ligne
+ * qui n'existe plus.
+ *
+ * Court à dessein : une invitation qu'on accepte, on l'accepte dans la
+ * minute ; un code de secours se donne de vive voix. Au-delà, l'invité est
+ * ailleurs, et mieux vaut le dire que faire attendre.
+ */
+export const DELAI_ATTENTE_MS = 2 * 60 * 1000;
+
+/**
+ * L'instant où une table sans adversaire cesse d'exister.
+ *
+ * Calculé sur `created_at`, comme la purge côté serveur : c'est l'âge de la
+ * DEMANDE qui expire, pas celui de la dernière écriture. Une ligne retouchée
+ * entre-temps n'a pas pour autant trouvé d'adversaire.
+ */
+export function echeanceAttente(match: Pick<MatchRow, "created_at">): number {
+  const ne = new Date(match.created_at).getTime();
+  // Date illisible : on ne fait pas patienter sur une valeur qu'on ne sait
+  // pas lire. L'écran d'attente se ferme, le serveur tranchera.
+  return Number.isNaN(ne) ? -Infinity : ne + DELAI_ATTENTE_MS;
+}
+
 /** Une reprise n'a de sens que pour une table où les deux joueurs sont assis. */
 export function estPartieReprenable(match: MatchRow): boolean {
   return match.status === "playing" && match.host_id !== null && match.guest_id !== null;

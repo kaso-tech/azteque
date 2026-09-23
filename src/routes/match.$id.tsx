@@ -53,6 +53,7 @@ import {
   type RematchReady,
 } from "@/lib/azteque/online";
 import { applyMatchAction, type MatchAction } from "@/lib/azteque/match-actions";
+import { redonneEcheance, type AnnonceRedonne } from "@/lib/azteque/redonne";
 import { isTransientError, withRetry } from "@/lib/azteque/net";
 import { LINK_WAIT_LIMIT, verdictAttente } from "@/lib/azteque/attente-lien";
 import { estRejouable, peutEtreRenvoye, positionSignature } from "@/lib/azteque/replay";
@@ -699,6 +700,12 @@ function OnlineTable() {
   const iAmReady = !!nextReady?.[isHost ? "host" : "guest"];
   const oppIsReady = !!nextReady?.[isHost ? "guest" : "host"];
 
+  // Redistribution pour main blanche ANNONCÉE, pas encore faite. Les deux
+  // joueurs la voient : celui qui l'a demandée, et surtout celui qui la subit.
+  const annonceRedonne = ((row?.settings as Record<string, unknown> | undefined)?.["redeal"] ??
+    null) as AnnonceRedonne | null;
+  const redonneParMoi = annonceRedonne?.par === (isHost ? "host" : "guest");
+
   // Accord de revanche, et la table neuve qui en naît. Voir `resolveRematch` :
   // un champ réglé ne se rejoue pas dans la même ligne.
   const rematch = ((row?.settings as Record<string, unknown> | undefined)?.["rematch"] ??
@@ -1275,11 +1282,49 @@ function OnlineTable() {
     state.gains[0].length === 0 &&
     state.gains[1].length === 0 &&
     !redealDecided &&
+    !annonceRedonne &&
     hasMainBlanche(state, me);
   const requestRedeal = useCallback(() => {
     void runAction({ type: "request_redeal" });
     setRedealDecided(true);
   }, [runAction]);
+
+  /**
+   * Le compte à rebours de l'annonce, puis la redonne.
+   *
+   * Les DEUX clients l'arment. Le premier arrivé redistribue ; l'appel du
+   * second trouve l'annonce déjà levée et ne fait rien (voir `apply_redeal`).
+   * C'est volontaire : si celui qui a demandé ferme son application pendant
+   * ces quelques secondes, l'autre ne reste pas devant une annonce éternelle.
+   */
+  const [resteRedonne, setResteRedonne] = useState(0);
+  useEffect(() => {
+    if (!annonceRedonne) {
+      setResteRedonne(0);
+      return;
+    }
+    const echeance = redonneEcheance(annonceRedonne);
+    let enVol = false;
+    const battre = () => {
+      const reste = echeance - Date.now();
+      setResteRedonne(Math.max(0, Math.ceil(reste / 1000)));
+      if (reste > 0 || enVol) return;
+      // On réessaie tant que l'annonce est là. Le serveur compte sur SA
+      // propre horloge : une montre locale en avance se fait refuser le
+      // premier appel, et sans nouvelle tentative la donne resterait gelée
+      // jusqu'au balayage. L'effet s'arrête de lui-même dès que l'annonce
+      // disparaît des réglages.
+      enVol = true;
+      // `silent` : perdre la course contre l'autre client est le cas normal,
+      // pas une erreur à afficher.
+      void runAction({ type: "apply_redeal" }, { silent: true }).finally(() => {
+        enVol = false;
+      });
+    };
+    battre();
+    const t = setInterval(battre, 250);
+    return () => clearInterval(t);
+  }, [annonceRedonne, runAction]);
   const legalIds = useMemo(() => {
     if (!state) return new Set<string>();
     const ok =
@@ -1306,7 +1351,7 @@ function OnlineTable() {
     // et qu'il n'a pas tranché, on bloque la pose de carte. Sinon il joue
     // sans avoir vu le panneau (qui s'affiche de façon synchrone côté
     // adversaire).
-    if (canRedeal) return;
+    if (canRedeal || annonceRedonne) return;
     const from = center(el);
     // Le rectangle d'une carte penchée est plus grand qu'elle, mais son centre
     // reste juste : on part de là, avec sa vraie largeur et son vrai angle,
@@ -1332,7 +1377,7 @@ function OnlineTable() {
   };
 
   // Anticiper la fin du tour : le serveur verse alors les bonnes de notre main
-  // et celles restées dans la pioche au tas de l'adversaire.
+  // et celles restées dans la pioche au tas de l'adversaire, ainsi que la main.
   const [confirmAnticipate, setConfirmAnticipate] = useState(false);
   const anticipateNow = () => {
     setConfirmAnticipate(false);
@@ -1465,6 +1510,25 @@ function OnlineTable() {
           </div>
         </div>
       </header>
+
+      {/* L'annonce, vue des DEUX côtés. Celui qui subit la redonne apprend
+          ici qu'elle arrive, qui l'a demandée et pourquoi — avant que ses
+          cartes ne changent, et non après. */}
+      {annonceRedonne && (
+        <div
+          role="status"
+          className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]"
+        >
+          <p className="text-xs text-accent">
+            {redonneParMoi
+              ? "Vous annoncez une main blanche."
+              : `${annonceRedonne.nom} annonce une main blanche : ni Roi, ni Dame, ni Valet.`}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Nouvelle donne dans {resteRedonne} s…
+          </p>
+        </div>
+      )}
 
       {/* Panneau main blanche : le joueur local (et seulement lui) peut
           demander une redistribution tant qu'il n'a pas tranché. Le serveur
@@ -1949,7 +2013,8 @@ function OnlineTable() {
             <h2 className="gold-text text-2xl">Anticiper la fin du tour ?</h2>
             <p className="mt-3 text-xs text-muted-foreground">
               Le tour s'arrête aussitôt. Toutes les bonnes de votre main et celles restées dans la
-              pioche sont versées à votre adversaire, puis les points sont comptés.
+              pioche sont versées à votre adversaire, et la main lui revient aussi — le dernier pli
+              n'ayant pas été joué. Les points sont ensuite comptés.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button
