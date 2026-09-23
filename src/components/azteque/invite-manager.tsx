@@ -84,7 +84,9 @@ function IncomingInvitePopup({
             <span className="font-semibold text-gold">{invite.from_username}</span> vous invite à
             jouer
           </p>
-          {invite.from_rating !== undefined && <RankBadge rating={invite.from_rating} compact />}
+          {invite.from_rating !== undefined && (
+            <RankBadge rating={invite.from_rating} ratedGames={invite.from_rated_games} compact />
+          )}
         </div>
       </div>
 

@@ -659,6 +659,8 @@ function OnlineTable() {
   }, []);
 
   const [myRank, setMyRank] = useState<number | null>(null);
+  /** Champs classés, pour savoir si le grade a le droit de s'afficher. */
+  const [mesChamps, setMesChamps] = useState<number | undefined>(undefined);
   // Le tapis acheté en boutique : c'est celui du joueur LOCAL qui s'applique,
   // chacun voyant la table avec le sien.
   const [myTapis, setMyTapis] = useState<string | null>(null);
@@ -674,6 +676,7 @@ function OnlineTable() {
           if (!alive) return;
           setMyProfile(p ?? null);
           setMyRank(p?.rating ?? null);
+          setMesChamps(p?.rated_games);
           setMyTapis(p?.background_kind ?? null);
         })
         .catch(() => {});
@@ -1476,7 +1479,12 @@ function OnlineTable() {
               {myName}
             </p>
             {myRank !== null && (
-              <RankBadge rating={myRank} compact className="mt-0.5 text-[0.65rem]" />
+              <RankBadge
+                rating={myRank}
+                ratedGames={mesChamps}
+                compact
+                className="mt-0.5 text-[0.65rem]"
+              />
             )}
           </div>
           {/* PR15 — Bouton paramètres : ouvre le panneau avec toggles
@@ -1502,7 +1510,12 @@ function OnlineTable() {
           <div className="min-w-0 text-right">
             <p className="truncate text-xs font-semibold text-foreground">{oppName}</p>
             {oppRank !== null && (
-              <RankBadge rating={oppRank} compact className="mt-0.5 text-[0.65rem]" />
+              <RankBadge
+                rating={oppRank}
+                ratedGames={oppProfile?.rated_games}
+                compact
+                className="mt-0.5 text-[0.65rem]"
+              />
             )}
           </div>
           <div ref={oppAvatarRef}>
@@ -1847,7 +1860,7 @@ function OnlineTable() {
               </p>
             )}
             {state.phase === "gameEnd" && myRank !== null && myDelta !== null && (
-              <RankOutcome rating={myRank} delta={myDelta} />
+              <RankOutcome rating={myRank} delta={myDelta} ratedGames={mesChamps} />
             )}
             {bet?.status === "accepted" && (
               <p className="mt-1 text-xs text-gold">

@@ -38,8 +38,57 @@ export interface Rank {
   dim?: true;
 }
 
-/** Cote d'un compte neuf : le bas du premier grade, avec du jeu sous les pieds. */
+/**
+ * Cote d'un compte neuf.
+ *
+ * Au MILIEU de l'échelle, et pas en bas : 1000 n'affirme pas que le joueur est
+ * faible, il dit qu'on ne sait pas encore. Le poser au plancher serait une
+ * erreur d'un autre ordre — la cote ne descendant jamais sous 800, un nouveau
+ * ne pourrait plus que monter, tandis que ses adversaires ne gagneraient
+ * presque rien à le battre et paieraient le maximum en perdant. Affronter un
+ * nouveau deviendrait un pari à sens unique, et sur une petite communauté
+ * c'est le meilleur moyen qu'on l'évite.
+ *
+ * Ce provisoire ne s'affiche pas pour autant comme un acquis : voir
+ * `CHAMPS_DE_PLACEMENT`.
+ */
 export const START_RATING = 1000;
+
+/**
+ * Champs classés à jouer avant d'être classé pour de bon.
+ *
+ * Une cote sans partie derrière elle n'est pas une performance, et la montrer
+ * dans un tableau trié la fait passer pour telle : un compte ouvert le matin
+ * apparaissait au-dessus d'un joueur ayant gagné quatre champs et perdu cinq,
+ * simplement parce que 1000 est plus grand que 980. Le tort n'était pas dans
+ * les chiffres, qui sont justes, mais dans le fait de ranger un « on ne sait
+ * pas » parmi des résultats.
+ *
+ * Pendant le placement, la cote bouge normalement — et vite, le rodage doublant
+ * les gains jusqu'au dixième champ — elle ne se montre simplement pas encore.
+ *
+ * Cinq : assez pour que ce ne soit plus du bruit, assez peu pour être atteint
+ * dans une soirée. Un seuil plus haut viderait le tableau, ce qui découragerait
+ * précisément ceux qu'il doit attirer.
+ */
+export const CHAMPS_DE_PLACEMENT = 5;
+
+/**
+ * Ce joueur a-t-il une cote méritée ?
+ *
+ * `undefined` vaut « classé » : tous les écrans ne connaissent pas le nombre de
+ * champs joués, et il vaut mieux afficher un grade de trop qu'effacer celui
+ * d'un joueur qui l'a gagné.
+ */
+export function estClasse(ratedGames: number | undefined): boolean {
+  return ratedGames === undefined || ratedGames >= CHAMPS_DE_PLACEMENT;
+}
+
+/** Ce qu'il reste à jouer avant d'être classé. Zéro une fois le placement fait. */
+export function champsAvantClassement(ratedGames: number | undefined): number {
+  if (ratedGames === undefined) return 0;
+  return Math.max(0, CHAMPS_DE_PLACEMENT - ratedGames);
+}
 
 /** On ne descend pas plus bas, quelle que soit la série de défaites. */
 export const RATING_FLOOR = 800;

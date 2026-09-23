@@ -708,7 +708,7 @@ export function FriendsPanel({
                     <PlayerAvatar className="h-8 w-8" profile={p} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm">{p.username}</span>
-                      <RankBadge rating={p.rating} />
+                      <RankBadge rating={p.rating} ratedGames={p.rated_games} />
                     </span>
                   </span>
                   <span className="flex shrink-0 gap-1">
@@ -748,7 +748,7 @@ export function FriendsPanel({
                   <PlayerAvatar className="h-8 w-8" profile={f} />
                   <span className="min-w-0">
                     <span className="block truncate text-sm">{f.username}</span>
-                    <RankBadge rating={f.rating} />
+                    <RankBadge rating={f.rating} ratedGames={f.rated_games} />
                   </span>
                 </span>
                 <span className="flex shrink-0 gap-1">
@@ -806,7 +806,7 @@ export function FriendsPanel({
                   <PlayerAvatar className="h-8 w-8" profile={f} />
                   <span className="min-w-0">
                     <span className="block truncate text-sm">{f.username}</span>
-                    <RankBadge rating={f.rating} />
+                    <RankBadge rating={f.rating} ratedGames={f.rated_games} />
                   </span>
                 </span>
                 <span className="flex shrink-0 gap-1">

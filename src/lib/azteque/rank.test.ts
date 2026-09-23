@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { ELO_K, RANKS, RATING_FLOOR, START_RATING, rankGap, rankOf, rankProgress } from "./rank";
+import {
+  CHAMPS_DE_PLACEMENT,
+  champsAvantClassement,
+  ELO_K,
+  estClasse,
+  RANKS,
+  RATING_FLOOR,
+  START_RATING,
+  rankGap,
+  rankOf,
+  rankProgress,
+} from "./rank";
 
 describe("grades", () => {
   it("place un compte neuf au premier grade, avec de la marge sous les pieds", () => {
@@ -104,5 +115,49 @@ describe("rythme de la montée", () => {
     expect(roi).toBeGreaterThanOrEqual(60);
     // …mais plus les 114 victoires nettes d'avant, hors d'atteinte pour tous.
     expect(roi).toBeLessThanOrEqual(95);
+  });
+});
+
+describe("période de placement", () => {
+  it("ne classe personne avant d'avoir vu jouer", () => {
+    expect(estClasse(0)).toBe(false);
+    expect(estClasse(CHAMPS_DE_PLACEMENT - 1)).toBe(false);
+    expect(estClasse(CHAMPS_DE_PLACEMENT)).toBe(true);
+  });
+
+  it("classe par défaut quand le nombre de champs est inconnu", () => {
+    // Une colonne absente (migration en retard) ne doit pas effacer le grade
+    // de joueurs qui l'ont gagné : on préfère un grade de trop.
+    expect(estClasse(undefined)).toBe(true);
+    expect(champsAvantClassement(undefined)).toBe(0);
+  });
+
+  it("dit ce qu'il reste à jouer, sans jamais descendre sous zéro", () => {
+    expect(champsAvantClassement(0)).toBe(CHAMPS_DE_PLACEMENT);
+    expect(champsAvantClassement(CHAMPS_DE_PLACEMENT - 2)).toBe(2);
+    expect(champsAvantClassement(CHAMPS_DE_PLACEMENT)).toBe(0);
+    expect(champsAvantClassement(200)).toBe(0);
+  });
+
+  it("sort du tableau le compte neuf qui devançait un joueur actif", () => {
+    // Le cas exact qui a motivé ce changement : un compte ouvert et jamais
+    // joué (1000) passait devant quatre victoires et cinq défaites (980),
+    // parce que 1000 est plus grand. Les deux nombres sont justes ; les
+    // ranger ensemble ne l'était pas.
+    const neuf = { rating: START_RATING, parties: 0 };
+    const actif = { rating: 980, parties: 9 };
+
+    expect(neuf.rating).toBeGreaterThan(actif.rating);
+    expect(estClasse(neuf.parties)).toBe(false);
+    expect(estClasse(actif.parties)).toBe(true);
+  });
+
+  it("place avant la fin du rodage, pour ne pas vider le tableau", () => {
+    // Le rodage (gains doublés) dure plus longtemps que le placement : la
+    // cote continue donc de se caler après l'entrée au tableau, ce qui est
+    // voulu. L'inverse — être classé après le rodage — rendrait le tableau
+    // presque vide sur une petite communauté.
+    expect(CHAMPS_DE_PLACEMENT).toBeLessThan(10);
+    expect(CHAMPS_DE_PLACEMENT).toBeGreaterThanOrEqual(3);
   });
 });

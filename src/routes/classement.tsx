@@ -7,8 +7,10 @@ import {
   currentUserId,
   describeError,
   listeClassement,
+  type Classement as TableauClassement,
   type LigneClassement,
 } from "@/lib/azteque/account";
+import { CHAMPS_DE_PLACEMENT } from "@/lib/azteque/rank";
 
 /**
  * Le classement des joueurs.
@@ -18,11 +20,15 @@ import {
  * sinon dans la console d'administration. Une cote qu'on ne peut comparer à
  * personne ne motive pas grand monde.
  *
- * Aucun seuil d'entrée, et c'est délibéré. Un classement qui exigerait dix
- * champs avant d'y figurer serait vide sur une communauté encore petite, et
- * découragerait précisément ceux qu'il devrait attirer. On montre donc tout le
- * monde, avec le nombre de champs joués en regard : une cote de départ que
- * personne n'a encore défendue se lit d'elle-même.
+ * Deux sections, et c'est tout le propos. Trié sur la seule cote, le tableau
+ * plaçait un compte jamais joué au-dessus d'un joueur ayant gagné quatre
+ * champs et perdu cinq : 1000 est plus grand que 980, mais ces deux nombres ne
+ * disent pas la même chose — l'un est un résultat, l'autre une absence de
+ * résultat. Seuls les joueurs placés ont donc un rang.
+ *
+ * Les autres ne disparaissent pas pour autant : les cacher viderait le tableau
+ * sur une communauté encore petite, et découragerait précisément ceux qu'il
+ * doit attirer. Ils figurent en dessous, avec ce qui leur reste à jouer.
  */
 
 export const Route = createFileRoute("/classement")({
@@ -48,8 +54,66 @@ function Position({ rang }: { rang: number }) {
   );
 }
 
+/** Une ligne du tableau, avec ou sans rang. */
+function Ligne({
+  joueur,
+  moi,
+  rang,
+}: {
+  joueur: LigneClassement;
+  moi: string | null;
+  /** Absent pour un joueur en placement : il n'a pas encore de position. */
+  rang?: number;
+}) {
+  const reste = CHAMPS_DE_PLACEMENT - joueur.rated_games;
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-2 px-2 py-2.5",
+        // Sa propre ligne, repérable d'un coup d'œil dans la liste.
+        joueur.id === moi && "rounded-lg bg-gold/10",
+      )}
+    >
+      {rang === undefined ? <span className="w-7 shrink-0" /> : <Position rang={rang} />}
+      <PlayerAvatar className="h-9 w-9" profile={joueur} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">
+          {joueur.username}
+          {joueur.id === moi && <span className="ml-1 text-[0.65rem] text-gold">vous</span>}
+        </p>
+        <RankBadge
+          rating={joueur.rating}
+          ratedGames={joueur.rated_games}
+          className="mt-0.5 text-[0.65rem]"
+        />
+      </div>
+      <div className="shrink-0 text-right">
+        {rang === undefined ? (
+          <>
+            {/* Pas de cote affichée ici : la montrer sans rien derrière elle
+                est exactement ce qui trompait. On dit le chemin restant. */}
+            <p className="font-display text-sm font-semibold text-muted-foreground">
+              {joueur.rated_games} / {CHAMPS_DE_PLACEMENT}
+            </p>
+            <p className="text-[0.6rem] text-muted-foreground">
+              encore {reste} champ{reste > 1 ? "s" : ""}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-sm font-semibold text-gold">{joueur.rating}</p>
+            <p className="text-[0.6rem] text-muted-foreground">
+              {joueur.rated_games} champ{joueur.rated_games > 1 ? "s" : ""}
+            </p>
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function Classement() {
-  const [lignes, setLignes] = useState<LigneClassement[] | null>(null);
+  const [tableau, setTableau] = useState<TableauClassement | null>(null);
   const [moi, setMoi] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -57,7 +121,7 @@ function Classement() {
     let vivant = true;
     void currentUserId().then((id) => vivant && setMoi(id));
     listeClassement()
-      .then((l) => vivant && setLignes(l))
+      .then((t) => vivant && setTableau(t))
       .catch((e: unknown) => vivant && setErreur(describeError(e, "Classement indisponible.")));
     return () => {
       vivant = false;
@@ -75,47 +139,41 @@ function Classement() {
 
       {erreur && <p className="text-center text-sm text-destructive">{erreur}</p>}
 
-      {!lignes && !erreur && (
+      {!tableau && !erreur && (
         <p className="text-center text-xs text-muted-foreground">Chargement…</p>
       )}
 
-      {lignes?.length === 0 && (
+      {tableau && tableau.classes.length === 0 && (
         <p className="panel px-5 py-6 text-center text-xs text-muted-foreground">
-          Personne n'a encore de cote. Le premier champ joué en ligne ouvrira le tableau.
+          Personne n'est encore classé. {CHAMPS_DE_PLACEMENT} champs joués en ligne suffisent à
+          ouvrir le tableau.
         </p>
       )}
 
-      {lignes && lignes.length > 0 && (
+      {tableau && tableau.classes.length > 0 && (
         <ol className="panel divide-y divide-border/60 px-2 py-1">
-          {lignes.map((j, i) => (
-            <li
-              key={j.id}
-              className={cn(
-                "flex items-center gap-2 px-2 py-2.5",
-                // Sa propre ligne, repérable d'un coup d'œil dans la liste.
-                j.id === moi && "rounded-lg bg-gold/10",
-              )}
-            >
-              <Position rang={i + 1} />
-              <PlayerAvatar className="h-9 w-9" profile={j} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {j.username}
-                  {j.id === moi && <span className="ml-1 text-[0.65rem] text-gold">vous</span>}
-                </p>
-                <RankBadge rating={j.rating} className="mt-0.5 text-[0.65rem]" />
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="font-display text-sm font-semibold text-gold">{j.rating}</p>
-                <p className="text-[0.6rem] text-muted-foreground">
-                  {j.rated_games === 0
-                    ? "aucun champ"
-                    : `${j.rated_games} champ${j.rated_games > 1 ? "s" : ""}`}
-                </p>
-              </div>
-            </li>
+          {tableau.classes.map((j, i) => (
+            <Ligne key={j.id} joueur={j} moi={moi} rang={i + 1} />
           ))}
         </ol>
+      )}
+
+      {tableau && tableau.enPlacement.length > 0 && (
+        <section>
+          <h2 className="px-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            En cours de placement
+          </h2>
+          <p className="mt-1 px-1 text-[0.7rem] text-muted-foreground">
+            Leur cote bouge déjà à chaque champ ; elle n'entre au tableau qu'au{" "}
+            {CHAMPS_DE_PLACEMENT}
+            <sup>e</sup>.
+          </p>
+          <ul className="panel mt-2 divide-y divide-border/60 px-2 py-1">
+            {tableau.enPlacement.map((j) => (
+              <Ligne key={j.id} joueur={j} moi={moi} />
+            ))}
+          </ul>
+        </section>
       )}
 
       <Link to="/online" className="text-center text-xs text-gold underline">

@@ -1,7 +1,7 @@
 import { PostgrestError, PostgrestSingleResponse } from "@supabase/supabase-js";
 import { supabase } from "@/lib/azteque/supabase-client";
 import { setTokens } from "@/lib/azteque/tokens";
-import { START_RATING } from "@/lib/azteque/rank";
+import { CHAMPS_DE_PLACEMENT, START_RATING } from "@/lib/azteque/rank";
 import { DELAI_ATTENTE_MS } from "@/lib/azteque/online";
 
 /**
@@ -42,6 +42,12 @@ export interface PublicProfile {
   avatar_kind: string;
   /** Photo du compte Google, quand c'est elle qui est choisie. */
   avatar_url: string | null;
+  /**
+   * Champs classés joués. `undefined` quand la lecture n'a pas pu l'obtenir
+   * (migration en retard) : on tient alors le joueur pour classé, plutôt que
+   * d'effacer le grade de quelqu'un qui l'a gagné. Voir `estClasse`.
+   */
+  rated_games?: number;
 }
 
 export interface Profile extends PublicProfile {
@@ -67,6 +73,8 @@ export interface Friend {
   rating: number;
   avatar_kind: string;
   avatar_url: string | null;
+  /** Champs classés joués — voir `PublicProfile.rated_games`. */
+  rated_games?: number;
   /** `pending` : demande en attente ; `accepted` : ami confirmé. */
   status: "pending" | "accepted";
   /** Vrai si c'est l'autre joueur qui a envoyé la demande. */
@@ -83,6 +91,8 @@ export interface GameInvite {
   /** Renseignés à la lecture, à partir des profils. */
   from_username?: string;
   from_rating?: number;
+  /** Ses champs classés : sans eux, un nouveau venu porterait un grade. */
+  from_rated_games?: number;
   from_avatar?: PublicProfile | null;
 }
 
@@ -528,6 +538,7 @@ function isMissingColumn(e: unknown): boolean {
  * défaut prennent le relais jusqu'à ce que la migration passe.
  */
 const PROFILE_COLUMNS = [
+  "id, username, rating, avatar_kind, avatar_url, rated_games",
   "id, username, rating, avatar_kind, avatar_url",
   "id, username, rating",
   "id, username",
@@ -555,6 +566,9 @@ function asPublic(row: Partial<PublicProfile> & { id: string; username: string }
     rating: row.rating ?? START_RATING,
     avatar_kind: row.avatar_kind ?? "google",
     avatar_url: row.avatar_url ?? null,
+    // Surtout pas de `?? 0` : une colonne absente n'est pas un joueur sans
+    // partie. Laissée indéfinie, elle vaut « classé » et le grade s'affiche.
+    ...(row.rated_games === undefined ? {} : { rated_games: row.rated_games }),
   };
 }
 
@@ -566,30 +580,62 @@ export interface LigneClassement extends PublicProfile {
   rated_games: number;
 }
 
+/** Le tableau, en deux parties : ceux qui ont une cote, et ceux qui la font. */
+export interface Classement {
+  /** Classés, du plus fort au plus faible. Ce sont eux qui ont un rang. */
+  classes: LigneClassement[];
+  /** En cours de placement, du plus avancé au moins avancé. Sans rang. */
+  enPlacement: LigneClassement[];
+}
+
 /**
- * Le classement des joueurs, du plus fort au plus faible.
+ * Le classement des joueurs.
  *
- * Volontairement SANS seuil d'entrée. Sur une communauté encore petite, exiger
- * un nombre de parties avant d'apparaître vide le tableau et décourage ceux
- * qu'il devrait justement motiver. On montre donc tout le monde, et le nombre
- * de champs joués dit lui-même ce que vaut chaque cote : une cote de 1000 en
- * zéro partie n'est pas une performance, et se lit comme telle.
+ * Le tableau était trié sur la seule cote, tout le monde mélangé. Un compte
+ * ouvert le matin, jamais joué, se retrouvait donc au-dessus d'un joueur ayant
+ * gagné quatre champs et perdu cinq — 1000 étant plus grand que 980. Les deux
+ * nombres étaient justes ; c'est de les ranger ensemble qui était faux, parce
+ * qu'une cote de départ n'est pas un résultat mais une absence de résultat.
  *
- * La vue `public_profiles` n'expose que ce qu'un adversaire peut déjà voir.
- * Elle se lit en une requête, sans fonction dédiée : la colonne de tri est
- * indexée par la clé primaire du profil, et quelques dizaines de lignes ne
- * justifient pas davantage.
+ * Les joueurs en placement sont donc à part (voir `CHAMPS_DE_PLACEMENT`), et
+ * non cachés : les faire disparaître viderait le tableau sur une communauté
+ * encore petite, et découragerait précisément ceux qu'il doit attirer. Ils
+ * restent visibles, ordonnés par avancement, sans rang ni grade.
+ *
+ * Deux lectures plutôt qu'une, pour que la moitié en placement ne puisse pas
+ * occuper les cinquante lignes et refouler les joueurs classés hors du
+ * tableau. La vue `public_profiles` n'expose que ce qu'un adversaire peut déjà
+ * voir, et quelques dizaines de lignes ne justifient pas de fonction dédiée.
  */
-export async function listeClassement(limite = 50): Promise<LigneClassement[]> {
-  const { data, error } = await anyTable("public_profiles")
-    .select("id, username, rating, avatar_kind, avatar_url, rated_games")
-    .order("rating", { ascending: false })
-    .order("username", { ascending: true })
-    .limit(limite);
-  if (error) throw error;
-  const rows =
-    (data as unknown as (Partial<LigneClassement> & { id: string; username: string })[]) ?? [];
-  return rows.map((r) => ({ ...asPublic(r), rated_games: r.rated_games ?? 0 }));
+export async function listeClassement(limite = 50): Promise<Classement> {
+  const colonnes = "id, username, rating, avatar_kind, avatar_url, rated_games";
+  type Ligne = Partial<LigneClassement> & { id: string; username: string };
+  const lire = (r: { data: unknown; error: unknown }): LigneClassement[] =>
+    ((r.data as Ligne[] | null) ?? []).map((l) => ({
+      ...asPublic(l),
+      rated_games: l.rated_games ?? 0,
+    }));
+
+  const [classes, placement] = await Promise.all([
+    anyTable("public_profiles")
+      .select(colonnes)
+      .gte("rated_games", CHAMPS_DE_PLACEMENT)
+      .order("rating", { ascending: false })
+      .order("username", { ascending: true })
+      .limit(limite),
+    anyTable("public_profiles")
+      .select(colonnes)
+      .lt("rated_games", CHAMPS_DE_PLACEMENT)
+      // Par avancement : celui qui a joué quatre champs est plus près du
+      // tableau que celui qui n'en a joué aucun, et c'est la seule chose
+      // qu'on puisse honnêtement dire d'eux.
+      .order("rated_games", { ascending: false })
+      .order("username", { ascending: true })
+      .limit(limite),
+  ]);
+  if (classes.error) throw classes.error;
+  if (placement.error) throw placement.error;
+  return { classes: lire(classes), enPlacement: lire(placement) };
 }
 
 /* ---------- Pseudo et avatar ---------- */
@@ -969,6 +1015,7 @@ export async function listFriends(): Promise<Friend[]> {
       rating: other?.rating ?? START_RATING,
       avatar_kind: other?.avatar_kind ?? "google",
       avatar_url: other?.avatar_url ?? null,
+      ...(other?.rated_games === undefined ? {} : { rated_games: other.rated_games }),
       status: r.status,
       incoming: r.addressee_id === me && r.status === "pending",
     };
@@ -1090,6 +1137,9 @@ export async function listIncomingInvites(): Promise<GameInvite[]> {
     ...i,
     from_username: known.get(i.from_id)?.username ?? "Joueur",
     from_rating: known.get(i.from_id)?.rating ?? START_RATING,
+    ...(known.get(i.from_id)?.rated_games === undefined
+      ? {}
+      : { from_rated_games: known.get(i.from_id)!.rated_games }),
     from_avatar: known.get(i.from_id) ?? null,
   }));
 }
