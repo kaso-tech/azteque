@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RANKS, RATING_FLOOR, START_RATING, rankGap, rankOf, rankProgress } from "./rank";
+import { ELO_K, RANKS, RATING_FLOOR, START_RATING, rankGap, rankOf, rankProgress } from "./rank";
 
 describe("grades", () => {
   it("place un compte neuf au premier grade, avec de la marge sous les pieds", () => {
@@ -29,11 +29,11 @@ describe("grades", () => {
   });
 
   it("mesure l'avancement dans le grade", () => {
-    const mid = rankProgress(1100 + 75); // moitié du palier Novice
+    const mid = rankProgress(1060 + 40); // moitié du palier Novice (1060 → 1140)
     expect(mid.rank.name).toBe("Novice");
     expect(mid.next?.name).toBe("Initié");
     expect(mid.ratio).toBeCloseTo(0.5);
-    expect(mid.toNext).toBe(75);
+    expect(mid.toNext).toBe(40);
   });
 
   it("ne promet plus rien au dernier grade", () => {
@@ -44,8 +44,65 @@ describe("grades", () => {
   });
 
   it("situe l'adversaire par rapport à soi", () => {
-    expect(rankGap(1100, 1300)).toBe("superieur");
-    expect(rankGap(1300, 1100)).toBe("inferieur");
-    expect(rankGap(1100, 1149)).toBe("egal");
+    expect(rankGap(1060, 1300)).toBe("superieur");
+    expect(rankGap(1300, 1060)).toBe("inferieur");
+    expect(rankGap(1060, 1139)).toBe("egal");
+  });
+});
+
+/**
+ * Le prix d'un grade, compté en victoires.
+ *
+ * Contre un adversaire de sa propre cote, l'espérance vaut 0,5 : une victoire
+ * rapporte donc K/2, une défaite coûte autant. Le compte ci-dessous est celui
+ * de victoires NETTES — l'excédent de victoires sur les défaites.
+ *
+ * Reproduit la règle de `public.elo_k`. Si la base change et pas ceci, les
+ * chiffres attendus plus bas cessent de décrire le jeu réel : c'est exactement
+ * ce qui s'était produit, la documentation promettant cinq victoires par
+ * palier là où il en fallait treize.
+ */
+function victoiresJusqua(cible: number): number {
+  let cote = START_RATING;
+  let classees = 0;
+  let victoires = 0;
+  while (cote < cible && victoires < 1000) {
+    const k =
+      classees < 10 ? ELO_K.rodage : cote >= ELO_K.seuilSommet ? ELO_K.sommet : ELO_K.normal;
+    cote += k / 2;
+    classees += 1;
+    victoires += 1;
+  }
+  return victoires;
+}
+
+describe("rythme de la montée", () => {
+  it("fait se mériter chaque grade un peu plus que le précédent", () => {
+    const prix = RANKS.slice(1)
+      .map((r) => r.min)
+      .map(victoiresJusqua);
+    const marches = prix.map((v, i) => v - (prix[i - 1] ?? 0));
+
+    // Aucune marche ne redescend : la courbe monte, sans creux ni palier
+    // gratuit au milieu de l'échelle.
+    for (let i = 1; i < marches.length; i += 1) {
+      expect(marches[i]).toBeGreaterThanOrEqual(marches[i - 1]!);
+    }
+  });
+
+  it("met les premiers grades à portée", () => {
+    // Le reproche auquel ces seuils répondent : le deuxième grade coûtait
+    // cinq victoires, le troisième dix, et chacun des suivants une douzaine.
+    expect(victoiresJusqua(RANKS[1]!.min)).toBeLessThanOrEqual(4);
+    expect(victoiresJusqua(RANKS[2]!.min)).toBeLessThanOrEqual(8);
+    expect(victoiresJusqua(RANKS[3]!.min)).toBeLessThanOrEqual(14);
+  });
+
+  it("laisse le sommet se gagner sur la durée", () => {
+    const roi = victoiresJusqua(RANKS[9]!.min);
+    // Assez long pour qu'une couronne veuille dire quelque chose…
+    expect(roi).toBeGreaterThanOrEqual(60);
+    // …mais plus les 114 victoires nettes d'avant, hors d'atteinte pour tous.
+    expect(roi).toBeLessThanOrEqual(95);
   });
 });

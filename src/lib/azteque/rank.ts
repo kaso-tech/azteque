@@ -6,10 +6,23 @@
  * paliers fixes, décrits ici et nulle part ailleurs, pour qu'il n'y ait jamais
  * deux barèmes à tenir en accord.
  *
- * Les paliers sont espacés de 150 points, soit environ cinq victoires contre
- * un adversaire de son niveau. Le premier grade est plus large : il va du
- * plancher de la cote au premier palier, de sorte qu'un joueur qui débute ait
- * de la marge avant de se sentir bloqué.
+ * Les paliers S'ÉLARGISSENT à mesure qu'on monte, au lieu d'être espacés
+ * régulièrement. Un écart constant donne la pire des courbes : le premier
+ * grade arrive vite (le rodage double les gains), puis tous les suivants
+ * coûtent le même prix, et ce prix — une douzaine de victoires nettes — est
+ * bien trop lourd pour un grade du milieu. Le joueur monte une fois, puis
+ * s'arrête, avec l'impression que le classement ne bouge plus.
+ *
+ * Les premiers paliers se franchissent donc en trois ou quatre victoires
+ * nettes : assez pour qu'ils se méritent, assez peu pour qu'on les voie
+ * arriver. Les derniers en demandent une quinzaine, parce qu'un Roi Aztèque
+ * doit se gagner sur la durée. Le compte exact est verrouillé par un test
+ * (`rank.test.ts`) : ces paliers et le coefficient K de la base se lisent
+ * ensemble, et se démentaient jusqu'ici.
+ *
+ * Le premier grade reste le plus large vers le bas : il va du plancher de la
+ * cote au premier palier, de sorte qu'un joueur qui débute ait de la marge
+ * avant de se sentir bloqué.
  */
 
 export interface Rank {
@@ -40,18 +53,45 @@ const DEBUTANT: Rank = {
   tone: "text-lime-400",
 };
 
+/*
+ * Les seuils ne REMONTENT jamais d'une version à l'autre : chacun de ceux-ci
+ * est plus bas que celui qu'il remplace. Un joueur peut donc y gagner un
+ * grade du jour au lendemain, jamais en perdre un — se faire rétrograder par
+ * une mise à jour, sans avoir perdu une seule partie, serait la pire façon de
+ * rendre le classement plus accueillant.
+ */
 export const RANKS: Rank[] = [
   DEBUTANT,
-  { tier: 2, name: "Novice", emoji: "🟢", min: 1100, tone: "text-green-500" },
-  { tier: 3, name: "Initié", emoji: "🔵", min: 1250, tone: "text-blue-400" },
-  { tier: 4, name: "Stratège", emoji: "🟣", min: 1400, tone: "text-purple-400" },
-  { tier: 5, name: "Vétéran", emoji: "🟠", min: 1550, tone: "text-orange-400" },
-  { tier: 6, name: "Expert", emoji: "🔴", min: 1700, tone: "text-red-400" },
-  { tier: 7, name: "Maître", emoji: "⚫", min: 1850, tone: "text-zinc-300", dim: true },
-  { tier: 8, name: "Grand Maître", emoji: "🟡", min: 2000, tone: "text-yellow-300" },
-  { tier: 9, name: "Légende", emoji: "💎", min: 2150, tone: "text-cyan-300" },
-  { tier: 10, name: "Roi Aztèque", emoji: "👑", min: 2300, tone: "text-gold" },
+  { tier: 2, name: "Novice", emoji: "🟢", min: 1060, tone: "text-green-500" },
+  { tier: 3, name: "Initié", emoji: "🔵", min: 1140, tone: "text-blue-400" },
+  { tier: 4, name: "Stratège", emoji: "🟣", min: 1240, tone: "text-purple-400" },
+  { tier: 5, name: "Vétéran", emoji: "🟠", min: 1360, tone: "text-orange-400" },
+  { tier: 6, name: "Expert", emoji: "🔴", min: 1500, tone: "text-red-400" },
+  { tier: 7, name: "Maître", emoji: "⚫", min: 1660, tone: "text-zinc-300", dim: true },
+  { tier: 8, name: "Grand Maître", emoji: "🟡", min: 1840, tone: "text-yellow-300" },
+  { tier: 9, name: "Légende", emoji: "💎", min: 2040, tone: "text-cyan-300" },
+  { tier: 10, name: "Roi Aztèque", emoji: "👑", min: 2260, tone: "text-gold" },
 ];
+
+/**
+ * Le coefficient K de la base, reproduit ici pour que le rythme de la montée
+ * soit vérifiable (voir `rank.test.ts`).
+ *
+ * Il n'est PAS utilisé pour calculer quoi que ce soit : la cote se calcule
+ * exclusivement côté serveur, où un client modifié n'a pas voix au chapitre.
+ * Ces valeurs doivent suivre `public.elo_k` — le test échoue si les paliers
+ * et elles cessent de s'accorder, ce qui est arrivé une fois déjà.
+ */
+export const ELO_K = {
+  /** Rodage : les dix premières parties classées, le temps de se situer. */
+  rodage: 40,
+  /** Régime ordinaire. */
+  normal: 32,
+  /** À partir de Grand Maître : une cote de ce niveau se tient sur la durée. */
+  sommet: 24,
+  /** Cote à partir de laquelle `sommet` s'applique. */
+  seuilSommet: 1840,
+} as const;
 
 /** Le grade correspondant à une cote. */
 export function rankOf(rating: number): Rank {
