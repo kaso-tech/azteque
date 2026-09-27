@@ -505,24 +505,43 @@ function Azteque() {
    * donc ici, derrière la même bannière (voir `DELAI_ANNONCE_REDONNE`).
    */
   const [annonceRedonne, setAnnonceRedonne] = useState(false);
+  // Le minuteur vit hors des dépendances de l'effet : rattaché à `state`, le
+  // moindre changement (un coup de l'ordinateur, par exemple) l'annulait, la
+  // redonne n'avait jamais lieu et la bannière restait affichée pour toujours.
+  const minuteurRedonne = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!started || !freshRound || dealing || aiRedealChecked.current === roundKey) return;
     aiRedealChecked.current = roundKey;
-    if (aiWantsRedeal(state, settings.difficulty)) {
-      setAnnonceRedonne(true);
-      const t = setTimeout(() => {
-        setAnnonceRedonne(false);
-        setState((s) => {
-          const ns = newRound(s.dealer, s.roundsWon);
-          ns.log.unshift("L'adversaire avait une main blanche : redistribution.");
-          return ns;
-        });
-        setRoundKey((k) => k + 1);
-      }, DELAI_ANNONCE_REDONNE);
-      return () => clearTimeout(t);
-    }
-    return;
+    if (!aiWantsRedeal(state, settings.difficulty)) return;
+    setAnnonceRedonne(true);
+    if (minuteurRedonne.current) clearTimeout(minuteurRedonne.current);
+    minuteurRedonne.current = setTimeout(() => {
+      minuteurRedonne.current = null;
+      setAnnonceRedonne(false);
+      setState((s) => {
+        const ns = newRound(s.dealer, s.roundsWon);
+        ns.log.unshift("L'adversaire avait une main blanche : redistribution.");
+        return ns;
+      });
+      setMeldHistory([]);
+      setRedealDone(false);
+      setRoundKey((k) => k + 1);
+    }, DELAI_ANNONCE_REDONNE);
   }, [started, freshRound, dealing, roundKey, state, settings.difficulty]);
+
+  // Quitter la table annule une redonne annoncée.
+  useEffect(() => {
+    if (started) return;
+    if (minuteurRedonne.current) clearTimeout(minuteurRedonne.current);
+    minuteurRedonne.current = null;
+    setAnnonceRedonne(false);
+  }, [started]);
+  useEffect(
+    () => () => {
+      if (minuteurRedonne.current) clearTimeout(minuteurRedonne.current);
+    },
+    [],
+  );
 
   // Résolution du pli : ramassage animé puis pioche, avec de petites pauses
   useEffect(() => {
@@ -754,7 +773,7 @@ function Azteque() {
     if (!started || state.phase !== "playing" || state.turn !== 1 || state.trick.length >= 2)
       return;
     if (state.drawPending.length > 0 || state.canAnnounce === 1) return;
-    if (dealing) return;
+    if (dealing || annonceRedonne) return;
     // PR9+ — Main blanche : si le joueur (côté 0) a une main blanche en début
     // de tour et que l'IA est sur le point de jouer, on attend que le joueur
     // tranche (redistribution ou garder). Sinon l'IA joue avant que le joueur
@@ -773,7 +792,7 @@ function Azteque() {
       setState((s) => playCard(s, 1, card.id));
     }, 750);
     return () => clearTimeout(t);
-  }, [started, state, settings.difficulty, dealing, fly]);
+  }, [started, state, settings.difficulty, dealing, fly, annonceRedonne]);
 
   // Acclamations / rire moqueur en fin de tour
   const phaseKey = `${state.phase}-${state.roundsWon[0]}-${state.roundsWon[1]}`;
@@ -1202,7 +1221,7 @@ function Azteque() {
         )}
 
         {/* Main blanche */}
-        {canRedeal && (
+        {canRedeal && !annonceRedonne && (
           <div className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]">
             <p className="text-xs text-accent">
               Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
