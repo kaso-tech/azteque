@@ -482,7 +482,6 @@ function Azteque() {
   // L'offre de redistribution attend la fin de la donne : proposée pendant,
   // elle annoncerait le contenu de la main avant que les cartes n'y soient.
   const canRedeal = freshRound && !dealing && !redealDone && hasMainBlanche(state, 0);
-  // (masqué pendant l'annonce adverse, voir plus bas)
 
   // Le tapis acheté en boutique, s'il y en a un : il se pose sur la table,
   // au-dessus du feutre.
@@ -1222,7 +1221,7 @@ function Azteque() {
         )}
 
         {/* Main blanche */}
-        {canRedeal && (
+        {canRedeal && !annonceRedonne && (
           <div className="relative z-30 w-full max-w-sm rounded-lg border border-accent/50 bg-secondary p-3 text-center shadow-[var(--shadow-card)]">
             <p className="text-xs text-accent">
               Main blanche : vous n'avez ni Roi, ni Dame, ni Valet.
