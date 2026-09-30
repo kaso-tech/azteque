@@ -464,7 +464,7 @@ export function MeldHistoryPanel({
         </div>
 
         {entries.length === 0 ? (
-          <p className="mt-6 text-sm text-muted-foreground">Aucun compte annoncé pour le moment.</p>
+          <p className="mt-6 text-sm text-muted-foreground">Aucun compte annoncé pendant ce tour.</p>
         ) : (
           <ul className="mt-5 flex flex-col gap-2">
             {entries.map((e) => (

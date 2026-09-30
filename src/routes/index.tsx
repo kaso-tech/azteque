@@ -428,8 +428,8 @@ function Azteque() {
       const known = new Set(prev.map((e) => e.key));
       const added: typeof prev = [];
       ([0, 1] as PlayerIndex[]).forEach((p) => {
-        state.melds[p].forEach((m) => {
-          const key = `${roundKey}-${p}-${m.suit}-${m.type}`;
+        state.melds[p].forEach((m, i) => {
+          const key = `${roundKey}-${p}-${m.suit}-${m.type}-${i}`;
           if (known.has(key)) return;
           added.push({
             key,
@@ -1569,7 +1569,7 @@ function Azteque() {
         />
       )}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory} me={0} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel entries={meldHistory.filter((e) => e.round === roundKey + 1)} me={0} onClose={() => setShowHistory(false)} />
       )}
     </main>
   );
