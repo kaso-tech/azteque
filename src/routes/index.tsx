@@ -1569,7 +1569,11 @@ function Azteque() {
         />
       )}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory.filter((e) => e.round === roundKey + 1)} me={0} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel
+          entries={meldHistory.filter((e) => e.round === roundKey + 1)}
+          me={0}
+          onClose={() => setShowHistory(false)}
+        />
       )}
     </main>
   );

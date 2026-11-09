@@ -2082,7 +2082,11 @@ function OnlineTable() {
 
       {showMyGains && <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory.filter((e) => e.round === manche + 1)} me={me} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel
+          entries={meldHistory.filter((e) => e.round === manche + 1)}
+          me={me}
+          onClose={() => setShowHistory(false)}
+        />
       )}
 
       {showMyBonnes && (
