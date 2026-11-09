@@ -38,6 +38,13 @@ dist-ssr
 *.sln
 *.sw?
 
+# Ce projet installe avec BUN, et c'est `bun.lock` qui fait foi — il est
+# versionné. Un `npm install` lancé pour vérifier un build produit en plus un
+# `package-lock.json` : le committer laisserait deux lockfiles concurrents
+# dans le dépôt, et la version installée dépendrait alors du gestionnaire qui
+# tourne. Il n'a rien à faire ici.
+package-lock.json
+
 # Bancs d'essai et mesures jetables : utiles le temps d'un réglage, jamais
 # une source du projet.
 scratchpad/
