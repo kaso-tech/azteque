@@ -1254,8 +1254,8 @@ function OnlineTable() {
       const connus = new Set(prev.map((e) => e.key));
       const ajouts: typeof prev = [];
       ([0, 1] as PlayerIndex[]).forEach((p) => {
-        mesMelds[p].forEach((m) => {
-          const key = `${manche}-${p}-${m.suit}-${m.type}`;
+        mesMelds[p].forEach((m, i) => {
+          const key = `${manche}-${p}-${m.suit}-${m.type}-${i}`;
           if (connus.has(key)) return;
           ajouts.push({
             key,
@@ -2082,7 +2082,7 @@ function OnlineTable() {
 
       {showMyGains && <GainsPanel cards={state.gains[me]} onClose={() => setShowMyGains(false)} />}
       {showHistory && (
-        <MeldHistoryPanel entries={meldHistory} me={me} onClose={() => setShowHistory(false)} />
+        <MeldHistoryPanel entries={meldHistory.filter((e) => e.round === manche + 1)} me={me} onClose={() => setShowHistory(false)} />
       )}
 
       {showMyBonnes && (
